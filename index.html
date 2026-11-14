@@ -172,6 +172,7 @@
   </div>
   <div class="kv"><label for="deviceName">This phone's name</label><input id="deviceName" maxlength="40"></div>
   <div class="kv"><span class="k">Channel</span><code id="topicCode"></code></div>
+  <div class="row"><span class="k" style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700;">Version <span id="version"></span></span><button id="updateBtn" class="ghost small">Check for updates</button></div>
   <p style="margin:0;color:var(--muted);font-size:13px;">Each project that sends a message gets its own tab at the bottom. The feed shows the last 12 hours from the channel plus everything pushed to this phone.</p>
 </section>
 
@@ -185,7 +186,9 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  const APP_VERSION = "1.2";
   const DEFAULT_TABS = ["Stocks", "Claude News"];
+  document.getElementById("version").textContent = APP_VERSION;
   let registration = null, subscription = null, deferredInstall = null;
   let messages = new Map(), tabs = [], current = "Stocks", seen = {};
 
@@ -384,9 +387,21 @@
   window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferredInstall = e; if (!standalone) $("installBtn").hidden = false; });
   document.addEventListener("visibilitychange", () => { if (!document.hidden) fetchRecent(); });
   setInterval(() => { if (!document.hidden) fetchRecent(); }, 60000);
+  let reloading = false;
+  const hadController = "serviceWorker" in navigator && !!navigator.serviceWorker.controller;   // false on first ever load
+  function reloadOnce() { if (!reloading && hadController) { reloading = true; location.reload(); } }
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.addEventListener("message", (e) => { if (e.data && e.data.type === "new-message") { addMessages([e.data.message]); render(); } });
+    navigator.serviceWorker.addEventListener("message", (e) => {
+      if (!e.data) return;
+      if (e.data.type === "new-message") { addMessages([e.data.message]); render(); }
+      if (e.data.type === "updated" && navigator.serviceWorker.controller) reloadOnce();   // a new version just took over
+    });
   }
+  $("updateBtn").onclick = async () => {
+    toast("Checking…");
+    try { if (registration) await registration.update(); } catch {}
+    setTimeout(() => { if (!reloading) location.reload(); }, 1200);
+  };
 
   (async () => {
     render();

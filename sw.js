@@ -1,5 +1,5 @@
 /* Claude News service worker: offline shell + push notifications. */
-const CACHE = "claude-news-v3";
+const CACHE = "claude-news-v4";
 const SHELL = ["./", "./index.html", "./config.js", "./manifest.webmanifest",
                "./icons/icon-192.png", "./icons/icon-512.png", "./icons/logo.svg"];
 
@@ -35,24 +35,29 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
-      .then(() => self.clients.claim())
-  );
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
+    await self.clients.claim();
+    const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    clients.forEach((c) => c.postMessage({ type: "updated", cache: CACHE }));
+  })());
 });
 
-// Same-origin files: serve from cache, refresh in the background. Everything else untouched.
+// The page itself: network first so a new version shows up at once, cache when offline.
+// Other same-origin files: cache first, refreshed in the background. Everything else untouched.
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin || event.request.method !== "GET") return;
+  const isPage = event.request.mode === "navigate" || url.pathname.endsWith("/") || url.pathname.endsWith("index.html");
   event.respondWith(
     caches.open(CACHE).then(async (cache) => {
       const cached = await cache.match(event.request);
-      const network = fetch(event.request).then((res) => {
+      const network = fetch(event.request, isPage ? { cache: "no-cache" } : undefined).then((res) => {
         if (res && res.ok) cache.put(event.request, res.clone());
         return res;
       }).catch(() => cached);
-      return cached || network;
+      return isPage ? network : (cached || network);
     })
   );
 });
