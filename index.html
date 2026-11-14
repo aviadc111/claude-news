@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Claude News</title>
 <meta name="description" content="Messages and alerts from your projects, pushed to your phone.">
 <link rel="manifest" href="manifest.webmanifest">
@@ -35,7 +35,10 @@
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
   html, body { height: 100%; }
-  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.45 var(--font); -webkit-font-smoothing: antialiased; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.45 var(--font); -webkit-font-smoothing: antialiased;
+         touch-action: pan-x pan-y; -webkit-text-size-adjust: 100%; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  .msg, code, input { -webkit-user-select: text; user-select: text; }
+  input { font-size: 16px !important; }   /* 16px stops iPhone zooming into the field */
   body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); background: var(--bg); z-index: 10; }
 
   /* header */
@@ -55,7 +58,7 @@
   /* content */
   main {
     max-width: 640px; margin: 0 auto; display: grid; gap: 14px; align-content: start;
-    padding-block: 4px calc(96px + env(safe-area-inset-bottom, 0px));
+    padding-block: 4px calc(68px + env(safe-area-inset-bottom, 0px));
     padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
   }
   .card { background: var(--surface); border-radius: 16px; padding: 16px; }
@@ -90,21 +93,21 @@
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 8;
     background: var(--tabbar); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
     border-top: 1px solid var(--line);
-    padding-top: 6px; padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    padding-top: 3px; padding-bottom: calc(2px + env(safe-area-inset-bottom, 0px));
     padding-left: max(8px, env(safe-area-inset-left, 0px)); padding-right: max(8px, env(safe-area-inset-right, 0px));
     display: flex; justify-content: center; gap: 4px; overflow-x: auto; scrollbar-width: none;
   }
   nav.tabs::-webkit-scrollbar { display: none; }
   .tab {
-    flex: 1 1 0; min-width: 84px; max-width: 160px; background: none; color: var(--muted); border-radius: 12px; padding: 6px 4px 4px;
-    display: grid; justify-items: center; gap: 3px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; position: relative;
+    flex: 1 1 0; min-width: 84px; max-width: 160px; background: none; color: var(--muted); border-radius: 10px; padding: 3px 4px 2px;
+    display: grid; justify-items: center; gap: 1px; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; position: relative;
   }
-  .tab .ico { width: 44px; height: 28px; border-radius: 10px; display: grid; place-items: center; transition: background .15s; }
-  .tab .ico svg { width: 22px; height: 22px; }
-  .tab .ico .letter { font-size: 14px; font-weight: 800; }
+  .tab .ico { width: 40px; height: 22px; border-radius: 8px; display: grid; place-items: center; transition: background .15s; }
+  .tab .ico svg { width: 19px; height: 19px; }
+  .tab .ico .letter { font-size: 13px; font-weight: 800; }
   .tab.active { color: var(--tc, var(--accent)); }
   .tab.active .ico { background: color-mix(in srgb, var(--tc, var(--accent)) 18%, transparent); }
-  .tab .badge { position: absolute; top: 2px; right: calc(50% - 30px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--danger); color: #fff; font-size: 11px; display: grid; place-items: center; }
+  .tab .badge { position: absolute; top: 0; right: calc(50% - 28px); min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--danger); color: #fff; font-size: 10px; display: grid; place-items: center; }
 
   /* settings sheet */
   .sheet-bg { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 20; }
@@ -186,7 +189,11 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "1.2";
+  const APP_VERSION = "1.3";
+  // no pinch or double-tap zoom in the app
+  ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
+  let lastTap = 0;
+  document.addEventListener("touchend", (e) => { const now = Date.now(); if (now - lastTap < 300 && !e.target.closest("input, button, a")) e.preventDefault(); lastTap = now; }, { passive: false });
   const DEFAULT_TABS = ["Stocks", "Claude News"];
   document.getElementById("version").textContent = APP_VERSION;
   let registration = null, subscription = null, deferredInstall = null;

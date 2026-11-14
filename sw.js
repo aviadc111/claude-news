@@ -1,5 +1,5 @@
 /* Claude News service worker: offline shell + push notifications. */
-const CACHE = "claude-news-v4";
+const CACHE = "claude-news-v5";
 const SHELL = ["./", "./index.html", "./config.js", "./manifest.webmanifest",
                "./icons/icon-192.png", "./icons/icon-512.png", "./icons/logo.svg"];
 
