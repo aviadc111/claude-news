@@ -261,8 +261,8 @@
   }
   function showError(text) { const e = $("setupError"); e.textContent = text; e.hidden = !text; }
   function updateSetupUI() {
-    const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
     const needsHome = isIOS && !standalone;
+    const supported = "serviceWorker" in navigator && "Notification" in window && ("PushManager" in window || needsHome);
     $("setup").hidden = !!subscription;
     $("disableBtn").hidden = !subscription;
     $("iosSteps").hidden = !needsHome;
@@ -277,6 +277,7 @@
     showError("");
     try {
       if (!registration) throw new Error("The app isn't fully installed yet. Reload and try again.");
+      if (!registration.pushManager) throw new Error("Open Claude News from your Home Screen icon to turn on notifications.");
       const perm = await Notification.requestPermission();
       if (perm !== "granted") throw new Error("Permission was not given.");
       subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(C.vapidPublicKey) });
@@ -310,7 +311,8 @@
       try {
         registration = await navigator.serviceWorker.register("sw.js");
         await navigator.serviceWorker.ready;
-        subscription = await registration.pushManager.getSubscription();
+        // Safari on iPhone only exposes push once the app runs from the Home Screen.
+        subscription = registration.pushManager ? await registration.pushManager.getSubscription() : null;
       } catch (e) { showError("Could not install the background worker: " + (e.message || e)); }
     }
     updateSetupUI();
