@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Claude News</title>
+<meta name="description" content="Messages and alerts from your projects, pushed to your phone.">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Claude News">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icons/favicon-32.png">
+<style>
+  /* Layout: one column phone feed. Dark slate like the logo; amber accent; project colours from a hue hash. */
+  :root {
+    --bg: #0f172a; --surface: #1e293b; --surface-2: #263449; --line: #334155;
+    --fg: #f1f5f9; --muted: #94a3b8; --accent: #f59e0b; --accent-ink: #0f172a;
+    --ok: #22c55e; --danger: #ef4444;
+    --font: -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f4f6fa; --surface: #ffffff; --surface-2: #eef2f7; --line: #dde3ec;
+      --fg: #0f172a; --muted: #5b6b82; color-scheme: light;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #f4f6fa; --surface: #ffffff; --surface-2: #eef2f7; --line: #dde3ec;
+    --fg: #0f172a; --muted: #5b6b82; color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.45 var(--font);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); background: var(--bg); z-index: 10; }
+  header {
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg);
+    display: flex; align-items: center; gap: 12px;
+    padding-block: 12px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+    border-bottom: 1px solid var(--line);
+  }
+  header img { width: 40px; height: 40px; border-radius: 10px; }
+  header h1 { font-size: 20px; margin: 0; flex: 1; letter-spacing: -0.01em; }
+  .pill { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
+  .pill.on { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+  .pill.off { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
+  main {
+    max-width: 640px; margin: 0 auto; display: grid; gap: 14px;
+    padding-block: 14px 24px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+  .card h2 { margin: 0 0 6px; font-size: 16px; }
+  .card p { margin: 0 0 10px; color: var(--muted); }
+  .card ol { margin: 0 0 10px; padding-left: 20px; color: var(--muted); }
+  .card li { margin: 4px 0; }
+  button {
+    font: inherit; font-weight: 600; border: 0; border-radius: 10px; padding: 11px 16px; cursor: pointer;
+    background: var(--accent); color: var(--accent-ink);
+  }
+  button.ghost { background: var(--surface-2); color: var(--fg); }
+  button.small { padding: 7px 12px; font-size: 13px; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button[disabled] { opacity: .6; cursor: default; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    flex: 0 0 auto; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 999px;
+    background: var(--surface-2); color: var(--muted); border: 1px solid transparent;
+  }
+  .chip.active { background: var(--fg); color: var(--bg); }
+  .feed { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .msg { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display: grid; gap: 4px; border-left: 4px solid var(--pc, var(--accent)); }
+  .msg .meta { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .msg .project { color: var(--pc, var(--accent)); font-weight: 700; letter-spacing: .02em; text-transform: uppercase; font-size: 11px; }
+  .msg .title { font-weight: 700; }
+  .msg .body { white-space: pre-wrap; color: var(--fg); opacity: .9; font-size: 14px; }
+  .msg a { color: var(--accent); font-size: 13px; }
+  .empty { text-align: center; color: var(--muted); padding: 28px 8px; }
+  .toast {
+    position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+    background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-weight: 600; font-size: 14px;
+    max-width: calc(100% - 32px); z-index: 20; box-shadow: 0 10px 30px rgba(0,0,0,.35);
+  }
+  footer { color: var(--muted); font-size: 12px; display: grid; gap: 8px; }
+  footer input { font: inherit; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); width: 170px; max-width: 100%; }
+  code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; background: var(--surface-2); padding: 2px 6px; border-radius: 6px; word-break: break-all; }
+  @media (prefers-reduced-motion: no-preference) { .msg { animation: in .25s ease-out; } @keyframes in { from { opacity: 0; transform: translateY(4px);} } }
+</style>
+</head>
+<body>
+<header>
+  <img src="icons/logo.svg" alt="" width="40" height="40">
+  <h1>Claude News</h1>
+  <span id="status" class="pill">Checking…</span>
+</header>
+
+<main>
+  <section id="setup" class="card" hidden>
+    <h2 id="setupTitle">Turn on notifications</h2>
+    <p id="setupText">Get a notification on this phone whenever one of your projects sends a message, even when the app is closed.</p>
+    <ol id="iosSteps" hidden>
+      <li>Tap the <strong>Share</strong> button in Safari.</li>
+      <li>Choose <strong>Add to Home Screen</strong>, then <strong>Add</strong>.</li>
+      <li>Open <strong>Claude News</strong> from your home screen and tap the button below.</li>
+    </ol>
+    <div class="row">
+      <button id="enableBtn">Turn on notifications</button>
+      <button id="installBtn" class="ghost" hidden>Install app</button>
+    </div>
+    <p id="setupError" hidden style="color: var(--danger); margin-top: 10px;"></p>
+  </section>
+
+  <div class="row" style="justify-content: space-between;">
+    <nav id="chips" class="chips" aria-label="Projects"></nav>
+    <button id="refreshBtn" class="ghost small">Refresh</button>
+  </div>
+
+  <ul id="feed" class="feed"></ul>
+  <p id="empty" class="empty" hidden>No messages yet. The feed shows the last 12 hours from your projects plus everything that was pushed to this phone.</p>
+
+  <footer>
+    <div class="row">
+      <label for="deviceName">This phone's name</label>
+      <input id="deviceName" maxlength="40">
+      <button id="disableBtn" class="ghost small" hidden>Turn off notifications</button>
+    </div>
+    <div>Channel: <code id="topicCode"></code></div>
+  </footer>
+</main>
+
+<script src="config.js"></script>
+<script>
+(() => {
+  const C = window.CLAUDE_NEWS || {};
+  const $ = (id) => document.getElementById(id);
+  const feedTopic = `${C.ntfy}/${C.topic}`;
+  const devicesTopic = `${C.ntfy}/${C.topic}-devices`;
+  const ua = navigator.userAgent;
+  const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  let registration = null, subscription = null, deferredInstall = null;
+  let messages = new Map(), filter = "All";
+
+  $("topicCode").textContent = C.topic || "(missing config.js)";
+
+  // ---- storage ------------------------------------------------------------
+  const ls = { get: (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
+               set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+  function openDB() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open("claude-news", 1);
+      req.onupgradeneeded = () => { const db = req.result; if (!db.objectStoreNames.contains("messages")) db.createObjectStore("messages", { keyPath: "id" }); };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  async function dbAll() {
+    try { const db = await openDB(); return await new Promise((res, rej) => { const r = db.transaction("messages").objectStore("messages").getAll(); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+    catch { return []; }
+  }
+  async function dbPut(list) {
+    try { const db = await openDB(); await new Promise((res, rej) => { const tx = db.transaction("messages", "readwrite"); list.forEach((m) => tx.objectStore("messages").put(m)); tx.oncomplete = res; tx.onerror = () => rej(tx.error); }); }
+    catch {}
+  }
+
+  // ---- device name --------------------------------------------------------
+  function guessName() {
+    const dev = isIOS ? (/iPad/i.test(ua) ? "iPad" : "iPhone") : /Android/i.test(ua) ? "Android phone" : /Windows/i.test(ua) ? "Windows PC" : /Mac/i.test(ua) ? "Mac" : "Device";
+    return dev;
+  }
+  const nameInput = $("deviceName");
+  nameInput.value = ls.get("cn.deviceName", guessName());
+  nameInput.addEventListener("change", () => ls.set("cn.deviceName", nameInput.value.trim() || guessName()));
+
+  // ---- UI helpers ---------------------------------------------------------
+  let toastTimer;
+  function toast(text) {
+    let t = document.querySelector(".toast");
+    if (!t) { t = document.createElement("div"); t.className = "toast"; document.body.appendChild(t); }
+    t.textContent = text; clearTimeout(toastTimer); toastTimer = setTimeout(() => t.remove(), 2800);
+  }
+  function setStatus(text, cls) { const s = $("status"); s.textContent = text; s.className = "pill " + (cls || ""); }
+  function hue(str) { let h = 0; for (const ch of str) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; }
+  function projectColor(p) { return p === "General" ? "var(--accent)" : `hsl(${hue(p)} 70% 60%)`; }
+  function fmtTime(ms) {
+    const d = new Date(ms), now = new Date(), diff = (now - d) / 60000;
+    if (diff < 1) return "just now";
+    if (diff < 60) return `${Math.round(diff)} min ago`;
+    const sameDay = d.toDateString() === now.toDateString();
+    const hm = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    if (sameDay) return hm;
+    const y = new Date(now); y.setDate(now.getDate() - 1);
+    if (d.toDateString() === y.toDateString()) return `Yesterday ${hm}`;
+    return d.toLocaleDateString([], { day: "numeric", month: "short" }) + " " + hm;
+  }
+
+  // ---- feed ---------------------------------------------------------------
+  function addMessages(list) { list.forEach((m) => messages.set(m.id, m)); }
+  function deduped() {
+    const seen = new Map();
+    for (const m of [...messages.values()].sort((a, b) => b.time - a.time)) {
+      const key = `${m.title}|${m.body}|${Math.round(m.time / 180000)}`;   // same text within ~3 min
+      if (!seen.has(key) || (seen.get(key).id.startsWith("push-") && !m.id.startsWith("push-"))) seen.set(key, m);
+    }
+    return [...seen.values()].sort((a, b) => b.time - a.time);
+  }
+  function render() {
+    const all = deduped();
+    const projects = ["All", ...new Set(all.map((m) => m.project))];
+    if (!projects.includes(filter)) filter = "All";
+    $("chips").innerHTML = projects.map((p) => `<button class="chip${p === filter ? " active" : ""}" data-p="${p}">${p}</button>`).join("");
+    $("chips").querySelectorAll(".chip").forEach((b) => b.onclick = () => { filter = b.dataset.p; render(); });
+    const shown = all.filter((m) => filter === "All" || m.project === filter);
+    $("feed").innerHTML = shown.map((m) => `
+      <li class="msg" style="--pc:${projectColor(m.project)}">
+        <div class="meta"><span class="project">${esc(m.project)}</span><span>${fmtTime(m.time)}</span></div>
+        <div class="title">${esc(m.title)}</div>
+        ${m.body ? `<div class="body">${esc(m.body)}</div>` : ""}
+        ${m.url ? `<a href="${esc(m.url)}" target="_blank" rel="noopener">Open link</a>` : ""}
+      </li>`).join("");
+    $("empty").hidden = shown.length > 0;
+  }
+  function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+  async function fetchRecent() {
+    if (!C.topic) return;
+    try {
+      const r = await fetch(`${feedTopic}/json?poll=1&since=12h`, { cache: "no-store" });
+      const text = await r.text();
+      const list = [];
+      for (const line of text.split("\n")) {
+        if (!line.trim()) continue;
+        let m; try { m = JSON.parse(line); } catch { continue; }
+        if (m.event !== "message") continue;
+        list.push({ id: m.id, time: m.time * 1000, title: m.title || "Claude News", body: m.message || "",
+                    project: (m.tags && m.tags[0]) || "General", url: m.click || "" });
+      }
+      addMessages(list); await dbPut(list);
+    } catch (e) { /* offline - show what we have */ }
+    render();
+  }
+  async function loadLocal() { addMessages(await dbAll()); render(); }
+
+  // ---- push ---------------------------------------------------------------
+  function b64ToBytes(b64) {
+    const pad = "=".repeat((4 - (b64.length % 4)) % 4);
+    const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
+    return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+  }
+  async function postDevices(action) {
+    const body = JSON.stringify({ action, name: nameInput.value.trim() || guessName(), ua, sub: subscription.toJSON(), time: Date.now() });
+    const r = await fetch(devicesTopic, { method: "POST", body, headers: { "Title": action } });
+    if (!r.ok) throw new Error("Could not register this phone (" + r.status + ")");
+  }
+  function showError(text) { const e = $("setupError"); e.textContent = text; e.hidden = !text; }
+  function updateSetupUI() {
+    const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+    const needsHome = isIOS && !standalone;
+    $("setup").hidden = !!subscription;
+    $("disableBtn").hidden = !subscription;
+    $("iosSteps").hidden = !needsHome;
+    $("enableBtn").disabled = !supported || needsHome;
+    if (subscription) setStatus("Notifications on", "on");
+    else if (!supported && !needsHome) { setStatus("Not supported here", "off"); $("setupText").textContent = "This browser can't receive push notifications. On Android use Chrome; on iPhone add the app to your Home Screen first."; }
+    else if (needsHome) { setStatus("Add to Home Screen", "off"); $("setupTitle").textContent = "One more step on iPhone"; $("setupText").textContent = "iPhone only allows notifications for apps on the Home Screen:"; }
+    else if (Notification.permission === "denied") { setStatus("Blocked", "off"); showError("Notifications are blocked for this site in your browser settings."); }
+    else setStatus("Notifications off", "off");
+  }
+  async function enable() {
+    showError("");
+    try {
+      if (!registration) throw new Error("The app isn't fully installed yet. Reload and try again.");
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") throw new Error("Permission was not given.");
+      subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(C.vapidPublicKey) });
+      await postDevices("subscribe");
+      ls.set("cn.subscribed", "1");
+      toast("Notifications on. Send a test from the PC to check.");
+    } catch (e) { subscription = null; showError(e.message || String(e)); }
+    updateSetupUI();
+  }
+  async function disable() {
+    try { if (subscription) { await postDevices("unsubscribe"); await subscription.unsubscribe(); } } catch {}
+    subscription = null; ls.set("cn.subscribed", "0"); toast("Notifications off"); updateSetupUI();
+  }
+
+  // ---- boot ---------------------------------------------------------------
+  $("enableBtn").onclick = enable;
+  $("disableBtn").onclick = disable;
+  $("refreshBtn").onclick = () => { fetchRecent(); toast("Refreshed"); };
+  $("installBtn").onclick = async () => { if (deferredInstall) { deferredInstall.prompt(); deferredInstall = null; $("installBtn").hidden = true; } };
+  window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferredInstall = e; if (!standalone) $("installBtn").hidden = false; });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) fetchRecent(); });
+  setInterval(() => { if (!document.hidden) fetchRecent(); }, 60000);
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.addEventListener("message", (e) => { if (e.data && e.data.type === "new-message") { addMessages([e.data.message]); render(); } });
+  }
+
+  (async () => {
+    await loadLocal();
+    fetchRecent();
+    if ("serviceWorker" in navigator) {
+      try {
+        registration = await navigator.serviceWorker.register("sw.js");
+        await navigator.serviceWorker.ready;
+        subscription = await registration.pushManager.getSubscription();
+      } catch (e) { showError("Could not install the background worker: " + (e.message || e)); }
+    }
+    updateSetupUI();
+  })();
+})();
+</script>
+</body>
+</html>
