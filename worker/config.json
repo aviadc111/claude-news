@@ -1,0 +1,19 @@
+{
+  "tickers": {
+    "NVDA": "NVIDIA",
+    "AAPL": "Apple",
+    "MSFT": "Microsoft",
+    "AMZN": "Amazon",
+    "GOOGL": "Alphabet (Google)",
+    "META": "Meta",
+    "TSLA": "Tesla"
+  },
+  "longterm_years": 2,
+  "drop_from_longterm_high_pct": 20.0,
+  "lookback_days": 30,
+  "drop_from_high_pct": 8.0,
+  "daily_drop_pct": 3.0,
+  "cooldown_hours": 24,
+  "realert_extra_drop_pct": 3.0,
+  "summary_every_hours": 3
+}

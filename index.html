@@ -124,6 +124,44 @@
   .status { font-weight: 700; }
   .status.on { color: var(--ok); } .status.off { color: var(--danger); }
   code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; background: var(--surface-2); padding: 3px 8px; border-radius: 8px; word-break: break-all; display: inline-block; }
+  /* stocks board */
+  .section-title .lead { display: flex; align-items: center; gap: 10px; }
+  .screen {
+    position: fixed; inset: 0; z-index: 15; background: var(--bg); overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding-top: env(safe-area-inset-top, 0px); padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .screen .bar { display: flex; align-items: center; gap: 10px; padding: 12px 0 8px; position: sticky; top: 0; background: var(--bg); z-index: 2; }
+  .screen .bar h2 { margin: 0; font-size: 22px; font-weight: 800; flex: 1; letter-spacing: -0.01em; }
+  .screen .bar .sub { font-size: 12px; color: var(--muted); }
+  .srow { width: 100%; text-align: left; background: var(--surface); border-radius: 16px; padding: 12px 14px; display: grid; grid-template-columns: 1fr 96px auto; align-items: center; gap: 12px; color: var(--fg); margin-bottom: 10px; }
+  .srow .nm { font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .srow .tk { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .srow .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .srow canvas { width: 96px; height: 36px; display: block; }
+  .srow .px { text-align: right; font-variant-numeric: tabular-nums; }
+  .srow .px b { display: block; font-size: 16px; }
+  .srow .px span { font-size: 12px; font-weight: 700; }
+  .up { color: var(--ok); } .down { color: var(--danger); }
+  .tag { font-size: 10px; font-weight: 800; letter-spacing: .04em; padding: 2px 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+  .tag.dip { background: color-mix(in srgb, var(--accent) 25%, transparent); color: var(--accent); }
+  .tag.big { background: color-mix(in srgb, var(--danger) 25%, transparent); color: var(--danger); }
+  .dhead { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin: 4px 0 12px; }
+  .dhead .big { font-size: 32px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .dhead .chg { font-weight: 700; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .stat { background: var(--surface); border-radius: 14px; padding: 10px 12px; }
+  .stat .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 700; }
+  .stat .v { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .stat .d { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .reason { background: var(--surface); border-radius: 14px; padding: 10px 12px; margin-bottom: 12px; font-size: 13px; }
+  .periods { display: flex; gap: 6px; margin-bottom: 8px; }
+  .periods button { flex: 1; padding: 7px 0; font-size: 13px; background: var(--surface-2); color: var(--muted); border-radius: 10px; }
+  .periods button.active { background: var(--fg); color: var(--bg); }
+  .chartwrap { background: var(--surface); border-radius: 16px; padding: 10px 8px 6px; }
+  .chartwrap canvas { width: 100%; height: 240px; display: block; touch-action: pan-y; }
+  .scrub { display: flex; justify-content: space-between; font-size: 13px; padding: 6px 6px 2px; color: var(--muted); font-variant-numeric: tabular-nums; min-height: 24px; }
+  .scrub b { color: var(--fg); }
   .toast { position: fixed; left: 50%; bottom: calc(100px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-weight: 600; font-size: 14px; max-width: calc(100% - 32px); z-index: 30; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
   @media (prefers-reduced-motion: no-preference) { .msg { animation: in .22s ease-out; } @keyframes in { from { opacity: 0; transform: translateY(4px);} } }
 </style>
@@ -156,12 +194,46 @@
     <p id="setupError" class="error" hidden></p>
   </section>
 
-  <div class="section-title"><h2 id="tabTitle">Stocks</h2><span id="tabCount"></span></div>
+  <div class="section-title">
+    <div class="lead">
+      <button id="boardBtn" class="iconbtn" aria-label="Open stocks board" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>
+      </button>
+      <h2 id="tabTitle">Stocks</h2>
+    </div>
+    <span id="tabCount"></span>
+  </div>
   <ul id="feed" class="feed"></ul>
   <div id="empty" class="empty" hidden></div>
 </main>
 
 <nav id="tabs" class="tabs" aria-label="Projects"></nav>
+
+<section id="board" class="screen" hidden aria-label="Stocks board">
+  <div class="bar">
+    <button class="iconbtn" data-close="board" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <h2>Stocks</h2>
+    <span id="boardUpdated" class="sub"></span>
+  </div>
+  <div id="boardList"></div>
+  <p id="boardEmpty" class="empty" hidden></p>
+</section>
+
+<section id="detail" class="screen" hidden aria-label="Stock detail">
+  <div class="bar">
+    <button class="iconbtn" data-close="detail" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <h2 id="dName"></h2>
+    <span id="dTicker" class="sub"></span>
+  </div>
+  <div class="dhead"><div class="big" id="dPrice"></div><div class="chg" id="dChange"></div></div>
+  <div class="stats" id="dStats"></div>
+  <div class="reason" id="dReason" hidden></div>
+  <div class="periods" id="dPeriods"></div>
+  <div class="chartwrap">
+    <canvas id="dChart"></canvas>
+    <div class="scrub" id="dScrub"><span>Touch the chart for a date</span><span></span></div>
+  </div>
+</section>
 
 <div id="sheetBg" class="sheet-bg" hidden></div>
 <section id="sheet" class="sheet" hidden aria-label="Settings">
@@ -189,7 +261,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "1.3";
+  const APP_VERSION = "1.4";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -295,6 +367,7 @@
     // feed for the current tab
     const shown = all.filter((m) => m.project === current);
     $("tabTitle").textContent = current;
+    $("boardBtn").hidden = current !== "Stocks";
     $("tabCount").textContent = shown.length ? `${shown.length} message${shown.length === 1 ? "" : "s"}` : "";
     let html = "", lastDay = "";
     for (const m of shown) {
@@ -379,6 +452,156 @@
     try { if (subscription) { await postDevices("unsubscribe"); await subscription.unsubscribe(); } } catch {}
     subscription = null; toast("Notifications off"); updateSetupUI();
   }
+
+  // ---- stocks board -------------------------------------------------------
+  // Data comes from data/stocks.json, written by the GitHub job after every check.
+  let stocks = null, stocksAt = 0, dStock = null, dPeriod = 2;
+  const PERIODS = [["1M", 1 / 12], ["3M", 0.25], ["6M", 0.5], ["1Y", 1], ["2Y", 2]];
+  const money = (v) => "$" + Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const pct = (v) => (v >= 0 ? "+" : "") + Number(v).toFixed(2) + "%";
+  const dayToDate = (d) => new Date(d * 86400000);
+  const fmtDate = (d) => dayToDate(d).toLocaleDateString([], { day: "numeric", month: "short", year: "2-digit" });
+
+  async function loadStocks(force) {
+    if (stocks && !force && Date.now() - stocksAt < 60000) return stocks;
+    try {
+      const r = await fetch("data/stocks.json", { cache: "no-store" });
+      if (r.ok) { stocks = await r.json(); stocksAt = Date.now(); }
+    } catch {}
+    return stocks;
+  }
+  function sliceSeries(series, years) {
+    if (!series.length) return series;
+    const from = series[series.length - 1][0] - years * 365.25;
+    return series.filter((p) => p[0] >= from);
+  }
+  function setupCanvas(c) {
+    const r = c.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    if (c.width !== Math.round(r.width * dpr) || c.height !== Math.round(r.height * dpr)) { c.width = Math.round(r.width * dpr); c.height = Math.round(r.height * dpr); }
+    const ctx = c.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx, w: r.width, h: r.height };
+  }
+  function drawSpark(c, series, color) {
+    const { ctx, w, h } = setupCanvas(c);
+    ctx.clearRect(0, 0, w, h);
+    if (series.length < 2) return;
+    const ys = series.map((p) => p[1]), lo = Math.min(...ys), hi = Math.max(...ys), span = hi - lo || 1;
+    ctx.beginPath();
+    series.forEach((p, i) => { const x = 2 + i * (w - 4) / (series.length - 1), y = 3 + (hi - p[1]) / span * (h - 6); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+    ctx.strokeStyle = color; ctx.lineWidth = 1.6; ctx.lineJoin = "round"; ctx.stroke();
+  }
+  function drawChart(c, series, scrubIndex) {
+    const { ctx, w, h } = setupCanvas(c);
+    const css = getComputedStyle(document.documentElement);
+    const muted = css.getPropertyValue("--muted").trim(), line = css.getPropertyValue("--line").trim(), fg = css.getPropertyValue("--fg").trim();
+    ctx.clearRect(0, 0, w, h);
+    if (series.length < 2) return;
+    const padL = 8, padR = 54, padT = 22, padB = 22;
+    const ys = series.map((p) => p[1]), lo = Math.min(...ys), hi = Math.max(...ys), span = hi - lo || 1;
+    const X = (i) => padL + i * (w - padL - padR) / (series.length - 1);
+    const Y = (v) => padT + (hi - v) / span * (h - padT - padB);
+    const up = series[series.length - 1][1] >= series[0][1];
+    const color = up ? "#22c55e" : "#ef4444";
+    // grid + right-side price labels
+    ctx.font = "11px -apple-system, Segoe UI, Roboto, sans-serif"; ctx.fillStyle = muted; ctx.strokeStyle = line; ctx.lineWidth = 1;
+    for (let k = 0; k <= 4; k++) { const v = lo + span * k / 4, y = Y(v); ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke(); ctx.textAlign = "left"; ctx.fillText("$" + Math.round(v).toLocaleString(), w - padR + 6, y + 4); }
+    // date labels
+    ctx.textAlign = "center";
+    [0, Math.floor((series.length - 1) / 2), series.length - 1].forEach((i) => ctx.fillText(dayToDate(series[i][0]).toLocaleDateString([], { month: "short", year: "2-digit" }), Math.min(Math.max(X(i), 28), w - padR - 28), h - 6));
+    // area + line
+    ctx.beginPath(); series.forEach((p, i) => i ? ctx.lineTo(X(i), Y(p[1])) : ctx.moveTo(X(i), Y(p[1])));
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.stroke();
+    ctx.lineTo(X(series.length - 1), Y(lo)); ctx.lineTo(X(0), Y(lo)); ctx.closePath();
+    ctx.fillStyle = color + "22"; ctx.fill();
+    // high / low markers
+    const iHi = ys.indexOf(hi), iLo = ys.indexOf(lo);
+    ctx.fillStyle = fg; ctx.textAlign = "center"; ctx.font = "bold 11px -apple-system, Segoe UI, Roboto, sans-serif";
+    ctx.fillText(money(hi), Math.min(Math.max(X(iHi), 34), w - padR - 34), Y(hi) - 7);
+    ctx.fillText(money(lo), Math.min(Math.max(X(iLo), 34), w - padR - 34), Y(lo) + 14);
+    [[iHi, "#22c55e"], [iLo, "#ef4444"]].forEach(([i, col]) => { ctx.beginPath(); ctx.arc(X(i), Y(series[i][1]), 3.5, 0, 7); ctx.fillStyle = col; ctx.fill(); });
+    // scrub line
+    if (scrubIndex != null) {
+      const x = X(scrubIndex), y = Y(series[scrubIndex][1]);
+      ctx.strokeStyle = muted; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(x, padT - 6); ctx.lineTo(x, h - padB); ctx.stroke(); ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(x, y, 5, 0, 7); ctx.fillStyle = fg; ctx.fill();
+    }
+    return { X, n: series.length, padL, padR, w };
+  }
+
+  function openScreen(id) { $(id).hidden = false; $(id).scrollTop = 0; }
+  function closeScreen(id) { $(id).hidden = true; }
+  document.querySelectorAll("[data-close]").forEach((b) => b.onclick = () => closeScreen(b.dataset.close));
+
+  async function openBoard() {
+    openScreen("board");
+    $("boardUpdated").textContent = "Loading…";
+    const data = await loadStocks(true);
+    renderBoard(data);
+  }
+  function renderBoard(data) {
+    const list = $("boardList");
+    if (!data || !data.stocks || !data.stocks.length) {
+      list.innerHTML = ""; $("boardEmpty").hidden = false;
+      $("boardEmpty").innerHTML = "<strong>No stock data yet</strong>The first GitHub check hasn't run. Try again in a few minutes.";
+      $("boardUpdated").textContent = ""; return;
+    }
+    $("boardEmpty").hidden = true;
+    const at = new Date(data.updated);
+    $("boardUpdated").textContent = "updated " + at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + (at.toDateString() === new Date().toDateString() ? "" : " " + at.toLocaleDateString([], { day: "numeric", month: "short" }));
+    const order = [...data.stocks].sort((a, b) => a.from_lt_high_pct - b.from_lt_high_pct);
+    list.innerHTML = order.map((s) => `
+      <button class="srow" data-t="${esc(s.ticker)}">
+        <div><div class="nm">${esc(s.name)} <span class="tk">${esc(s.ticker)}</span> ${s.big_dip ? '<span class="tag big">BIG DIP</span>' : s.dip ? '<span class="tag dip">DIP</span>' : '<span class="tag">normal</span>'}</div>
+          <div class="sub">${Math.abs(s.from_lt_high_pct).toFixed(0)}% below ${data.rules.longterm_years}-year high</div></div>
+        <canvas data-spark="${esc(s.ticker)}"></canvas>
+        <div class="px"><b>${money(s.price)}</b><span class="${s.day_pct >= 0 ? "up" : "down"}">${pct(s.day_pct)}</span></div>
+      </button>`).join("");
+    list.querySelectorAll("canvas[data-spark]").forEach((c) => { const s = data.stocks.find((x) => x.ticker === c.dataset.spark); drawSpark(c, s.series, s.series[s.series.length - 1][1] >= s.series[0][1] ? "#22c55e" : "#ef4444"); });
+    list.querySelectorAll(".srow").forEach((b) => b.onclick = () => openDetail(data.stocks.find((x) => x.ticker === b.dataset.t), data.rules));
+  }
+  function openDetail(s, rules) {
+    dStock = s; dPeriod = rules.longterm_years;
+    $("dName").textContent = s.name; $("dTicker").textContent = s.ticker + " · as of " + s.as_of;
+    $("dPrice").textContent = money(s.price);
+    $("dChange").textContent = pct(s.day_pct) + " today"; $("dChange").className = "chg " + (s.day_pct >= 0 ? "up" : "down");
+    $("dStats").innerHTML = [
+      ["All-time high", money(s.ath), s.ath_date],
+      ["Biggest dip (1-year low)", money(s.yr_low), s.yr_low_date],
+      [`${rules.lookback_days}-day high`, money(s.high30), s.high30_date],
+      [`${rules.lookback_days}-day low`, money(s.low30), s.low30_date],
+    ].map(([k, v, d]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join("");
+    $("dReason").hidden = !s.dip;
+    $("dReason").innerHTML = s.dip ? `<b class="${s.big_dip ? "down" : ""}">${s.big_dip ? "BIG DIP" : "DIP"}</b> · ${esc(s.reasons.join("; "))}` : "";
+    $("dPeriods").innerHTML = PERIODS.map(([l, y]) => `<button data-y="${y}" class="${y === dPeriod ? "active" : ""}">${l}</button>`).join("");
+    $("dPeriods").querySelectorAll("button").forEach((b) => b.onclick = () => { dPeriod = Number(b.dataset.y); $("dPeriods").querySelectorAll("button").forEach((x) => x.classList.toggle("active", x === b)); drawDetail(); });
+    openScreen("detail");
+    requestAnimationFrame(() => drawDetail());
+  }
+  let dGeom = null, dSeries = [];
+  function drawDetail(scrub) {
+    if (!dStock) return;
+    dSeries = sliceSeries(dStock.series, dPeriod);
+    dGeom = drawChart($("dChart"), dSeries, scrub);
+    const first = dSeries[0], last = dSeries[dSeries.length - 1];
+    const sc = $("dScrub");
+    if (scrub == null) sc.innerHTML = `<span>${fmtDate(first[0])} → ${fmtDate(last[0])}</span><span class="${last[1] >= first[1] ? "up" : "down"}"><b>${pct((last[1] / first[1] - 1) * 100)}</b> over this period</span>`;
+    else { const p = dSeries[scrub]; sc.innerHTML = `<span><b>${dayToDate(p[0]).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</b></span><span><b>${money(p[1])}</b> · ${pct((p[1] / first[1] - 1) * 100)}</span>`; }
+  }
+  function scrubAt(clientX) {
+    if (!dGeom) return;
+    const rect = $("dChart").getBoundingClientRect();
+    const x = clientX - rect.left;
+    const i = Math.round((x - dGeom.padL) / (dGeom.w - dGeom.padL - dGeom.padR) * (dGeom.n - 1));
+    drawDetail(Math.min(Math.max(i, 0), dGeom.n - 1));
+  }
+  const chart = $("dChart");
+  chart.addEventListener("touchstart", (e) => scrubAt(e.touches[0].clientX), { passive: true });
+  chart.addEventListener("touchmove", (e) => scrubAt(e.touches[0].clientX), { passive: true });
+  chart.addEventListener("touchend", () => drawDetail(), { passive: true });
+  chart.addEventListener("mousemove", (e) => scrubAt(e.clientX));
+  chart.addEventListener("mouseleave", () => drawDetail());
+  window.addEventListener("resize", () => { if (!$("detail").hidden) drawDetail(); if (!$("board").hidden && stocks) renderBoard(stocks); });
+  $("boardBtn").onclick = openBoard;
 
   // ---- settings sheet -----------------------------------------------------
   function openSheet(open) { $("sheet").hidden = !open; $("sheetBg").hidden = !open; }
