@@ -46,6 +46,8 @@ jobs:
             echo "nothing changed"
           else
             git commit -m "data: stocks $(date -u +'%Y-%m-%d %H:%M') UTC"
-            git pull --rebase --autostash
-            git push
+            for attempt in 1 2 3; do
+              git pull --rebase --autostash && git push && break
+              sleep 5
+            done
           fi
