@@ -6,11 +6,10 @@
   "AMZN",
   "GOOGL",
   "META",
-  "TSLA",
-  "F"
+  "TSLA"
  ],
- "since": "s99cd2FwWLgd",
- "updated": "2026-11-15T17:25:47+00:00",
+ "since": "cUcXvai1U00c",
+ "updated": "2026-11-15T18:35:04+00:00",
  "tickers": {
   "NVDA": "NVIDIA",
   "AAPL": "Apple",
@@ -18,8 +17,7 @@
   "AMZN": "Amazon",
   "GOOGL": "Alphabet (Google)",
   "META": "Meta",
-  "TSLA": "Tesla",
-  "F": "Ford Motor"
+  "TSLA": "Tesla"
  },
  "known": [
   "NVDA",
