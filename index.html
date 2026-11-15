@@ -338,7 +338,7 @@
   <div class="kv"><label for="deviceName">This phone's name</label><input id="deviceName" maxlength="40"></div>
   <div class="kv"><span class="k">Channel</span><code id="topicCode"></code></div>
   <div class="row"><span class="k" style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700;">Version <span id="version"></span></span><button id="updateBtn" class="ghost small">Check for updates</button></div>
-  <p style="margin:0;color:var(--muted);font-size:13px;">Each project that sends a message gets its own tab at the bottom. The feed shows the last 12 hours from the channel plus everything pushed to this phone.</p>
+  <p style="margin:0;color:var(--muted);font-size:13px;">Each project that sends a message gets its own tab at the bottom. Every message deletes itself 48 hours after it was sent.</p>
 </section>
 
 <script src="config.js"></script>
@@ -351,7 +351,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "1.8";
+  const APP_VERSION = "1.9";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -430,10 +430,30 @@
   }
 
   // ---- feed ---------------------------------------------------------------
+  async function dbDelete(ids) {
+    if (!ids.length) return;
+    try { const db = await openDB(); await new Promise((res, rej) => { const tx = db.transaction("messages", "readwrite"); ids.forEach((id) => tx.objectStore("messages").delete(id)); tx.oncomplete = res; tx.onerror = () => rej(tx.error); }); }
+    catch {}
+  }
+  // Every message deletes itself 48 hours after it was sent.
+  const KEEP_MS = 48 * 3600 * 1000;
+  const expired = (m) => Date.now() - m.time > KEEP_MS;
   function addMessages(list) {
     let changed = false;
-    list.forEach((m) => { messages.set(m.id, m); if (!tabs.includes(m.project)) { tabs.push(m.project); changed = true; } });
+    list.forEach((m) => { if (expired(m)) return; messages.set(m.id, m); if (!tabs.includes(m.project)) { tabs.push(m.project); changed = true; } });
     if (changed) ls.set("cn.tabs", JSON.stringify(tabs));
+  }
+  function purgeExpired() {
+    const old = [...messages.values()].filter(expired).map((m) => m.id);
+    old.forEach((id) => messages.delete(id));
+    dbDelete(old);
+    // the matching notifications in the phone's notification list, where the phone allows it
+    try {
+      if (registration && registration.getNotifications) registration.getNotifications().then((list) => list.forEach((n) => {
+        const t = (n.data && n.data.time) || n.timestamp;
+        if (t && Date.now() - t > KEEP_MS) n.close();
+      })).catch(() => {});
+    } catch {}
   }
   function deduped() {
     const out = new Map();
@@ -445,6 +465,7 @@
   }
   function unread(all, p) { const last = seen[p] || 0; return all.filter((m) => m.project === p && m.time > last).length; }
   function render() {
+    purgeExpired();
     const all = deduped();
     if (!tabs.includes(current)) current = tabs[0];
     // tabs
@@ -472,7 +493,7 @@
     }
     $("feed").innerHTML = html;
     $("empty").hidden = shown.length > 0;
-    $("empty").innerHTML = `<strong>Nothing from ${esc(current)} yet</strong>New messages from this project will show up here.`;
+    $("empty").innerHTML = `<strong>Nothing from ${esc(current)} right now</strong>New messages show up here. Each one deletes itself 48 hours after it was sent.`;
     // mark the current tab as seen
     const newest = shown.length ? shown[0].time : 0;
     if (newest > (seen[current] || 0)) { seen[current] = newest; ls.set("cn.seen", JSON.stringify(seen)); }
@@ -492,11 +513,15 @@
         list.push({ id: m.id, time: m.time * 1000, title: m.title || "Claude News", body: m.message || "",
                     project: (m.tags && m.tags[0]) || "General", url: m.click || "" });
       }
-      addMessages(list); await dbPut(list);
+      addMessages(list); await dbPut(list.filter((m) => !expired(m)));
     } catch (e) { /* offline - show what we have */ }
     render();
   }
-  async function loadLocal() { addMessages(await dbAll()); render(); }
+  async function loadLocal() {
+    const all = await dbAll();
+    dbDelete(all.filter(expired).map((m) => m.id));       // gone for good, not just hidden
+    addMessages(all); render();
+  }
 
   // ---- push ---------------------------------------------------------------
   function b64ToBytes(b64) {

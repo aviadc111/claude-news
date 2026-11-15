@@ -1,5 +1,5 @@
 /* Claude News service worker: offline shell + push notifications. */
-const CACHE = "claude-news-v10";
+const CACHE = "claude-news-v11";
 const SHELL = ["./", "./index.html", "./config.js", "./manifest.webmanifest",
                "./icons/icon-192.png", "./icons/icon-512.png", "./icons/logo.svg"];
 
@@ -27,6 +27,27 @@ async function storeMessage(msg) {
       tx.onerror = () => reject(tx.error);
     });
   } catch (e) { /* storage unavailable - the notification still shows */ }
+}
+
+// Every message deletes itself 48 hours after it was sent: from the app's store, and from
+// the phone's notification list where the phone allows it.
+const KEEP_MS = 48 * 3600 * 1000;
+async function pruneOld() {
+  const cutoff = Date.now() - KEEP_MS;
+  try {
+    const db = await openDB();
+    await new Promise((resolve) => {
+      const tx = db.transaction("messages", "readwrite");
+      const store = tx.objectStore("messages");
+      const req = store.getAll();
+      req.onsuccess = () => req.result.forEach((m) => { if (m.time < cutoff) store.delete(m.id); });
+      tx.oncomplete = resolve; tx.onerror = resolve;
+    });
+  } catch (e) { /* storage unavailable */ }
+  try {
+    const shown = await self.registration.getNotifications();
+    shown.forEach((n) => { const t = (n.data && n.data.time) || n.timestamp; if (t && t < cutoff) n.close(); });
+  } catch (e) { /* not supported here */ }
 }
 
 // ---- lifecycle ------------------------------------------------------------
@@ -82,8 +103,9 @@ self.addEventListener("push", (event) => {
       icon: "./icons/icon-192.png",
       badge: "./icons/icon-192.png",
       tag: msg.id,
-      data: { url: msg.url, project: msg.project },
+      data: { url: msg.url, project: msg.project, time: msg.time },
     });
+    await pruneOld();
     const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     clients.forEach((c) => c.postMessage({ type: "new-message", message: msg }));
   })());
