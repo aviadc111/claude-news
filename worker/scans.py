@@ -148,6 +148,7 @@ def analyst_scan(cfg, hours, skip=lambda ticker: False):
               if q.get("averageAnalystRating")]
     print("companies with analyst coverage:", len(quotes))
     since = pd.Timestamp(dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=hours)).tz_localize(None)
+    newest = []
 
     def fetch(q):
         sym = q["symbol"]
@@ -157,6 +158,7 @@ def analyst_scan(cfg, hours, skip=lambda ticker: False):
                 return "empty"
             if df.index.tz is not None:
                 df.index = df.index.tz_convert("UTC").tz_localize(None)
+            newest.append(df.index.max())
             df = df[df.index >= since]
             if df.empty:
                 return "quiet"
@@ -191,6 +193,9 @@ def analyst_scan(cfg, hours, skip=lambda ticker: False):
     print(f"yfinance {yf.__version__}, pandas {pd.__version__} | ratings since {since} UTC")
     print(f"lookups failed: {errors} | came back with no ratings history: {empty} | with buy ratings in the window: {len(rated)}")
     print("most buy ratings:", [(r["ticker"], r["buy"]) for r in rated[:8]])
+    if newest:
+        per_day = pd.Series(1, index=pd.DatetimeIndex(newest)).groupby(lambda t: t.date()).sum()
+        print("newest rating anywhere:", max(newest), "UTC | companies whose latest rating is on:", dict(list(per_day.items())[-5:]))
     print(f"stocks with {cfg['analyst_min_buy_ratings']}+ buy ratings: {[(r['ticker'], r['buy']) for r in hits]}")
     if quotes and empty + errors > len(quotes) * 0.5:
         raise RuntimeError(f"analyst data missing for {empty + errors} of {len(quotes)} companies - not trusting this run")
