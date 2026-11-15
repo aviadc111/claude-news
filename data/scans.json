@@ -1,0 +1,1187 @@
+{
+ "analysts": {
+  "date": "2026-11-15",
+  "stocks": [
+   {
+    "ticker": "NVDA",
+    "buy": 5,
+    "upgrades": 0,
+    "other": 3,
+    "raised": 0,
+    "lowered": 5,
+    "firms": [
+     "B of A Securities",
+     "BMO Capital",
+     "Citigroup",
+     "DA Davidson",
+     "Goldman Sachs"
+    ],
+    "name": "NVIDIA",
+    "price": 162.85,
+    "ath": 239.24,
+    "ath_date": "2026-10-06",
+    "high30": 239.24,
+    "low30": 162.85
+   }
+  ]
+ },
+ "friday": {
+  "date": "2026-11-15",
+  "as_of": "2026-11-13",
+  "stocks": [
+   {
+    "ticker": "NVDA",
+    "price": 162.85,
+    "day_pct": -2.0,
+    "wk_pct": -12.7,
+    "high3m": 239.24,
+    "cap": 3932339044352,
+    "name": "NVIDIA"
+   },
+   {
+    "ticker": "AMD",
+    "price": 534.06,
+    "day_pct": -8.8,
+    "wk_pct": 18.9,
+    "high3m": 649.42,
+    "cap": 875905024000,
+    "name": "Advanced Micro Devices"
+   },
+   {
+    "ticker": "CSCO",
+    "price": 95.64,
+    "day_pct": -6.2,
+    "wk_pct": 1.9,
+    "high3m": 118.39,
+    "cap": 376532795392,
+    "name": "Cisco Systems"
+   },
+   {
+    "ticker": "BABA",
+    "price": 94.38,
+    "day_pct": 0.0,
+    "wk_pct": -13.8,
+    "high3m": 130.53,
+    "cap": 234793369600,
+    "name": "Alibaba Group"
+   },
+   {
+    "ticker": "DELL",
+    "price": 344.53,
+    "day_pct": -7.2,
+    "wk_pct": 4.9,
+    "high3m": 588.4,
+    "cap": 219056553984,
+    "name": "Dell Technologies (Class C)"
+   },
+   {
+    "ticker": "SNDK",
+    "price": 885.01,
+    "day_pct": -5.6,
+    "wk_pct": 6.0,
+    "high3m": 1887.04,
+    "cap": 125927505920,
+    "name": "Sandisk"
+   },
+   {
+    "ticker": "MRNA",
+    "price": 223.37,
+    "day_pct": -3.4,
+    "wk_pct": -12.1,
+    "high3m": 269.0,
+    "cap": 90380181504,
+    "name": "Moderna"
+   },
+   {
+    "ticker": "MSTR",
+    "price": 111.62,
+    "day_pct": -2.4,
+    "wk_pct": -13.4,
+    "high3m": 168.5,
+    "cap": 47246696448,
+    "name": "Strategy (Class A)"
+   },
+   {
+    "ticker": "COHR",
+    "price": 218.15,
+    "day_pct": -6.0,
+    "wk_pct": 13.1,
+    "high3m": 351.22,
+    "cap": 42966532096,
+    "name": "Coherent"
+   },
+   {
+    "ticker": "TER",
+    "price": 249.55,
+    "day_pct": -5.4,
+    "wk_pct": 14.4,
+    "high3m": 449.04,
+    "cap": 38960930816,
+    "name": "Teradyne"
+   },
+   {
+    "ticker": "RVMD",
+    "price": 172.29,
+    "day_pct": -2.3,
+    "wk_pct": -10.4,
+    "high3m": 221.15,
+    "cap": 37265002496,
+    "name": "Revolution Medicines"
+   },
+   {
+    "ticker": "NBIS",
+    "price": 115.88,
+    "day_pct": -9.9,
+    "wk_pct": -10.5,
+    "high3m": 277.68,
+    "cap": 33941528576,
+    "name": "Nebius (Class A)"
+   },
+   {
+    "ticker": "CLS",
+    "price": 240.34,
+    "day_pct": -5.4,
+    "wk_pct": 16.3,
+    "high3m": 388.24,
+    "cap": 30309711872,
+    "name": "Celestica"
+   },
+   {
+    "ticker": "CRWV",
+    "price": 53.13,
+    "day_pct": -6.1,
+    "wk_pct": 14.5,
+    "high3m": 106.0,
+    "cap": 29546958848,
+    "name": "CoreWeave (Class A)"
+   },
+   {
+    "ticker": "CRDO",
+    "price": 131.51,
+    "day_pct": -5.9,
+    "wk_pct": 9.1,
+    "high3m": 282.82,
+    "cap": 24717555712,
+    "name": "Credo Technology Group"
+   },
+   {
+    "ticker": "FSLR",
+    "price": 171.39,
+    "day_pct": -0.5,
+    "wk_pct": -14.8,
+    "high3m": 225.56,
+    "cap": 18421194752,
+    "name": "First Solar"
+   },
+   {
+    "ticker": "MTSI",
+    "price": 232.06,
+    "day_pct": -5.6,
+    "wk_pct": 10.0,
+    "high3m": 350.67,
+    "cap": 17819320320,
+    "name": "MACOM Technology Solutions"
+   },
+   {
+    "ticker": "RIVN",
+    "price": 12.18,
+    "day_pct": -4.8,
+    "wk_pct": -10.5,
+    "high3m": 16.97,
+    "cap": 17778032640,
+    "name": "Rivian Automotive (Class A)",
+    "ath": 172.01
+   },
+   {
+    "ticker": "TSEM",
+    "price": 146.89,
+    "day_pct": -6.9,
+    "wk_pct": 7.0,
+    "high3m": 265.48,
+    "cap": 16674609152,
+    "name": "Tower Semiconductor"
+   },
+   {
+    "ticker": "LSCC",
+    "price": 112.35,
+    "day_pct": -5.5,
+    "wk_pct": 7.0,
+    "high3m": 134.47,
+    "cap": 15979057152,
+    "name": "Lattice Semiconductor"
+   },
+   {
+    "ticker": "SITM",
+    "price": 444.54,
+    "day_pct": -5.5,
+    "wk_pct": 6.6,
+    "high3m": 749.44,
+    "cap": 13429434368,
+    "name": "SiTime"
+   },
+   {
+    "ticker": "ASTS",
+    "price": 32.6,
+    "day_pct": -5.5,
+    "wk_pct": 0.8,
+    "high3m": 71.14,
+    "cap": 12717574144,
+    "name": "AST SpaceMobile (Class A)",
+    "ath": 133.09
+   },
+   {
+    "ticker": "FN",
+    "price": 327.98,
+    "day_pct": -7.3,
+    "wk_pct": 0.3,
+    "high3m": 598.58,
+    "cap": 11714631680,
+    "name": "Fabrinet"
+   },
+   {
+    "ticker": "FRHC",
+    "price": 156.02,
+    "day_pct": -1.3,
+    "wk_pct": -12.8,
+    "high3m": 187.3,
+    "cap": 9952151552,
+    "name": "Freedom"
+   },
+   {
+    "ticker": "VIAV",
+    "price": 30.72,
+    "day_pct": -5.6,
+    "wk_pct": 7.9,
+    "high3m": 48.14,
+    "cap": 7554727424,
+    "name": "Viavi Solutions",
+    "ath": 666.81
+   },
+   {
+    "ticker": "HUT",
+    "price": 57.57,
+    "day_pct": -7.1,
+    "wk_pct": 9.3,
+    "high3m": 106.61,
+    "cap": 6910561792,
+    "name": "Hut 8"
+   },
+   {
+    "ticker": "FORM",
+    "price": 87.53,
+    "day_pct": -5.2,
+    "wk_pct": 7.9,
+    "high3m": 149.31,
+    "cap": 6847939584,
+    "name": "FormFactor"
+   },
+   {
+    "ticker": "ARWR",
+    "price": 47.78,
+    "day_pct": 1.3,
+    "wk_pct": -17.8,
+    "high3m": 89.41,
+    "cap": 6754563072,
+    "name": "Arrowhead Pharmaceuticals",
+    "ath": 2925.0
+   },
+   {
+    "ticker": "CVLT",
+    "price": 152.07,
+    "day_pct": -8.5,
+    "wk_pct": -4.0,
+    "high3m": 172.55,
+    "cap": 6221578240,
+    "name": "Commvault Systems"
+   },
+   {
+    "ticker": "SIMO",
+    "price": 169.45,
+    "day_pct": -5.6,
+    "wk_pct": 4.1,
+    "high3m": 285.78,
+    "cap": 5745750528,
+    "name": "Silicon Motion Technology"
+   },
+   {
+    "ticker": "MXL",
+    "price": 55.78,
+    "day_pct": -5.4,
+    "wk_pct": 13.4,
+    "high3m": 109.3,
+    "cap": 5075980288,
+    "name": "MaxLinear"
+   },
+   {
+    "ticker": "BLLN",
+    "price": 105.15,
+    "day_pct": -5.1,
+    "wk_pct": -7.7,
+    "high3m": 124.9,
+    "cap": 5023525376,
+    "name": "BillionToOne (Class A)"
+   },
+   {
+    "ticker": "AAOI",
+    "price": 49.89,
+    "day_pct": -5.6,
+    "wk_pct": -0.5,
+    "high3m": 154.89,
+    "cap": 4528551936,
+    "name": "Applied Optoelectronics"
+   },
+   {
+    "ticker": "NOVT",
+    "price": 118.88,
+    "day_pct": 1.2,
+    "wk_pct": -12.0,
+    "high3m": 168.75,
+    "cap": 4496262656,
+    "name": "Novanta"
+   },
+   {
+    "ticker": "CRSP",
+    "price": 42.24,
+    "day_pct": -0.9,
+    "wk_pct": -15.6,
+    "high3m": 60.9,
+    "cap": 4097314560,
+    "name": "CRISPR Therapeutics",
+    "ath": 210.04
+   },
+   {
+    "ticker": "MNDY",
+    "price": 78.0,
+    "day_pct": 1.2,
+    "wk_pct": -11.3,
+    "high3m": 106.86,
+    "cap": 3297381376,
+    "name": "monday.com"
+   },
+   {
+    "ticker": "ZLAB",
+    "price": 24.6,
+    "day_pct": -5.5,
+    "wk_pct": -3.5,
+    "high3m": 27.0,
+    "cap": 3071144192,
+    "name": "Zai Lab",
+    "ath": 191.71
+   },
+   {
+    "ticker": "WIX",
+    "price": 67.17,
+    "day_pct": 1.9,
+    "wk_pct": -11.7,
+    "high3m": 88.38,
+    "cap": 2811031552,
+    "name": "Wix.com",
+    "ath": 353.09
+   },
+   {
+    "ticker": "OUST",
+    "price": 33.48,
+    "day_pct": -8.5,
+    "wk_pct": -3.8,
+    "high3m": 48.71,
+    "cap": 2443945216,
+    "name": "Ouster",
+    "ath": 162.5
+   },
+   {
+    "ticker": "BEAM",
+    "price": 22.83,
+    "day_pct": -5.0,
+    "wk_pct": -13.6,
+    "high3m": 31.03,
+    "cap": 2362805760,
+    "name": "Beam Therapeutics",
+    "ath": 133.6
+   },
+   {
+    "ticker": "PVLA",
+    "price": 152.48,
+    "day_pct": -0.5,
+    "wk_pct": -13.3,
+    "high3m": 175.92,
+    "cap": 2229022208,
+    "name": "Palvella Therapeutics"
+   },
+   {
+    "ticker": "BGSI",
+    "price": 74.41,
+    "day_pct": -0.1,
+    "wk_pct": -16.1,
+    "high3m": 95.05,
+    "cap": 2058881024,
+    "name": "Boyd Group Services",
+    "ath": 182.26
+   },
+   {
+    "ticker": "DRD",
+    "price": 22.89,
+    "day_pct": -2.2,
+    "wk_pct": -10.2,
+    "high3m": 31.23,
+    "cap": 1988583680,
+    "name": "DRDGOLD",
+    "ath": 155.0
+   },
+   {
+    "ticker": "UPST",
+    "price": 19.56,
+    "day_pct": 2.1,
+    "wk_pct": -10.6,
+    "high3m": 30.6,
+    "cap": 1934653312,
+    "name": "Upstart",
+    "ath": 390.0
+   },
+   {
+    "ticker": "AEHR",
+    "price": 56.98,
+    "day_pct": -6.7,
+    "wk_pct": 6.4,
+    "high3m": 145.61,
+    "cap": 1868647296,
+    "name": "Aehr Test Systems"
+   },
+   {
+    "ticker": "GSHD",
+    "price": 46.01,
+    "day_pct": 0.8,
+    "wk_pct": -17.2,
+    "high3m": 73.0,
+    "cap": 1644314112,
+    "name": "Goosehead Insurance (Class A)",
+    "ath": 177.3
+   },
+   {
+    "ticker": "WGS",
+    "price": 52.37,
+    "day_pct": 1.0,
+    "wk_pct": -16.0,
+    "high3m": 104.95,
+    "cap": 1569659392,
+    "name": "GeneDx (Class A)"
+   },
+   {
+    "ticker": "HYMC",
+    "price": 15.9,
+    "day_pct": -6.5,
+    "wk_pct": -15.3,
+    "high3m": 27.9,
+    "cap": 1481618432,
+    "name": "Hycroft Mining (Class A)",
+    "ath": 158.2
+   },
+   {
+    "ticker": "SEDG",
+    "price": 23.85,
+    "day_pct": -1.8,
+    "wk_pct": -13.3,
+    "high3m": 36.75,
+    "cap": 1476658432,
+    "name": "SolarEdge Technologies",
+    "ath": 368.33
+   },
+   {
+    "ticker": "CHRN",
+    "price": 9.95,
+    "day_pct": -8.4,
+    "wk_pct": -7.4,
+    "high3m": 24.1,
+    "cap": 1449092608,
+    "name": "ChronoScale",
+    "ath": 12048.75
+   },
+   {
+    "ticker": "BAND",
+    "price": 43.76,
+    "day_pct": -5.5,
+    "wk_pct": 8.5,
+    "high3m": 63.74,
+    "cap": 1417098112,
+    "name": "Bandwidth (Class A)",
+    "ath": 193.08
+   },
+   {
+    "ticker": "NVAX",
+    "price": 8.53,
+    "day_pct": -2.6,
+    "wk_pct": -20.9,
+    "high3m": 12.82,
+    "cap": 1406701696,
+    "name": "Novavax",
+    "ath": 319.93
+   },
+   {
+    "ticker": "NVCR",
+    "price": 11.83,
+    "day_pct": 0.9,
+    "wk_pct": -10.9,
+    "high3m": 18.2,
+    "cap": 1383115776,
+    "name": "NovoCure",
+    "ath": 225.58
+   },
+   {
+    "ticker": "NTLA",
+    "price": 9.7,
+    "day_pct": -8.1,
+    "wk_pct": -14.5,
+    "high3m": 13.51,
+    "cap": 1361477504,
+    "name": "Intellia Therapeutics",
+    "ath": 176.78
+   },
+   {
+    "ticker": "ALNT",
+    "price": 77.68,
+    "day_pct": -8.0,
+    "wk_pct": -4.5,
+    "high3m": 118.63,
+    "cap": 1320924032,
+    "name": "Allient"
+   },
+   {
+    "ticker": "QUBT",
+    "price": 5.56,
+    "day_pct": -4.5,
+    "wk_pct": -12.2,
+    "high3m": 9.16,
+    "cap": 1261740544,
+    "name": "Quantum Computing",
+    "ath": 5000.0
+   },
+   {
+    "ticker": "INBX",
+    "price": 83.3,
+    "day_pct": -5.1,
+    "wk_pct": -1.4,
+    "high3m": 126.7,
+    "cap": 1225981184,
+    "name": "Inhibrx Biosciences"
+   },
+   {
+    "ticker": "SBET",
+    "price": 5.61,
+    "day_pct": -2.8,
+    "wk_pct": -10.1,
+    "high3m": 10.23,
+    "cap": 1219312256,
+    "name": "Sharplink",
+    "ath": 24480.0
+   },
+   {
+    "ticker": "TPB",
+    "price": 55.55,
+    "day_pct": -0.4,
+    "wk_pct": -15.7,
+    "high3m": 88.26,
+    "cap": 1104431744,
+    "name": "Turning Point Brands",
+    "ath": 142.98
+   },
+   {
+    "ticker": "FCEL",
+    "price": 9.68,
+    "day_pct": -5.6,
+    "wk_pct": -2.8,
+    "high3m": 22.37,
+    "cap": 773956608,
+    "name": "FuelCell Energy",
+    "ath": 222480.0
+   },
+   {
+    "ticker": "KPLT",
+    "price": 8.83,
+    "day_pct": 8.2,
+    "wk_pct": -20.2,
+    "high3m": 12.52,
+    "cap": 749217152,
+    "name": "Katapult",
+    "ath": 477.25
+   },
+   {
+    "ticker": "DQ",
+    "price": 10.91,
+    "day_pct": -4.5,
+    "wk_pct": -13.8,
+    "high3m": 14.98,
+    "cap": 738237504,
+    "name": "DAQO New Energy",
+    "ath": 124.13
+   },
+   {
+    "ticker": "LU",
+    "price": 7.21,
+    "day_pct": 9.6,
+    "wk_pct": -22.8,
+    "high3m": 15.3,
+    "cap": 624882688,
+    "name": "Lufax",
+    "ath": 788.8
+   },
+   {
+    "ticker": "DNA",
+    "price": 9.61,
+    "day_pct": -6.1,
+    "wk_pct": -14.9,
+    "high3m": 14.98,
+    "cap": 622968320,
+    "name": "Ginkgo Bioworks (Class A)",
+    "ath": 596.8
+   },
+   {
+    "ticker": "QMCO",
+    "price": 15.34,
+    "day_pct": -7.8,
+    "wk_pct": 6.0,
+    "high3m": 34.5,
+    "cap": 606810368,
+    "name": "Quantum",
+    "ath": 3430.0
+   },
+   {
+    "ticker": "CAPR",
+    "price": 9.53,
+    "day_pct": -6.9,
+    "wk_pct": 5.9,
+    "high3m": 11.22,
+    "cap": 554094336,
+    "name": "Capricor Therapeutics",
+    "ath": 3250.0
+   },
+   {
+    "ticker": "ZVRA",
+    "price": 9.08,
+    "day_pct": -18.6,
+    "wk_pct": -21.7,
+    "high3m": 12.68,
+    "cap": 540301952,
+    "name": "Zevra Therapeutics",
+    "ath": 378.08
+   },
+   {
+    "ticker": "GRPN",
+    "price": 12.41,
+    "day_pct": 1.6,
+    "wk_pct": -19.9,
+    "high3m": 22.05,
+    "cap": 496477024,
+    "name": "Groupon",
+    "ath": 523.8
+   },
+   {
+    "ticker": "LPTH",
+    "price": 6.84,
+    "day_pct": -5.1,
+    "wk_pct": -3.1,
+    "high3m": 15.17,
+    "cap": 479402080,
+    "name": "LightPath Technologies (Class A)",
+    "ath": 522.5
+   },
+   {
+    "ticker": "GILT",
+    "price": 5.59,
+    "day_pct": -2.4,
+    "wk_pct": -22.3,
+    "high3m": 11.51,
+    "cap": 430595776,
+    "name": "Gilat Satellite Networks",
+    "ath": 3440.0
+   },
+   {
+    "ticker": "CLFD",
+    "price": 29.67,
+    "day_pct": -5.1,
+    "wk_pct": 3.6,
+    "high3m": 34.01,
+    "cap": 401658528,
+    "name": "Clearfield",
+    "ath": 131.62
+   },
+   {
+    "ticker": "XMAX",
+    "price": 5.9,
+    "day_pct": -10.1,
+    "wk_pct": 10.7,
+    "high3m": 9.21,
+    "cap": 382766176,
+    "name": "XMAX",
+    "ath": 350.0
+   },
+   {
+    "ticker": "LYEL",
+    "price": 14.3,
+    "day_pct": -8.6,
+    "wk_pct": -3.8,
+    "high3m": 16.86,
+    "cap": 351573568,
+    "name": "Lyell Immunopharma",
+    "ath": 359.0
+   },
+   {
+    "ticker": "PHOE",
+    "price": 15.79,
+    "day_pct": -2.5,
+    "wk_pct": -13.7,
+    "high3m": 24.36,
+    "cap": 341064000,
+    "name": "Phoenix Asia",
+    "ath": 133.12
+   },
+   {
+    "ticker": "BETR",
+    "price": 15.44,
+    "day_pct": -1.5,
+    "wk_pct": -19.8,
+    "high3m": 22.95,
+    "cap": 294054592,
+    "name": "Better Home & Finance (Class A)",
+    "ath": 2479.0
+   },
+   {
+    "ticker": "DTIL",
+    "price": 7.57,
+    "day_pct": -5.9,
+    "wk_pct": -28.6,
+    "high3m": 10.6,
+    "cap": 288762080,
+    "name": "Precision BioSciences",
+    "ath": 589.8
+   },
+   {
+    "ticker": "EAF",
+    "price": 9.72,
+    "day_pct": -12.3,
+    "wk_pct": 1.5,
+    "high3m": 12.18,
+    "cap": 261443440,
+    "name": "GrafTech International",
+    "ath": 223.7
+   },
+   {
+    "ticker": "FTH",
+    "price": 10.03,
+    "day_pct": -5.8,
+    "wk_pct": -54.5,
+    "high3m": 40.05,
+    "cap": 259214752,
+    "name": "Faeth Therapeutics",
+    "ath": 455.0
+   },
+   {
+    "ticker": "ARCT",
+    "price": 8.36,
+    "day_pct": -0.9,
+    "wk_pct": -19.2,
+    "high3m": 16.93,
+    "cap": 240956208,
+    "name": "Arcturus Therapeutics",
+    "ath": 178.57
+   },
+   {
+    "ticker": "BKTI",
+    "price": 61.48,
+    "day_pct": -8.1,
+    "wk_pct": -8.2,
+    "high3m": 78.89,
+    "cap": 231906000,
+    "name": "BK Technologies",
+    "ath": 843.75
+   },
+   {
+    "ticker": "BRCC",
+    "price": 8.44,
+    "day_pct": -12.1,
+    "wk_pct": -12.6,
+    "high3m": 12.99,
+    "cap": 211862192,
+    "name": "BRC (Class A)",
+    "ath": 331.1
+   },
+   {
+    "ticker": "YARW",
+    "price": 18.03,
+    "day_pct": -8.2,
+    "wk_pct": 15.6,
+    "high3m": 42.49,
+    "cap": 206863344,
+    "name": "Yarrow Bioscience",
+    "ath": 136152.0
+   },
+   {
+    "ticker": "GIBO",
+    "price": 75.65,
+    "day_pct": -6.6,
+    "wk_pct": -56.9,
+    "high3m": 193.59,
+    "cap": 197045856,
+    "name": "GIBO (Class A)"
+   },
+   {
+    "ticker": "RNAC",
+    "price": 6.35,
+    "day_pct": -0.1,
+    "wk_pct": -15.7,
+    "high3m": 10.49,
+    "cap": 193694080,
+    "name": "Cartesian Therapeutics",
+    "ath": 789.9
+   },
+   {
+    "ticker": "FIRY",
+    "price": 10.85,
+    "day_pct": -10.0,
+    "wk_pct": -5.5,
+    "high3m": 13.42,
+    "cap": 180351488,
+    "name": "Firy (Class A)",
+    "ath": 874.4
+   },
+   {
+    "ticker": "SAR",
+    "price": 11.47,
+    "day_pct": -1.5,
+    "wk_pct": -11.5,
+    "high3m": 18.9,
+    "cap": 178469056,
+    "name": "Saratoga Investment",
+    "ath": 140.2
+   },
+   {
+    "ticker": "QUIK",
+    "price": 9.36,
+    "day_pct": -5.5,
+    "wk_pct": 16.3,
+    "high3m": 12.76,
+    "cap": 175801728,
+    "name": "QuickLogic",
+    "ath": 553.0
+   },
+   {
+    "ticker": "COOK",
+    "price": 58.23,
+    "day_pct": 1.0,
+    "wk_pct": -13.2,
+    "high3m": 72.31,
+    "cap": 163187184,
+    "name": "Traeger",
+    "ath": 1582.5
+   },
+   {
+    "ticker": "AEHL",
+    "price": 8.29,
+    "day_pct": -17.7,
+    "wk_pct": -33.7,
+    "high3m": 17.44,
+    "cap": 157538080,
+    "name": "Antelope Enterprise (Class A)",
+    "ath": 9123840.0
+   },
+   {
+    "ticker": "PED",
+    "price": 11.71,
+    "day_pct": -10.3,
+    "wk_pct": -21.3,
+    "high3m": 16.64,
+    "cap": 155543152,
+    "name": "Pedevco",
+    "ath": 1024800.0
+   },
+   {
+    "ticker": "ACR",
+    "price": 8.85,
+    "day_pct": -8.8,
+    "wk_pct": -26.6,
+    "high3m": 14.86,
+    "cap": 119054536,
+    "name": "ACRES Commercial Realty",
+    "ath": 225.36
+   },
+   {
+    "ticker": "CUE",
+    "price": 16.12,
+    "day_pct": -7.9,
+    "wk_pct": -13.9,
+    "high3m": 37.84,
+    "cap": 117102360,
+    "name": "Cue Biopharma",
+    "ath": 921.9
+   },
+   {
+    "ticker": "BYND",
+    "price": 5.38,
+    "day_pct": -0.6,
+    "wk_pct": -10.8,
+    "high3m": 14.77,
+    "cap": 100905848,
+    "name": "Beyond Meat",
+    "ath": 7047.0
+   },
+   {
+    "ticker": "AKA",
+    "price": 8.23,
+    "day_pct": -6.7,
+    "wk_pct": -17.6,
+    "high3m": 11.22,
+    "cap": 91029136,
+    "name": "a.k.a. Brands",
+    "ath": 182.28
+   },
+   {
+    "ticker": "NDLS",
+    "price": 12.15,
+    "day_pct": -11.6,
+    "wk_pct": -13.5,
+    "high3m": 17.92,
+    "cap": 72494920,
+    "name": "Noodles & (Class A)",
+    "ath": 386.4
+   },
+   {
+    "ticker": "MRDN",
+    "price": 5.64,
+    "day_pct": -2.3,
+    "wk_pct": -35.0,
+    "high3m": 14.38,
+    "cap": 71540840,
+    "name": "Meridian",
+    "ath": 1636199956480.0
+   },
+   {
+    "ticker": "BCIC",
+    "price": 5.13,
+    "day_pct": -7.6,
+    "wk_pct": -16.9,
+    "high3m": 7.78,
+    "cap": 63559684,
+    "name": "BCP Investment Corporation - Closed End Fund",
+    "ath": 196.8
+   },
+   {
+    "ticker": "NTWK",
+    "price": 5.02,
+    "day_pct": -5.1,
+    "wk_pct": -22.7,
+    "high3m": 8.3,
+    "cap": 60321812,
+    "name": "NETSOL Technologies",
+    "ath": 3750.0
+   },
+   {
+    "ticker": "MKTW",
+    "price": 20.46,
+    "day_pct": -8.3,
+    "wk_pct": -4.7,
+    "high3m": 22.38,
+    "cap": 55421800,
+    "name": "MarketWise (Class A)",
+    "ath": 301.2
+   },
+   {
+    "ticker": "AIIO",
+    "price": 5.29,
+    "day_pct": -10.2,
+    "wk_pct": -41.3,
+    "high3m": 74.25,
+    "cap": 49923592,
+    "name": "Robo.ai (Class B)",
+    "ath": 9200.0
+   },
+   {
+    "ticker": "ECOR",
+    "price": 5.25,
+    "day_pct": -0.8,
+    "wk_pct": -27.6,
+    "high3m": 12.29,
+    "cap": 48436532,
+    "name": "electroCore",
+    "ath": 297.75
+   },
+   {
+    "ticker": "WATT",
+    "price": 7.76,
+    "day_pct": -11.3,
+    "wk_pct": 2.9,
+    "high3m": 15.56,
+    "cap": 42864708,
+    "name": "Energous",
+    "ath": 18942.0
+   },
+   {
+    "ticker": "TIL",
+    "price": 6.08,
+    "day_pct": -2.6,
+    "wk_pct": -11.0,
+    "high3m": 7.86,
+    "cap": 41234420,
+    "name": "Instil Bio",
+    "ath": 541.2
+   },
+   {
+    "ticker": "SPCB",
+    "price": 6.17,
+    "day_pct": -7.4,
+    "wk_pct": -26.2,
+    "high3m": 11.41,
+    "cap": 38750388,
+    "name": "SuperCom",
+    "ath": 12550.1
+   },
+   {
+    "ticker": "JG",
+    "price": 5.27,
+    "day_pct": -12.5,
+    "wk_pct": -0.9,
+    "high3m": 8.8,
+    "cap": 30216974,
+    "name": "Aurora Mobile",
+    "ath": 227.4
+   },
+   {
+    "ticker": "RYM",
+    "price": 13.51,
+    "day_pct": -5.7,
+    "wk_pct": -14.7,
+    "high3m": 26.25,
+    "cap": 29453530,
+    "name": "RYTHM",
+    "ath": 99180.0
+   },
+   {
+    "ticker": "LVLU",
+    "price": 8.24,
+    "day_pct": -27.6,
+    "wk_pct": -22.2,
+    "high3m": 16.27,
+    "cap": 23846976,
+    "name": "Lulu's Fashion Lounge",
+    "ath": 295.5
+   },
+   {
+    "ticker": "NXPL",
+    "price": 7.02,
+    "day_pct": 4.9,
+    "wk_pct": -14.8,
+    "high3m": 9.68,
+    "cap": 19046818,
+    "name": "NextPlat",
+    "ath": 4050000019456.0
+   },
+   {
+    "ticker": "PMI",
+    "price": 7.23,
+    "day_pct": -7.9,
+    "wk_pct": -19.7,
+    "high3m": 15.45,
+    "cap": 17775490,
+    "name": "Picard Medical",
+    "ath": 660.0
+   },
+   {
+    "ticker": "JSPR",
+    "price": 13.68,
+    "day_pct": 2.3,
+    "wk_pct": -18.9,
+    "high3m": 25.26,
+    "cap": 15184800,
+    "name": "Jasper Therapeutics (Class A)",
+    "ath": 4926.0
+   },
+   {
+    "ticker": "MTEX",
+    "price": 6.3,
+    "day_pct": -29.8,
+    "wk_pct": -22.3,
+    "high3m": 9.0,
+    "cap": 12161464,
+    "name": "Mannatech",
+    "ath": 317.5
+   },
+   {
+    "ticker": "PTN",
+    "price": 6.23,
+    "day_pct": -5.2,
+    "wk_pct": -0.6,
+    "high3m": 13.36,
+    "cap": 11095250,
+    "name": "Palatin Technologies",
+    "ath": 120312.5
+   },
+   {
+    "ticker": "SDOT",
+    "price": 5.51,
+    "day_pct": -14.5,
+    "wk_pct": -13.0,
+    "high3m": 23.16,
+    "cap": 9408816,
+    "name": "Sadot",
+    "ath": 8660.0
+   },
+   {
+    "ticker": "RPGL",
+    "price": 8.8,
+    "day_pct": -8.1,
+    "wk_pct": -21.8,
+    "high3m": 44.5,
+    "cap": 8881339,
+    "name": "Republic Power (Class A)",
+    "ath": 63744.0
+   },
+   {
+    "ticker": "AEMD",
+    "price": 5.29,
+    "day_pct": -5.2,
+    "wk_pct": -3.3,
+    "high3m": 6.81,
+    "cap": 8502971,
+    "name": "Aethlon Medical",
+    "ath": 27000000.0
+   },
+   {
+    "ticker": "NVNO",
+    "price": 6.17,
+    "day_pct": -6.2,
+    "wk_pct": -8.3,
+    "high3m": 11.8,
+    "cap": 4287076,
+    "name": "enVVeno Medical",
+    "ath": 4585.0
+   },
+   {
+    "ticker": "VEEE",
+    "price": 6.7,
+    "day_pct": 1.8,
+    "wk_pct": -19.0,
+    "high3m": 17.24,
+    "cap": 3912625,
+    "name": "Twin Vee PowerCats",
+    "ath": 2937.8
+   },
+   {
+    "ticker": "PMCB",
+    "price": 6.68,
+    "day_pct": -12.5,
+    "wk_pct": -2.3,
+    "high3m": 10.47,
+    "cap": 3774427,
+    "name": "PharmaCyte Biotech",
+    "ath": 15019.5
+   },
+   {
+    "ticker": "RETO",
+    "price": 5.6,
+    "day_pct": -27.8,
+    "wk_pct": 46.2,
+    "high3m": 56.0,
+    "cap": 1658938,
+    "name": "ReTo Eco-Solutions (Class A)",
+    "ath": 44960000.0
+   }
+  ]
+ }
+}
