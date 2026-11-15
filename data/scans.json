@@ -1,8 +1,4 @@
 {
- "analysts": {
-  "date": "2026-11-15",
-  "stocks": []
- },
  "friday": {
   "date": "2026-11-15",
   "as_of": "2026-11-13",
@@ -1164,5 +1160,7 @@
  },
  "analyst_sent": {
   "NVDA": "2026-11-15"
- }
+ },
+ "analyst_days": {},
+ "analyst_start": "2026-11-12"
 }
