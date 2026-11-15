@@ -120,7 +120,15 @@ def sync_settings(app_cfg, cfg, settings=None):
             wanted = clean_tickers(data["tickers"])
             if wanted != list(settings["tickers"]):
                 print("stock list changed in the app:", wanted)
-            settings["tickers"] = {t: settings["tickers"].get(t, t) for t in wanted}
+            names = data.get("names") if isinstance(data.get("names"), dict) else {}
+
+            def name_for(t):
+                if settings["tickers"].get(t, t) != t:
+                    return settings["tickers"][t]                  # already known
+                given = " ".join(str(names.get(t, "")).split())[:60]
+                return given or t                                 # the app sends the name from its ticker list
+
+            settings["tickers"] = {t: name_for(t) for t in wanted}
             for t in wanted:                                  # asked for again: give it another try
                 settings["rejected"].pop(t, None)
         if isinstance(data.get("picked"), list):
@@ -328,6 +336,9 @@ def main(argv):
 
     if settings_changed or not os.path.exists(SETTINGS_PATH):
         save_json(SETTINGS_PATH, settings)
+
+    import tickers
+    tickers.refresh_if_stale()            # the searchable list the app uses when adding a stock
 
     board = {
         "picked": picked,

@@ -218,6 +218,21 @@
   .holdsum { font-size: 14px; color: var(--muted); }
   .holdsum b { color: var(--fg); font-size: 17px; }
   .note { margin: 0; font-size: 12px; color: var(--muted); }
+
+  /* v1.8: suggestions while adding a stock, red "no such ticker" message */
+  .addform input { text-transform: none; }
+  .suggest { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; margin: 0 0 10px; overflow: hidden; }
+  .suggest button { width: 100%; display: grid; grid-template-columns: 62px minmax(0, 1fr) auto; gap: 10px; align-items: center; text-align: left;
+                    background: none; color: var(--fg); border-radius: 0; padding: 11px 12px; font-weight: 400; border-bottom: 1px solid var(--line); }
+  .suggest button:last-child { border-bottom: 0; }
+  .suggest b { font-weight: 800; }
+  .suggest span { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .suggest em { font-style: normal; font-size: 12px; font-weight: 700; color: #22c55e; }
+  .suggest button[disabled] { opacity: 1; }
+  .suggest button[disabled] em, .suggest button[disabled] b { color: var(--muted); }
+  .adderror { display: inline-block; margin: 0 0 10px; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 700;
+              background: color-mix(in srgb, var(--danger) 20%, transparent); color: var(--danger); }
+  @media (prefers-reduced-motion: no-preference) { .adderror { animation: pop .18s ease-out; } @keyframes pop { from { transform: scale(.9); opacity: 0; } } }
 </style>
 </head>
 <body>
@@ -265,9 +280,11 @@
     <span id="boardUpdated" class="sub"></span>
   </div>
   <form id="addForm" class="addform">
-    <input id="addTicker" placeholder="Add a stock by its ticker, e.g. AMD" aria-label="Ticker of the stock to add" maxlength="12" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false">
+    <input id="addTicker" placeholder="Add a stock: type its name or ticker" aria-label="Name or ticker of the stock to add" maxlength="30" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false">
     <button type="submit">Add</button>
   </form>
+  <p id="addError" class="adderror" role="alert" hidden></p>
+  <div id="addSuggest" class="suggest" hidden></div>
   <p id="boardHint" class="hint"></p>
   <div id="boardList"></div>
   <p id="boardEmpty" class="empty" hidden></p>
@@ -299,8 +316,8 @@
   <div id="holdList"></div>
   <form id="holdForm" class="holdform">
     <div class="two">
-      <div class="kv"><label for="hShares">How many shares</label><input id="hShares" type="number" inputmode="decimal" min="0" step="any" placeholder="10"></div>
-      <div class="kv"><label for="hPrice">Price per share ($)</label><input id="hPrice" type="number" inputmode="decimal" min="0" step="any" placeholder="120.50"></div>
+      <div class="kv"><label for="hShares">How many shares</label><input id="hShares" type="number" inputmode="decimal" min="0" step="any"></div>
+      <div class="kv"><label for="hPrice">Price per share ($)</label><input id="hPrice" type="number" inputmode="decimal" min="0" step="any"></div>
     </div>
     <div class="kv"><label for="hDate">When you bought</label><input id="hDate" type="date"></div>
     <div class="row"><button type="submit">Add purchase</button><button type="button" id="holdClose" class="ghost">Done</button></div>
@@ -334,7 +351,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "1.7";
+  const APP_VERSION = "1.8";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -607,6 +624,7 @@
 
   async function openBoard() {
     openScreen("board");
+    loadTickers();
     $("boardUpdated").textContent = "Loading…";
     const data = await loadStocks(true);
     renderBoard(data);
@@ -641,13 +659,16 @@
     picked = picked.includes(ticker) ? picked.filter((t) => t !== ticker) : [...picked, ticker];
     saveLocal(data);
   }
-  function addTicker(raw, data) {
+  let myNames = {};
+  try { myNames = JSON.parse(ls.get("cn.names", "{}")) || {}; } catch { myNames = {}; }
+  function addTicker(raw, data, name) {
     const t = String(raw || "").trim().toUpperCase();
-    if (!TICKER_RE.test(t)) { toast("Type a ticker symbol, like AMD or NFLX"); return false; }
+    if (!TICKER_RE.test(t)) return false;
     ensureLocal(data);
     if (myTickers.includes(t)) { toast(t + " is already on your list"); return false; }
     if (myTickers.length >= 30) { toast("The list is full (30 stocks)"); return false; }
     myTickers = [...myTickers, t]; picked = [...picked, t];
+    if (name) { myNames[t] = name; ls.set("cn.names", JSON.stringify(myNames)); }
     saveLocal(data);
     return true;
   }
@@ -659,7 +680,7 @@
   async function saveStockSettings() {
     try {
       const r = await fetch(`${C.ntfy}/${C.topic}-settings`, { method: "POST", headers: { "Title": "stocks" },
-        body: JSON.stringify({ type: "stocks", picked, tickers: myTickers, time: Date.now() }) });
+        body: JSON.stringify({ type: "stocks", picked, tickers: myTickers, names: myNames, time: Date.now() }) });
       if (!r.ok) throw new Error(r.status);
       toast("Saved");
     } catch { toast("Could not save. Check your connection."); }
@@ -697,7 +718,7 @@
       return `
       <div class="srow wait">
         <span></span>
-        <div class="info"><div class="nm">${esc(t)} <span class="tag${bad ? " big" : ""}">${bad ? "NOT FOUND" : "WAITING"}</span></div>
+        <div class="info"><div class="nm">${esc(myNames[t] || t)}${myNames[t] ? ` <span class="tk">${esc(t)}</span>` : ""} <span class="tag${bad ? " big" : ""}">${bad ? "NOT FOUND" : "WAITING"}</span></div>
           <div class="sub">${bad ? "No stock has this ticker. Check the symbol." : "Its prices arrive with the next check, usually within 15 minutes."}</div></div>
         <span></span>
         <button class="pick" data-remove="${esc(t)}" aria-label="Remove ${esc(t)}">✕</button>
@@ -721,17 +742,61 @@
     list.querySelectorAll("[data-own]").forEach((b) => b.onclick = (e) => { e.stopPropagation(); openHold(b.dataset.own); });
     list.querySelectorAll(".srow[data-t]").forEach((b) => b.onclick = () => openDetail(data.stocks.find((x) => x.ticker === b.dataset.t), data.rules));
   }
-  $("addForm").addEventListener("submit", (e) => {
-    e.preventDefault();
-    if (stocks && addTicker($("addTicker").value, stocks)) { $("addTicker").value = ""; $("addTicker").blur(); }
-  });
+  // ---- adding a stock: live suggestions from the list of real tickers --------
+  let tickerDB = null, tickerMap = new Map(), tickerLoad = null, addErrTimer = null;
+  function loadTickers() {
+    if (!tickerLoad) tickerLoad = fetch("data/tickers.txt").then((r) => r.ok ? r.text() : Promise.reject(r.status)).then((text) => {
+      tickerDB = text.split("\n").filter((l) => l && l[0] !== "#").map((l) => { const i = l.indexOf("|"), n = l.slice(i + 1); return { s: l.slice(0, i), n, nl: n.toLowerCase() }; });
+      tickerMap = new Map(tickerDB.map((x) => [x.s, x.n]));
+    }).catch(() => { tickerLoad = null; tickerDB = null; });
+    return tickerLoad;
+  }
+  function searchTickers(q) {
+    q = q.trim();
+    if (!q || !tickerDB) return [];
+    const u = q.toUpperCase(), l = q.toLowerCase(), out = [];
+    for (const x of tickerDB) {
+      const r = x.s === u ? 0 : x.s.startsWith(u) ? 1 : x.nl.startsWith(l) ? 2 : x.nl.includes(" " + l) ? 3 : (l.length >= 3 && x.nl.includes(l)) ? 4 : 9;
+      if (r < 9) out.push([r, x]);
+    }
+    out.sort((a, b) => a[0] - b[0] || a[1].s.length - b[1].s.length || a[1].s.localeCompare(b[1].s));
+    return out.slice(0, 8).map((a) => a[1]);
+  }
+  function showAddError(text) {
+    const e = $("addError"); e.hidden = true; e.textContent = text; void e.offsetWidth; e.hidden = false;
+    clearTimeout(addErrTimer); addErrTimer = setTimeout(() => { e.hidden = true; }, 6000);
+  }
+  function hideAddError() { clearTimeout(addErrTimer); $("addError").hidden = true; }
+  function renderSuggest() {
+    const box = $("addSuggest"), hits = searchTickers($("addTicker").value);
+    if (!hits.length) { box.hidden = true; box.innerHTML = ""; return; }
+    const have = stocks ? listTickers(stocks) : [];
+    box.innerHTML = hits.map((x) => { const on = have.includes(x.s);
+      return `<button type="button" data-s="${esc(x.s)}"${on ? " disabled" : ""}><b>${esc(x.s)}</b><span>${esc(x.n)}</span><em>${on ? "On your list" : "Add"}</em></button>`; }).join("");
+    box.hidden = false;
+    box.querySelectorAll("button").forEach((b) => b.onclick = () => tryAdd(b.dataset.s));
+  }
+  async function tryAdd(raw) {
+    const text = String(raw || "").trim();
+    if (!text || !stocks) return;
+    const t = text.toUpperCase();
+    await loadTickers();
+    const haveList = tickerDB && tickerDB.length > 0;
+    if (haveList ? !tickerMap.has(t) : !TICKER_RE.test(t)) { showAddError("No Stock Ticker as: " + t.slice(0, 20)); return; }
+    hideAddError();
+    if (addTicker(t, stocks, tickerMap.get(t))) { $("addTicker").value = ""; $("addTicker").blur(); renderSuggest(); }
+  }
+  $("addTicker").addEventListener("input", () => { hideAddError(); renderSuggest(); loadTickers().then(renderSuggest); });
+  $("addTicker").addEventListener("focus", () => { loadTickers().then(renderSuggest); });
+  $("addForm").addEventListener("submit", (e) => { e.preventDefault(); tryAdd($("addTicker").value); });
 
   // ---- my shares: how many, when bought, at what price (kept on this phone) --
   let holdTicker = null;
+  const todayLocal = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
   function stockOf(t) { return stocks && stocks.stocks.find((x) => x.ticker === t); }
   function openHold(t) {
     holdTicker = t;
-    $("hShares").value = ""; $("hPrice").value = ""; $("hDate").value = new Date().toISOString().slice(0, 10);
+    $("hShares").value = ""; $("hPrice").value = ""; $("hDate").max = todayLocal(); $("hDate").value = todayLocal();
     renderHold();
     $("hold").hidden = false; $("holdBg").hidden = false; $("hold").scrollTop = 0;
   }
@@ -757,6 +822,7 @@
     });
   }
   $("hDate").addEventListener("change", () => {            // offer that day's closing price
+    if ($("hDate").value > todayLocal()) { $("hDate").value = todayLocal(); toast("The date can't be later than today"); }
     const s = stockOf(holdTicker);
     if (!s || $("hPrice").value || !$("hDate").value) return;
     const day = Math.floor(Date.parse($("hDate").value + "T00:00:00Z") / 86400000);
@@ -770,6 +836,7 @@
     if (!(shares > 0)) { toast("Enter how many shares"); return; }
     if (!(price > 0)) { toast("Enter the price you paid per share"); return; }
     if (!date) { toast("Pick the date you bought"); return; }
+    if (date > todayLocal()) { toast("The date can't be later than today"); return; }
     (holdings[holdTicker] = holdings[holdTicker] || []).push({ shares, price, date });
     holdings[holdTicker].sort((a, b) => a.date.localeCompare(b.date));
     ls.set("cn.holdings", JSON.stringify(holdings));
