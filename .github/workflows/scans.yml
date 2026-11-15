@@ -2,8 +2,9 @@ name: Market scans
 
 on:
   schedule:
-    # Monday-Friday 21:30 UTC, after the US market has closed (23:30 in Israel in winter).
-    # Every day: the analyst buy-ratings check. On Fridays also the whole-market dip check.
+    # Monday-Friday 21:30 UTC, after the US market has closed (23:30 in Israel in winter):
+    # the analyst buy-ratings check, one stock at most. The Friday whole-market dip
+    # check is switched off (friday_scan_enabled in worker/config.json).
     - cron: "30 21 * * 1-5"
   workflow_dispatch:
     inputs:

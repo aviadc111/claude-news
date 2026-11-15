@@ -1,17 +1,20 @@
 """
 Market-wide scans that run on GitHub after the US market closes.
 
-  analysts   every trading day: which large companies did many analysts rate "Buy" today?
-             If any stock got `analyst_min_buy_ratings` or more Buy-type ratings from
-             different firms, send its name, price, all-time high and 30-day high / low.
+  analysts   every trading day: which large company did the most analysts rate "Buy" today?
+             If a stock got `analyst_min_buy_ratings` or more Buy-type ratings from
+             different firms, send the top one: its name, price, all-time high and
+             30-day high / low. A stock already sent in the last `analyst_repeat_days`
+             days is sent again only if it is not picked for the weekly report.
              These are analysts' published ratings, reported as they are. Not advice.
 
-  friday     every Friday: every US-listed stock (not only the picked ones) that had a
+  friday     SWITCHED OFF (`friday_scan_enabled` in config.json; still runnable by hand).
+             Every Friday: every US-listed stock (not only the picked ones) that had a
              sudden dip - down `sudden_drop_day_pct` today or `sudden_drop_5day_pct` in
              5 trading days - and that either traded at `friday_recent_high` dollars or
              more in the last 3 months, or once cost `friday_alltime_high` dollars or more.
 
-    python worker/scans.py auto               what the schedule runs (analysts; plus friday on Fridays)
+    python worker/scans.py auto               what the schedule runs (the analysts check)
     python worker/scans.py analysts|friday|both [--dry] [--force] [--hours N]
 """
 
@@ -42,7 +45,9 @@ BUY_GRADES = {"buy", "strong buy", "outperform", "overweight", "positive", "accu
 DEFAULTS = {
     "analyst_min_buy_ratings": 5,
     "analyst_min_market_cap": 10_000_000_000,
-    "analyst_max_stocks": 3,
+    "analyst_max_stocks": 1,
+    "analyst_repeat_days": 14,
+    "friday_scan_enabled": False,
     "friday_min_price": 5.0,
     "friday_recent_high": 100.0,
     "friday_alltime_high": 120.0,
@@ -135,7 +140,7 @@ def closes(symbols, period, batch=400):
 
 
 # ---------------------------------------------------------- analysts (daily) ---
-def analyst_scan(cfg, hours):
+def analyst_scan(cfg, hours, skip=lambda ticker: False):
     import pandas as pd
     import yfinance as yf
     Q = yf.EquityQuery
@@ -184,7 +189,10 @@ def analyst_scan(cfg, hours):
                   key=lambda r: (-r["buy"], -r["upgrades"], r["other"]))
     print(f"lookups failed: {errors} | stocks with {cfg['analyst_min_buy_ratings']}+ buy ratings: "
           f"{[(r['ticker'], r['buy']) for r in hits]}")
-    hits = hits[:int(cfg["analyst_max_stocks"])]
+    skipped = [r["ticker"] for r in hits if skip(r["ticker"])]
+    if skipped:
+        print("already sent in the last weeks and in the weekly report, not repeated:", skipped)
+    hits = [r for r in hits if not skip(r["ticker"])][:int(cfg["analyst_max_stocks"])]
     if hits:
         names = nice_names()
         full = closes([r["ticker"] for r in hits], "max")
@@ -199,12 +207,14 @@ def analyst_scan(cfg, hours):
 
 
 def analyst_message(hits):
-    title = "Analyst buy ratings today: " + ", ".join(r["ticker"] for r in hits)
+    title = "Most analyst buy ratings today: " + ", ".join(r["ticker"] for r in hits)
     parts = []
     for r in hits:
         up = f", {r['upgrades']} of them new or upgraded" if r["upgrades"] else ""
         neg = f" {r['other']} rated it Hold or lower." if r["other"] else ""
         lines = [f"{r['name']} ({r['ticker']}): {r['buy']} analyst firms rated it Buy today{up}.{neg}"]
+        if r.get("sent_before"):
+            lines.append(f"Sent to you before on {r['sent_before']}. It is not in your weekly report.")
         if r.get("raised") or r.get("lowered"):
             lines.append(f"Their price targets: {r.get('raised', 0)} raised, {r.get('lowered', 0)} lowered.")
         if "price" in r:
@@ -281,7 +291,7 @@ def main(argv):
         if now_ny.weekday() > 4:
             print("weekend - nothing to scan")
             return
-        todo = ["analysts"] + (["friday"] if now_ny.weekday() == 4 else [])
+        todo = ["analysts"] + (["friday"] if now_ny.weekday() == 4 and cfg.get("friday_scan_enabled") else [])
     else:
         todo = ["analysts", "friday"] if what == "both" else [what]
 
@@ -304,12 +314,31 @@ def main(argv):
             print("analyst check already done today")
         else:
             hours = int(argv[argv.index("--hours") + 1]) if "--hours" in argv else (72 if now_ny.weekday() == 0 else 24)
-            hits = analyst_scan(cfg, hours)
+            # Repeat rule: a stock already sent in the last `analyst_repeat_days` days is sent again
+            # only if it is NOT one of the stocks picked for the weekly report.
+            picked = set(load_json(os.path.join(DATA_DIR, "settings.json"), {}).get("picked", []))
+            sent = state.setdefault("analyst_sent", {})
+            if not sent and state.get("analysts", {}).get("stocks"):          # first run with this rule
+                for r in state["analysts"]["stocks"]:
+                    sent[r["ticker"]] = state["analysts"]["date"]
+            repeat_days = int(cfg["analyst_repeat_days"])
+
+            def recently(ticker):
+                when = sent.get(ticker)
+                return bool(when) and (now_ny.date() - dt.date.fromisoformat(when)).days < repeat_days
+
+            hits = analyst_scan(cfg, hours, skip=lambda t: recently(t) and t in picked)
+            for r in hits:
+                r["sent_before"] = sent[r["ticker"]] if recently(r["ticker"]) else None
             ok = send(*analyst_message(hits)) if hits else True
             if not hits:
-                print("no stock got a lot of buy ratings today - nothing sent")
+                print("no new recommended stock today - nothing sent")
             if ok and not dry:
                 state["analysts"] = {"date": today, "stocks": hits}
+                for r in hits:
+                    sent[r["ticker"]] = today
+                for old in [t for t, d in sent.items() if (now_ny.date() - dt.date.fromisoformat(d)).days > 60]:
+                    del sent[old]
 
     if "friday" in todo:
         if state.get("friday", {}).get("date") == today and not force:
