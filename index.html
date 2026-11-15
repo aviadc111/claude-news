@@ -167,15 +167,38 @@
   .scrub b { color: var(--fg); }
   .toast { position: fixed; left: 50%; bottom: calc(100px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-weight: 600; font-size: 14px; max-width: calc(100% - 32px); z-index: 30; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
   @media (prefers-reduced-motion: no-preference) { .msg { animation: in .22s ease-out; } @keyframes in { from { opacity: 0; transform: translateY(4px);} } }
+
+  /* v1.6: content starts below the iPhone status bar so the sticky bar never covers it */
+  body { padding-top: env(safe-area-inset-top, 0px); }
+  .iconbtn { padding: 0; flex: 0 0 auto; }
+  header img { width: 40px; height: 40px; flex: 0 0 auto; }
+  header .brand h1 { font-size: 24px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  header .brand p { min-height: 18px; }
+  .chartsbtn { flex: 0 0 auto; }
+  /* stock picker */
+  .hint { margin: 0 2px 12px; font-size: 13px; color: var(--muted); }
+  .hint b { color: var(--fg); }
+  .hint .pending { color: var(--accent); }
+  .srow { grid-template-columns: 32px minmax(0, 1fr) 68px auto; gap: 10px; cursor: pointer; }
+  .srow canvas { width: 68px; }
+  .srow.off .info, .srow.off canvas, .srow.off .px { opacity: .4; }
+  .pick { width: 30px; height: 30px; padding: 0; border-radius: 50%; background: none; border: 2px solid var(--muted);
+          display: grid; place-items: center; color: #052e16; }
+  .pick.on { background: #22c55e; border-color: #22c55e; }
+  .pick svg { width: 16px; height: 16px; }
 </style>
 </head>
 <body>
 <header>
-  <img src="icons/logo.svg" alt="" width="44" height="44">
+  <img src="icons/logo.svg" alt="" width="40" height="40">
   <div class="brand">
-    <h1>Claude News</h1>
-    <p id="subtitle">Your projects, on your phone</p>
+    <h1 id="tabTitle">Stocks</h1>
+    <p id="tabCount"></p>
   </div>
+  <button id="boardBtn" class="chartsbtn" aria-label="Open stock charts" hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>
+    Charts
+  </button>
   <button id="settingsBtn" class="iconbtn" aria-label="Settings">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
   </button>
@@ -197,16 +220,6 @@
     <p id="setupError" class="error" hidden></p>
   </section>
 
-  <div class="section-title">
-    <div class="lead">
-      <button id="boardBtn" class="chartsbtn" aria-label="Open stock charts" hidden>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>
-        Charts
-      </button>
-      <h2 id="tabTitle">Stocks</h2>
-    </div>
-    <span id="tabCount"></span>
-  </div>
   <ul id="feed" class="feed"></ul>
   <div id="empty" class="empty" hidden></div>
 </main>
@@ -219,6 +232,7 @@
     <h2>Stocks</h2>
     <span id="boardUpdated" class="sub"></span>
   </div>
+  <p id="boardHint" class="hint"></p>
   <div id="boardList"></div>
   <p id="boardEmpty" class="empty" hidden></p>
 </section>
@@ -265,7 +279,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "1.5";
+  const APP_VERSION = "1.6";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -542,25 +556,62 @@
     const data = await loadStocks(true);
     renderBoard(data);
   }
+  // ---- picked stocks: the ones you get messages about ----------------------
+  let picked = null, pickTimer = null;
+  try { picked = JSON.parse(ls.get("cn.picked", "null")); } catch { picked = null; }
+  function currentPicked(data) {
+    const all = data.stocks.map((s) => s.ticker);
+    const base = Array.isArray(picked) ? picked : (Array.isArray(data.picked) ? data.picked : all);
+    return all.filter((t) => base.includes(t));
+  }
+  function togglePick(ticker, data) {
+    const cur = new Set(currentPicked(data));
+    if (cur.has(ticker)) cur.delete(ticker); else cur.add(ticker);
+    picked = data.stocks.map((s) => s.ticker).filter((t) => cur.has(t));
+    ls.set("cn.picked", JSON.stringify(picked));
+    renderBoard(data);
+    clearTimeout(pickTimer);
+    pickTimer = setTimeout(savePicked, 1200);
+  }
+  async function savePicked() {
+    try {
+      const r = await fetch(`${C.ntfy}/${C.topic}-settings`, { method: "POST", headers: { "Title": "stocks" },
+        body: JSON.stringify({ type: "stocks", picked, time: Date.now() }) });
+      if (!r.ok) throw new Error(r.status);
+      toast(picked.length ? `Saved: ${picked.length} stock${picked.length === 1 ? "" : "s"} picked` : "Saved: no stocks picked");
+    } catch { toast("Could not save. Check your connection."); }
+  }
+  const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 12.5 10 17.5 19 7"/></svg>';
+
   function renderBoard(data) {
     const list = $("boardList");
     if (!data || !data.stocks || !data.stocks.length) {
-      list.innerHTML = ""; $("boardEmpty").hidden = false;
+      list.innerHTML = ""; $("boardEmpty").hidden = false; $("boardHint").textContent = "";
       $("boardEmpty").innerHTML = "<strong>No stock data yet</strong>The first GitHub check hasn't run. Try again in a few minutes.";
       $("boardUpdated").textContent = ""; return;
     }
     $("boardEmpty").hidden = true;
     const at = new Date(data.updated);
     $("boardUpdated").textContent = "updated " + at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + (at.toDateString() === new Date().toDateString() ? "" : " " + at.toLocaleDateString([], { day: "numeric", month: "short" }));
+    const mine = currentPicked(data);
+    const synced = !Array.isArray(picked) || (Array.isArray(data.picked) && data.picked.length === mine.length && data.picked.every((t) => mine.includes(t)));
+    const when = (data.weekly && data.weekly.time) || "08:30";
+    $("boardHint").innerHTML = `Tap a circle to pick the stocks you follow. <b>${mine.length} of ${data.stocks.length} picked.</b> You get their prices every Sunday at ${when}, and an alert when one drops suddenly.`
+      + (synced ? "" : `<br><span class="pending">Saved on this phone. The checker switches to your picks on its next run, within 3 hours.</span>`);
     const order = [...data.stocks].sort((a, b) => a.from_lt_high_pct - b.from_lt_high_pct);
-    list.innerHTML = order.map((s) => `
-      <button class="srow" data-t="${esc(s.ticker)}">
-        <div><div class="nm">${esc(s.name)} <span class="tk">${esc(s.ticker)}</span> ${s.big_dip ? '<span class="tag big">BIG DIP</span>' : s.dip ? '<span class="tag dip">DIP</span>' : '<span class="tag">normal</span>'}</div>
+    list.innerHTML = order.map((s) => {
+      const on = mine.includes(s.ticker);
+      const tag = s.sudden ? '<span class="tag big">SUDDEN DIP</span>' : s.big_dip ? '<span class="tag big">BIG DIP</span>' : s.dip ? '<span class="tag dip">DIP</span>' : '<span class="tag">normal</span>';
+      return `
+      <div class="srow${on ? "" : " off"}" data-t="${esc(s.ticker)}">
+        <button class="pick${on ? " on" : ""}" data-pick="${esc(s.ticker)}" aria-pressed="${on}" aria-label="${on ? "Stop following" : "Follow"} ${esc(s.name)}">${on ? CHECK : ""}</button>
+        <div class="info"><div class="nm">${esc(s.name)} <span class="tk">${esc(s.ticker)}</span> ${tag}</div>
           <div class="sub">${Math.abs(s.from_lt_high_pct).toFixed(0)}% below ${data.rules.longterm_years}-year high</div></div>
         <canvas data-spark="${esc(s.ticker)}"></canvas>
         <div class="px"><b>${money(s.price)}</b><span class="${s.day_pct >= 0 ? "up" : "down"}">${pct(s.day_pct)}</span></div>
-      </button>`).join("");
+      </div>`; }).join("");
     list.querySelectorAll("canvas[data-spark]").forEach((c) => { const s = data.stocks.find((x) => x.ticker === c.dataset.spark); drawSpark(c, s.series, s.series[s.series.length - 1][1] >= s.series[0][1] ? "#22c55e" : "#ef4444"); });
+    list.querySelectorAll(".pick").forEach((b) => b.onclick = (e) => { e.stopPropagation(); togglePick(b.dataset.pick, data); });
     list.querySelectorAll(".srow").forEach((b) => b.onclick = () => openDetail(data.stocks.find((x) => x.ticker === b.dataset.t), data.rules));
   }
   function openDetail(s, rules) {
@@ -574,8 +625,9 @@
       [`${rules.lookback_days}-day high`, money(s.high30), s.high30_date],
       [`${rules.lookback_days}-day low`, money(s.low30), s.low30_date],
     ].map(([k, v, d]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join("");
-    $("dReason").hidden = !s.dip;
-    $("dReason").innerHTML = s.dip ? `<b class="${s.big_dip ? "down" : ""}">${s.big_dip ? "BIG DIP" : "DIP"}</b> · ${esc(s.reasons.join("; "))}` : "";
+    const flagged = s.sudden || s.dip, why = s.sudden ? s.sudden_reasons : s.reasons;
+    $("dReason").hidden = !flagged;
+    $("dReason").innerHTML = flagged ? `<b class="${s.sudden || s.big_dip ? "down" : ""}">${s.sudden ? "SUDDEN DIP" : s.big_dip ? "BIG DIP" : "DIP"}</b> · ${esc(why.join("; "))}` : "";
     $("dPeriods").innerHTML = PERIODS.map(([l, y]) => `<button data-y="${y}" class="${y === dPeriod ? "active" : ""}">${l}</button>`).join("");
     $("dPeriods").querySelectorAll("button").forEach((b) => b.onclick = () => { dPeriod = Number(b.dataset.y); $("dPeriods").querySelectorAll("button").forEach((x) => x.classList.toggle("active", x === b)); drawDetail(); });
     openScreen("detail");
