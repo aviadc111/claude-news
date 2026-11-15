@@ -2,13 +2,10 @@ name: Stock dip checks
 
 on:
   schedule:
-    # every 15 minutes while the US market can be open (13:00-21:59 UTC, Mon-Fri)
-    - cron: "*/15 13-21 * * 1-5"
-    # every 3 hours around the clock: picks up stock choices made in the app, refreshes the board
-    - cron: "0 */3 * * *"
-    # the weekly prices message, Sunday 08:30 Israel time (05:30 UTC in summer, 06:30 UTC in winter;
-    # the script itself checks the Israel clock and sends once)
-    - cron: "30 5,6 * * 0"
+    # Every 15 minutes, around the clock. Each run picks up stocks added or picked in
+    # the app, refreshes the charts data, sends a sudden-dip alert when one happens,
+    # and on Sunday from 08:30 Israel time sends the weekly prices message once.
+    - cron: "*/15 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -33,7 +30,7 @@ jobs:
 
       - run: pip install -q -r worker/requirements.txt
 
-      - name: Check prices, send alerts, write stocks.json
+      - name: Check prices, send messages, write stocks.json
         env:
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
           DEVICES_KEY: ${{ secrets.DEVICES_KEY }}

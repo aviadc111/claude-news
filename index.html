@@ -186,6 +186,38 @@
           display: grid; place-items: center; color: #052e16; }
   .pick.on { background: #22c55e; border-color: #22c55e; }
   .pick svg { width: 16px; height: 16px; }
+
+  /* v1.7: add a stock, glow for picked stocks, my shares */
+  .addform { display: flex; gap: 8px; margin: 0 0 10px; }
+  .addform input { flex: 1; min-width: 0; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); text-transform: uppercase; }
+  .addform input::placeholder { text-transform: none; color: var(--muted); }
+  .addform button { flex: 0 0 auto; }
+  .hint .glowtxt { color: #22c55e; }
+  #boardList { padding: 4px 2px; }
+  .srow { align-items: start; }
+  .srow.on { box-shadow: 0 0 0 1.5px rgba(34, 197, 94, .95), 0 0 16px rgba(34, 197, 94, .38); }
+  .srow .pick, .srow canvas { align-self: center; }
+  .srow.wait { align-items: center; cursor: default; }
+  .srow.wait .pick { font-size: 14px; color: var(--muted); }
+  .own { display: inline-block; margin-top: 6px; padding: 4px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap;
+         background: var(--surface-2); color: var(--fg); }
+  .own.has.up { background: color-mix(in srgb, var(--ok) 20%, transparent); color: var(--ok); }
+  .own.has.down { background: color-mix(in srgb, var(--danger) 20%, transparent); color: var(--danger); }
+  .holdcard { background: var(--surface); border-radius: 14px; padding: 12px; margin-top: 12px; display: grid; gap: 4px; justify-items: start; }
+  .holdcard .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 700; }
+  .holdcard .v { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .holdcard .d { font-size: 13px; color: var(--muted); }
+  .holdcard .d.up { color: var(--ok); } .holdcard .d.down { color: var(--danger); }
+  .holdcard button { margin-top: 6px; }
+  #dRemove { width: 100%; margin-top: 12px; color: var(--danger); }
+  .lot { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--bg); border-radius: 12px; padding: 10px 12px; }
+  .lot .d { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  #holdList { display: grid; gap: 8px; }
+  .holdform { display: grid; gap: 10px; }
+  .holdform .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .holdsum { font-size: 14px; color: var(--muted); }
+  .holdsum b { color: var(--fg); font-size: 17px; }
+  .note { margin: 0; font-size: 12px; color: var(--muted); }
 </style>
 </head>
 <body>
@@ -232,6 +264,10 @@
     <h2>Stocks</h2>
     <span id="boardUpdated" class="sub"></span>
   </div>
+  <form id="addForm" class="addform">
+    <input id="addTicker" placeholder="Add a stock by its ticker, e.g. AMD" aria-label="Ticker of the stock to add" maxlength="12" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false">
+    <button type="submit">Add</button>
+  </form>
   <p id="boardHint" class="hint"></p>
   <div id="boardList"></div>
   <p id="boardEmpty" class="empty" hidden></p>
@@ -251,6 +287,25 @@
     <canvas id="dChart"></canvas>
     <div class="scrub" id="dScrub"><span>Touch the chart for a date</span><span></span></div>
   </div>
+  <div id="dHold" class="holdcard"></div>
+  <button id="dRemove" class="ghost">Remove from my list</button>
+</section>
+
+<div id="holdBg" class="sheet-bg" hidden></div>
+<section id="hold" class="sheet" hidden aria-label="My shares">
+  <div class="grab"></div>
+  <h2 id="holdTitle"></h2>
+  <div id="holdSummary" class="holdsum"></div>
+  <div id="holdList"></div>
+  <form id="holdForm" class="holdform">
+    <div class="two">
+      <div class="kv"><label for="hShares">How many shares</label><input id="hShares" type="number" inputmode="decimal" min="0" step="any" placeholder="10"></div>
+      <div class="kv"><label for="hPrice">Price per share ($)</label><input id="hPrice" type="number" inputmode="decimal" min="0" step="any" placeholder="120.50"></div>
+    </div>
+    <div class="kv"><label for="hDate">When you bought</label><input id="hDate" type="date"></div>
+    <div class="row"><button type="submit">Add purchase</button><button type="button" id="holdClose" class="ghost">Done</button></div>
+  </form>
+  <p class="note">Saved on this phone only. It is not sent anywhere.</p>
 </section>
 
 <div id="sheetBg" class="sheet-bg" hidden></div>
@@ -279,7 +334,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "1.6";
+  const APP_VERSION = "1.7";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -556,63 +611,189 @@
     const data = await loadStocks(true);
     renderBoard(data);
   }
-  // ---- picked stocks: the ones you get messages about ----------------------
-  let picked = null, pickTimer = null;
+  // ---- my stocks: the list, the picks (Sunday report) and my shares ----------
+  const TICKER_RE = /^[A-Z0-9.\-=^]{1,12}$/;
+  let picked = null, myTickers = null, holdings = {}, pickTimer = null;
   try { picked = JSON.parse(ls.get("cn.picked", "null")); } catch { picked = null; }
+  try { myTickers = JSON.parse(ls.get("cn.tickers", "null")); } catch { myTickers = null; }
+  try { holdings = JSON.parse(ls.get("cn.holdings", "{}")) || {}; } catch { holdings = {}; }
+  const pct1 = (v) => (v >= 0 ? "+" : "") + Number(v).toFixed(1) + "%";
+  const fmtShares = (n) => Number(n).toLocaleString(undefined, { maximumFractionDigits: 4 });
+  const serverTickers = (data) => data.stocks.map((s) => s.ticker);
+  function listTickers(data) { return Array.isArray(myTickers) ? myTickers : serverTickers(data); }
   function currentPicked(data) {
-    const all = data.stocks.map((s) => s.ticker);
+    const all = listTickers(data);
     const base = Array.isArray(picked) ? picked : (Array.isArray(data.picked) ? data.picked : all);
     return all.filter((t) => base.includes(t));
   }
-  function togglePick(ticker, data) {
-    const cur = new Set(currentPicked(data));
-    if (cur.has(ticker)) cur.delete(ticker); else cur.add(ticker);
-    picked = data.stocks.map((s) => s.ticker).filter((t) => cur.has(t));
-    ls.set("cn.picked", JSON.stringify(picked));
+  function ensureLocal(data) {
+    if (!Array.isArray(picked)) picked = currentPicked(data);
+    if (!Array.isArray(myTickers)) myTickers = serverTickers(data);
+  }
+  function saveLocal(data) {
+    ls.set("cn.picked", JSON.stringify(picked)); ls.set("cn.tickers", JSON.stringify(myTickers));
     renderBoard(data);
     clearTimeout(pickTimer);
-    pickTimer = setTimeout(savePicked, 1200);
+    pickTimer = setTimeout(saveStockSettings, 1200);
   }
-  async function savePicked() {
+  function togglePick(ticker, data) {
+    ensureLocal(data);
+    picked = picked.includes(ticker) ? picked.filter((t) => t !== ticker) : [...picked, ticker];
+    saveLocal(data);
+  }
+  function addTicker(raw, data) {
+    const t = String(raw || "").trim().toUpperCase();
+    if (!TICKER_RE.test(t)) { toast("Type a ticker symbol, like AMD or NFLX"); return false; }
+    ensureLocal(data);
+    if (myTickers.includes(t)) { toast(t + " is already on your list"); return false; }
+    if (myTickers.length >= 30) { toast("The list is full (30 stocks)"); return false; }
+    myTickers = [...myTickers, t]; picked = [...picked, t];
+    saveLocal(data);
+    return true;
+  }
+  function removeTicker(t, data) {
+    ensureLocal(data);
+    myTickers = myTickers.filter((x) => x !== t); picked = picked.filter((x) => x !== t);
+    saveLocal(data);
+  }
+  async function saveStockSettings() {
     try {
       const r = await fetch(`${C.ntfy}/${C.topic}-settings`, { method: "POST", headers: { "Title": "stocks" },
-        body: JSON.stringify({ type: "stocks", picked, time: Date.now() }) });
+        body: JSON.stringify({ type: "stocks", picked, tickers: myTickers, time: Date.now() }) });
       if (!r.ok) throw new Error(r.status);
-      toast(picked.length ? `Saved: ${picked.length} stock${picked.length === 1 ? "" : "s"} picked` : "Saved: no stocks picked");
+      toast("Saved");
     } catch { toast("Could not save. Check your connection."); }
+  }
+  function holdingOf(t, price) {
+    const lots = holdings[t] || [];
+    const shares = lots.reduce((a, l) => a + l.shares, 0), cost = lots.reduce((a, l) => a + l.shares * l.price, 0);
+    const value = price != null ? shares * price : null;
+    return { lots, shares, cost, value, gain: value != null ? value - cost : null, pct: value != null && cost > 0 ? (value / cost - 1) * 100 : null };
   }
   const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 12.5 10 17.5 19 7"/></svg>';
 
   function renderBoard(data) {
     const list = $("boardList");
-    if (!data || !data.stocks || !data.stocks.length) {
+    if (!data || !data.stocks) {
       list.innerHTML = ""; $("boardEmpty").hidden = false; $("boardHint").textContent = "";
       $("boardEmpty").innerHTML = "<strong>No stock data yet</strong>The first GitHub check hasn't run. Try again in a few minutes.";
       $("boardUpdated").textContent = ""; return;
     }
     $("boardEmpty").hidden = true;
     const at = new Date(data.updated);
-    $("boardUpdated").textContent = "updated " + at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + (at.toDateString() === new Date().toDateString() ? "" : " " + at.toLocaleDateString([], { day: "numeric", month: "short" }));
-    const mine = currentPicked(data);
-    const synced = !Array.isArray(picked) || (Array.isArray(data.picked) && data.picked.length === mine.length && data.picked.every((t) => mine.includes(t)));
+    $("boardUpdated").textContent = "prices " + at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + (at.toDateString() === new Date().toDateString() ? "" : " " + at.toLocaleDateString([], { day: "numeric", month: "short" }));
+    const tickers = listTickers(data), mine = currentPicked(data), srv = serverTickers(data), rejected = data.rejected || {};
+    const live = tickers.filter((t) => !rejected[t]);
+    const listSynced = !Array.isArray(myTickers) || (live.length === srv.length && live.every((t) => srv.includes(t)));
+    const liveMine = mine.filter((t) => !rejected[t]);
+    const picksSynced = !Array.isArray(picked) || (Array.isArray(data.picked) && data.picked.length === liveMine.length && liveMine.every((t) => data.picked.includes(t)));
     const when = (data.weekly && data.weekly.time) || "08:30";
-    $("boardHint").innerHTML = `Tap a circle to pick the stocks you follow. <b>${mine.length} of ${data.stocks.length} picked.</b> You get their prices every Sunday at ${when}, and an alert when one drops suddenly.`
-      + (synced ? "" : `<br><span class="pending">Saved on this phone. The checker switches to your picks on its next run, within 3 hours.</span>`);
-    const order = [...data.stocks].sort((a, b) => a.from_lt_high_pct - b.from_lt_high_pct);
-    list.innerHTML = order.map((s) => {
-      const on = mine.includes(s.ticker);
-      const tag = s.sudden ? '<span class="tag big">SUDDEN DIP</span>' : s.big_dip ? '<span class="tag big">BIG DIP</span>' : s.dip ? '<span class="tag dip">DIP</span>' : '<span class="tag">normal</span>';
+    $("boardHint").innerHTML = `Stocks with a <b class="glowtxt">green glow</b> are in your Sunday ${when} report (<b>${mine.length} of ${tickers.length}</b>). Tap the circle to put one in or take it out.`
+      + (listSynced && picksSynced ? "" : `<br><span class="pending">Saved on this phone. The checker follows within about 15 minutes.</span>`);
+    const withData = tickers.map((t) => data.stocks.find((s) => s.ticker === t)).filter(Boolean).sort((a, b) => a.from_lt_high_pct - b.from_lt_high_pct);
+    const waiting = tickers.filter((t) => !data.stocks.some((s) => s.ticker === t));
+    list.innerHTML = waiting.map((t) => {
+      const bad = !!rejected[t];
       return `
-      <div class="srow${on ? "" : " off"}" data-t="${esc(s.ticker)}">
-        <button class="pick${on ? " on" : ""}" data-pick="${esc(s.ticker)}" aria-pressed="${on}" aria-label="${on ? "Stop following" : "Follow"} ${esc(s.name)}">${on ? CHECK : ""}</button>
+      <div class="srow wait">
+        <span></span>
+        <div class="info"><div class="nm">${esc(t)} <span class="tag${bad ? " big" : ""}">${bad ? "NOT FOUND" : "WAITING"}</span></div>
+          <div class="sub">${bad ? "No stock has this ticker. Check the symbol." : "Its prices arrive with the next check, usually within 15 minutes."}</div></div>
+        <span></span>
+        <button class="pick" data-remove="${esc(t)}" aria-label="Remove ${esc(t)}">✕</button>
+      </div>`; }).join("") + withData.map((s) => {
+      const on = mine.includes(s.ticker), h = holdingOf(s.ticker, s.price);
+      const tag = s.sudden ? '<span class="tag big">SUDDEN DIP</span>' : s.big_dip ? '<span class="tag big">BIG DIP</span>' : s.dip ? '<span class="tag dip">DIP</span>' : '<span class="tag">normal</span>';
+      const own = h.shares > 0
+        ? `<button class="own has ${h.pct >= 0 ? "up" : "down"}" data-own="${esc(s.ticker)}" aria-label="My shares of ${esc(s.name)}">${fmtShares(h.shares)} sh · ${pct1(h.pct)}</button>`
+        : `<button class="own" data-own="${esc(s.ticker)}" aria-label="I own ${esc(s.name)}">+ I own</button>`;
+      return `
+      <div class="srow ${on ? "on" : "off"}" data-t="${esc(s.ticker)}">
+        <button class="pick${on ? " on" : ""}" data-pick="${esc(s.ticker)}" aria-pressed="${on}" aria-label="${on ? "Take out of" : "Put in"} the Sunday report: ${esc(s.name)}">${on ? CHECK : ""}</button>
         <div class="info"><div class="nm">${esc(s.name)} <span class="tk">${esc(s.ticker)}</span> ${tag}</div>
           <div class="sub">${Math.abs(s.from_lt_high_pct).toFixed(0)}% below ${data.rules.longterm_years}-year high</div></div>
         <canvas data-spark="${esc(s.ticker)}"></canvas>
-        <div class="px"><b>${money(s.price)}</b><span class="${s.day_pct >= 0 ? "up" : "down"}">${pct(s.day_pct)}</span></div>
+        <div class="px"><b>${money(s.price)}</b><span class="${s.day_pct >= 0 ? "up" : "down"}">${pct(s.day_pct)}</span><br>${own}</div>
       </div>`; }).join("");
     list.querySelectorAll("canvas[data-spark]").forEach((c) => { const s = data.stocks.find((x) => x.ticker === c.dataset.spark); drawSpark(c, s.series, s.series[s.series.length - 1][1] >= s.series[0][1] ? "#22c55e" : "#ef4444"); });
-    list.querySelectorAll(".pick").forEach((b) => b.onclick = (e) => { e.stopPropagation(); togglePick(b.dataset.pick, data); });
-    list.querySelectorAll(".srow").forEach((b) => b.onclick = () => openDetail(data.stocks.find((x) => x.ticker === b.dataset.t), data.rules));
+    list.querySelectorAll("[data-pick]").forEach((b) => b.onclick = (e) => { e.stopPropagation(); togglePick(b.dataset.pick, data); });
+    list.querySelectorAll("[data-remove]").forEach((b) => b.onclick = (e) => { e.stopPropagation(); removeTicker(b.dataset.remove, data); });
+    list.querySelectorAll("[data-own]").forEach((b) => b.onclick = (e) => { e.stopPropagation(); openHold(b.dataset.own); });
+    list.querySelectorAll(".srow[data-t]").forEach((b) => b.onclick = () => openDetail(data.stocks.find((x) => x.ticker === b.dataset.t), data.rules));
+  }
+  $("addForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (stocks && addTicker($("addTicker").value, stocks)) { $("addTicker").value = ""; $("addTicker").blur(); }
+  });
+
+  // ---- my shares: how many, when bought, at what price (kept on this phone) --
+  let holdTicker = null;
+  function stockOf(t) { return stocks && stocks.stocks.find((x) => x.ticker === t); }
+  function openHold(t) {
+    holdTicker = t;
+    $("hShares").value = ""; $("hPrice").value = ""; $("hDate").value = new Date().toISOString().slice(0, 10);
+    renderHold();
+    $("hold").hidden = false; $("holdBg").hidden = false; $("hold").scrollTop = 0;
+  }
+  function closeHold() {
+    $("hold").hidden = true; $("holdBg").hidden = true;
+    if (stocks && !$("board").hidden) renderBoard(stocks);
+    if (!$("detail").hidden && dStock) renderDetailExtras(dStock);
+  }
+  function renderHold() {
+    const s = stockOf(holdTicker), h = holdingOf(holdTicker, s ? s.price : null);
+    $("holdTitle").textContent = "My shares: " + (s ? s.name : holdTicker);
+    $("holdSummary").innerHTML = h.shares > 0
+      ? `<b>${fmtShares(h.shares)} shares</b> · paid ${money(h.cost)}` + (h.value != null ? ` · worth ${money(h.value)} now <span class="${h.gain >= 0 ? "up" : "down"}">(${h.gain >= 0 ? "+" : "−"}${money(Math.abs(h.gain))}, ${pct1(h.pct)})</span>` : "")
+      : "Do you own this stock? Add how many shares, the price you paid and when you bought.";
+    $("holdList").innerHTML = h.lots.map((l, i) => `
+      <div class="lot"><div><b>${fmtShares(l.shares)} shares</b> at ${money(l.price)}
+        <div class="d">bought ${new Date(l.date + "T00:00:00").toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" })}${s ? ` · ${pct1((s.price / l.price - 1) * 100)} since` : ""}</div></div>
+        <button type="button" class="ghost small" data-del="${i}">Delete</button></div>`).join("");
+    $("holdList").querySelectorAll("[data-del]").forEach((b) => b.onclick = () => {
+      holdings[holdTicker].splice(Number(b.dataset.del), 1);
+      if (!holdings[holdTicker].length) delete holdings[holdTicker];
+      ls.set("cn.holdings", JSON.stringify(holdings)); renderHold();
+    });
+  }
+  $("hDate").addEventListener("change", () => {            // offer that day's closing price
+    const s = stockOf(holdTicker);
+    if (!s || $("hPrice").value || !$("hDate").value) return;
+    const day = Math.floor(Date.parse($("hDate").value + "T00:00:00Z") / 86400000);
+    if (day < s.series[0][0]) return;
+    let p = null; for (const pt of s.series) { if (pt[0] <= day) p = pt[1]; else break; }
+    if (p != null) $("hPrice").value = p;
+  });
+  $("holdForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const shares = parseFloat($("hShares").value), price = parseFloat($("hPrice").value), date = $("hDate").value;
+    if (!(shares > 0)) { toast("Enter how many shares"); return; }
+    if (!(price > 0)) { toast("Enter the price you paid per share"); return; }
+    if (!date) { toast("Pick the date you bought"); return; }
+    (holdings[holdTicker] = holdings[holdTicker] || []).push({ shares, price, date });
+    holdings[holdTicker].sort((a, b) => a.date.localeCompare(b.date));
+    ls.set("cn.holdings", JSON.stringify(holdings));
+    $("hShares").value = ""; $("hPrice").value = "";
+    renderHold(); toast("Purchase added");
+  });
+  $("holdClose").onclick = closeHold;
+  $("holdBg").onclick = closeHold;
+
+  let removeArmed = false;
+  function renderDetailExtras(s) {
+    const h = holdingOf(s.ticker, s.price);
+    $("dHold").innerHTML = h.shares > 0
+      ? `<div class="k">My shares</div><div class="v">${fmtShares(h.shares)} shares · worth ${money(h.value)}</div>
+         <div class="d ${h.gain >= 0 ? "up" : "down"}">${h.gain >= 0 ? "+" : "−"}${money(Math.abs(h.gain))} (${pct1(h.pct)}) since you bought · paid ${money(h.cost)}</div>
+         <button class="ghost small" id="dHoldEdit">Edit purchases</button>`
+      : `<div class="k">My shares</div><div class="d">Do you own this stock? Record how many and when you bought.</div>
+         <button class="small" id="dHoldEdit">+ I own this</button>`;
+    $("dHoldEdit").onclick = () => openHold(s.ticker);
+    removeArmed = false; $("dRemove").textContent = "Remove from my list";
+    $("dRemove").onclick = () => {
+      if (!removeArmed) { removeArmed = true; $("dRemove").textContent = "Tap again to remove " + s.name; return; }
+      removeTicker(s.ticker, stocks); closeScreen("detail"); toast(s.name + " removed");
+    };
   }
   function openDetail(s, rules) {
     dStock = s; dPeriod = rules.longterm_years;
@@ -631,6 +812,7 @@
     $("dPeriods").innerHTML = PERIODS.map(([l, y]) => `<button data-y="${y}" class="${y === dPeriod ? "active" : ""}">${l}</button>`).join("");
     $("dPeriods").querySelectorAll("button").forEach((b) => b.onclick = () => { dPeriod = Number(b.dataset.y); $("dPeriods").querySelectorAll("button").forEach((x) => x.classList.toggle("active", x === b)); drawDetail(); });
     openScreen("detail");
+    renderDetailExtras(s);
     requestAnimationFrame(() => drawDetail());
   }
   let dGeom = null, dSeries = [];

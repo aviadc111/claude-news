@@ -8,6 +8,26 @@
   "META",
   "TSLA"
  ],
- "since": "o1PkLMCQRv0l",
- "updated": "2026-11-15T14:08:27+00:00"
+ "since": "lcbUVjCOsiE1",
+ "updated": "2026-11-15T14:10:46+00:00",
+ "tickers": {
+  "NVDA": "NVIDIA",
+  "AAPL": "Apple",
+  "MSFT": "Microsoft",
+  "AMZN": "Amazon",
+  "GOOGL": "Alphabet (Google)",
+  "META": "Meta",
+  "TSLA": "Tesla"
+ },
+ "known": [
+  "NVDA",
+  "AAPL",
+  "MSFT",
+  "AMZN",
+  "GOOGL",
+  "META",
+  "TSLA"
+ ],
+ "rejected": {},
+ "name_tried": []
 }

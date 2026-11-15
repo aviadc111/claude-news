@@ -2,10 +2,10 @@
 Stock checker that runs on GitHub (no PC needed).
 
 Every run:
-  1. reads which stocks were picked in the Claude News app (data/settings.json,
-     updated from the app through the "<topic>-settings" channel)
-  2. downloads the price history of every stock in worker/config.json and writes
-     data/stocks.json for the app's charts board
+  1. reads the stock list and the picked stocks chosen in the Claude News app
+     (data/settings.json, updated from the app through the "<topic>-settings" channel)
+  2. downloads the price history of every stock on the list and writes
+     data/stocks.json for the app's charts board (only when something changed)
   3. SUDDEN DIP alert for a picked stock that fell `sudden_drop_day_pct` in a day
      or `sudden_drop_5day_pct` in 5 trading days: says its all-time high and its
      30-day high and low (one alert per stock per `cooldown_hours`, unless it
@@ -23,6 +23,7 @@ State between runs lives in data/alert_state.json (committed by the workflow).
 import datetime as dt
 import json
 import os
+import re
 import sys
 from zoneinfo import ZoneInfo
 
@@ -36,6 +37,9 @@ STATE_PATH = os.path.join(DATA_DIR, "alert_state.json")
 STOCKS_PATH = os.path.join(DATA_DIR, "stocks.json")
 SETTINGS_PATH = os.path.join(DATA_DIR, "settings.json")
 sys.path.insert(0, HERE)
+
+TICKER_RE = re.compile(r"^[A-Z0-9.\-=^]{1,12}$")
+MAX_TICKERS = 30
 
 
 def load_json(path, default):
@@ -54,20 +58,48 @@ def save_json(path, data, compact=False):
             json.dump(data, f, indent=1)
 
 
+def utc_now():
+    return dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+
+
 # ---------------------------------------------------------------- settings ---
-def sync_settings(app_cfg, cfg):
-    """Pick up the stock selection made in the app. Returns the settings dict."""
-    settings = load_json(SETTINGS_PATH, {"picked": list(cfg["tickers"]), "since": None, "updated": None})
+def load_settings(cfg):
+    s = load_json(SETTINGS_PATH, {})
+    if not isinstance(s.get("tickers"), dict) or not s["tickers"]:
+        s["tickers"] = dict(cfg["tickers"])                 # first run: the default list
+        s.setdefault("known", list(cfg["tickers"]))
+    s.setdefault("picked", list(s["tickers"]))
+    s.setdefault("known", [])
+    s.setdefault("rejected", {})
+    s.setdefault("name_tried", [])
+    s.setdefault("since", None)
+    s.setdefault("updated", None)
+    return s
+
+
+def clean_tickers(raw):
+    out = []
+    for t in raw:
+        t = str(t).strip().upper()
+        if TICKER_RE.match(t) and t not in out:
+            out.append(t)
+    return out[:MAX_TICKERS]
+
+
+def sync_settings(app_cfg, cfg, settings=None):
+    """Apply the stock list and picks chosen in the app. Returns (settings, changed)."""
+    settings = settings or load_settings(cfg)
+    before = json.dumps(settings, sort_keys=True)
     since = settings.get("since") or "all"
     url = f"{app_cfg['ntfy'].rstrip('/')}/{app_cfg['topic']}-settings/json?poll=1&since={since}"
+    lines = []
     try:
         r = requests.get(url, timeout=20)
         r.raise_for_status()
+        lines = r.text.splitlines()
     except Exception as e:
         print("could not read app settings:", e)
-        return settings
-    changed = False
-    for line in r.text.splitlines():
+    for line in lines:
         if not line.strip():
             continue
         try:
@@ -76,24 +108,26 @@ def sync_settings(app_cfg, cfg):
             continue
         if m.get("event") != "message":
             continue
-        if m.get("id") and m["id"] != settings.get("since"):
+        if m.get("id"):
             settings["since"] = m["id"]
-            changed = True
         try:
             data = json.loads(m.get("message", ""))
         except ValueError:
             continue
-        if data.get("type") == "stocks" and isinstance(data.get("picked"), list):
-            picked = [t for t in cfg["tickers"] if t in data["picked"]]
-            if picked != settings.get("picked"):
-                print("picked stocks changed in the app:", picked)
-            settings["picked"] = picked
-            settings["updated"] = dt.datetime.fromtimestamp(
-                m.get("time", 0), dt.timezone.utc).isoformat(timespec="seconds")
-    settings["picked"] = [t for t in cfg["tickers"] if t in settings.get("picked", [])]
-    if changed or not os.path.exists(SETTINGS_PATH):
-        save_json(SETTINGS_PATH, settings)
-    return settings
+        if data.get("type") != "stocks":
+            continue
+        if isinstance(data.get("tickers"), list):
+            wanted = clean_tickers(data["tickers"])
+            if wanted != list(settings["tickers"]):
+                print("stock list changed in the app:", wanted)
+            settings["tickers"] = {t: settings["tickers"].get(t, t) for t in wanted}
+            for t in wanted:                                  # asked for again: give it another try
+                settings["rejected"].pop(t, None)
+        if isinstance(data.get("picked"), list):
+            settings["picked"] = clean_tickers(data["picked"])
+        settings["updated"] = dt.datetime.fromtimestamp(m.get("time", 0), dt.timezone.utc).isoformat(timespec="seconds")
+    settings["picked"] = [t for t in settings["tickers"] if t in settings["picked"]]
+    return settings, json.dumps(settings, sort_keys=True) != before
 
 
 # ------------------------------------------------------------- market data ---
@@ -108,6 +142,17 @@ def fetch_closes(symbols):
     if closes.index.tz is not None:
         closes.index = closes.index.tz_localize(None)
     return closes
+
+
+def lookup_name(symbol):
+    try:
+        import yfinance as yf
+        info = yf.Ticker(symbol).info or {}
+        name = info.get("shortName") or info.get("longName") or symbol
+        # "NVIDIA Corporation" / "Advanced Micro Devices, Inc." read better without the legal tail
+        return re.sub(r",?\s+(Inc\.?|Corporation|Corp\.?|Ltd\.?|PLC|plc|N\.V\.|S\.A\.|Holdings?|Company|Co\.)\s*$", "", name).strip() or symbol
+    except Exception:
+        return symbol
 
 
 def slice_years(s, years):
@@ -177,6 +222,47 @@ def analyze(ticker, name, series, cfg):
     }
 
 
+def build_results(settings, cfg, closes):
+    """Analyze every stock on the list. Stocks added in the app that the market does
+    not know are moved to settings['rejected']. Returns (results, settings changed)."""
+    changed = False
+    results = []
+    for ticker in list(settings["tickers"]):
+        r = None
+        if ticker in closes.columns:
+            r = analyze(ticker, settings["tickers"][ticker], closes[ticker], cfg)
+        if r:
+            results.append(r)
+    got = {r["ticker"] for r in results}
+    for ticker in list(settings["tickers"]):
+        if ticker in got:
+            if ticker not in settings["known"]:
+                settings["known"].append(ticker)
+                changed = True
+            if settings["tickers"][ticker] == ticker and ticker not in settings["name_tried"]:
+                settings["name_tried"].append(ticker)
+                name = lookup_name(ticker)
+                settings["tickers"][ticker] = name
+                for r in results:
+                    if r["ticker"] == ticker:
+                        r["name"] = name
+                print("new stock:", ticker, "=", name)
+                changed = True
+        elif ticker not in settings["known"] and got:
+            # never had data, while other stocks do: not a real ticker
+            print("no such stock:", ticker)
+            del settings["tickers"][ticker]
+            settings["rejected"][ticker] = utc_now()
+            changed = True
+        else:
+            print("no data this time for", ticker)
+    if changed:
+        settings["picked"] = [t for t in settings["tickers"] if t in settings["picked"]]
+        for old in sorted(settings["rejected"], key=settings["rejected"].get)[:-20]:
+            del settings["rejected"][old]
+    return results, changed
+
+
 # ------------------------------------------------------------------ alerts ---
 def sudden_alert_due(r, state, cfg):
     if not r["sudden"]:
@@ -228,32 +314,37 @@ def main(argv):
 
     import claude_news_core as cn
     app_cfg = cn.load_app_config()
-    settings = sync_settings(app_cfg, cfg)
+    settings, settings_changed = sync_settings(app_cfg, cfg)
+
+    closes = fetch_closes(settings["tickers"]) if settings["tickers"] else None
+    results, ch = build_results(settings, cfg, closes) if closes is not None else ([], False)
+    settings_changed |= ch
     picked = settings["picked"]
+    print("list:", ", ".join(settings["tickers"]) or "(empty)")
     print("picked:", ", ".join(picked) or "(none)")
+    for r in results:
+        print(f"{r['ticker']:<6} ${r['price']:>9,.2f}  day {r['day_pct']:+6.2f}%  5d {r['chg5_pct']:+6.2f}%  "
+              f"{'SUDDEN DIP' if r['sudden'] else ''}{'' if r['ticker'] in picked else '  (not picked)'}")
 
-    closes = fetch_closes(cfg["tickers"])
-    results = []
-    for ticker, name in cfg["tickers"].items():
-        if ticker not in closes.columns:
-            print("no data for", ticker)
-            continue
-        r = analyze(ticker, name, closes[ticker], cfg)
-        if r:
-            results.append(r)
-            print(f"{ticker:<5} ${r['price']:>9,.2f}  day {r['day_pct']:+6.2f}%  5d {r['chg5_pct']:+6.2f}%  "
-                  f"{'SUDDEN DIP' if r['sudden'] else ''}{'' if ticker in picked else '  (not picked)'}")
+    if settings_changed or not os.path.exists(SETTINGS_PATH):
+        save_json(SETTINGS_PATH, settings)
 
-    save_json(STOCKS_PATH, {
-        "updated": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+    board = {
         "picked": picked,
+        "rejected": settings["rejected"],
         "rules": {k: cfg[k] for k in ("longterm_years", "drop_from_longterm_high_pct", "lookback_days",
                                       "drop_from_high_pct", "daily_drop_pct",
                                       "sudden_drop_day_pct", "sudden_drop_5day_pct")},
         "weekly": cfg["weekly"],
         "stocks": results,
-    }, compact=True)
-    print("wrote", STOCKS_PATH)
+    }
+    old = load_json(STOCKS_PATH, {})
+    old.pop("updated", None)
+    if results and old != json.loads(json.dumps(board)):     # weekends: nothing moves, nothing to commit
+        save_json(STOCKS_PATH, {"updated": utc_now(), **board}, compact=True)
+        print("wrote", STOCKS_PATH)
+    else:
+        print("stocks.json unchanged")
     if dry or not results:
         return
 
@@ -281,7 +372,8 @@ def main(argv):
     # pick up newly registered phones so the next message reaches them
     devices_changed |= cn.refresh_devices(app_cfg, devices)
 
-    save_json(STATE_PATH, state)
+    if state != load_json(STATE_PATH, {}):
+        save_json(STATE_PATH, state)
     if devices_changed:
         cn.save_devices(devices)
 
