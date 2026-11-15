@@ -15,7 +15,6 @@
   "realert_extra_drop_pct": 3.0,
   "analyst_min_buy_ratings": 5,
   "analyst_min_market_cap": 10000000000,
-  "analyst_max_stocks": 1,
   "analyst_repeat_days": 14,
   "friday_scan_enabled": false,
   "friday_min_price": 5.0,

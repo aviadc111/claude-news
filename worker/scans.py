@@ -1,21 +1,29 @@
 """
-Market-wide scans that run on GitHub after the US market closes.
+Market-wide scans that run on GitHub.
 
-  analysts   every trading day: which large company did the most analysts rate "Buy" today?
-             If a stock got `analyst_min_buy_ratings` or more Buy-type ratings from
-             different firms, send the top one: its name, price, all-time high and
-             30-day high / low. A stock already sent in the last `analyst_repeat_days`
-             days is sent again only if it is not picked for the weekly report.
+  analysts   For each day of analyst ratings, once: which large company did the most
+             analyst firms rate "Buy" that day? If one got `analyst_min_buy_ratings`
+             or more Buy-type ratings from different firms, send it: name, price,
+             all-time high and 30-day high / low. At most one stock per ratings day.
+
+             The ratings feed reaches GitHub's servers a day or more late, so the scan
+             does not ask "what happened today". It looks at the last week, and handles
+             every ratings day it has not handled yet as soon as that day shows up.
+
+             Repeat rule: a stock that was sent is not sent again for
+             `analyst_repeat_days` days. After that it is sent again only if it gets
+             many Buy ratings again AND it is not picked for the weekly report.
+
              These are analysts' published ratings, reported as they are. Not advice.
 
   friday     SWITCHED OFF (`friday_scan_enabled` in config.json; still runnable by hand).
-             Every Friday: every US-listed stock (not only the picked ones) that had a
-             sudden dip - down `sudden_drop_day_pct` today or `sudden_drop_5day_pct` in
-             5 trading days - and that either traded at `friday_recent_high` dollars or
-             more in the last 3 months, or once cost `friday_alltime_high` dollars or more.
+             Every US-listed stock (not only the picked ones) that had a sudden dip -
+             down `sudden_drop_day_pct` today or `sudden_drop_5day_pct` in 5 trading
+             days - and that either traded at `friday_recent_high` dollars or more in
+             the last 3 months, or once cost `friday_alltime_high` dollars or more.
 
     python worker/scans.py auto               what the schedule runs (the analysts check)
-    python worker/scans.py analysts|friday|both [--dry] [--force] [--hours N]
+    python worker/scans.py analysts|friday|both [--dry] [--force] [--from YYYY-MM-DD]
 """
 
 import datetime as dt
@@ -45,8 +53,8 @@ BUY_GRADES = {"buy", "strong buy", "outperform", "overweight", "positive", "accu
 DEFAULTS = {
     "analyst_min_buy_ratings": 5,
     "analyst_min_market_cap": 10_000_000_000,
-    "analyst_max_stocks": 1,
     "analyst_repeat_days": 14,
+    "analyst_memory_days": 60,
     "friday_scan_enabled": False,
     "friday_min_price": 5.0,
     "friday_recent_high": 100.0,
@@ -94,6 +102,10 @@ def tidy(name):
     return name
 
 
+def nice_day(iso):
+    return dt.date.fromisoformat(iso).strftime("%A %d %b")
+
+
 # ---------------------------------------------------------------- screener ---
 def screen_all(query):
     import yfinance as yf
@@ -130,7 +142,8 @@ def closes(symbols, period, batch=400):
             frames.append(d)
         except Exception as e:
             print("download failed for a batch:", type(e).__name__, e)
-        print(f"  prices {min(i + batch, len(symbols))}/{len(symbols)}", flush=True)
+        if len(symbols) > batch:
+            print(f"  prices {min(i + batch, len(symbols))}/{len(symbols)}", flush=True)
     if not frames:
         return pd.DataFrame()
     out = pd.concat(frames, axis=1)
@@ -139,15 +152,17 @@ def closes(symbols, period, batch=400):
     return out.loc[:, ~out.columns.duplicated()]
 
 
-# ---------------------------------------------------------- analysts (daily) ---
-def analyst_scan(cfg, hours, skip=lambda ticker: False):
+# ------------------------------------------------------------------ analysts ---
+def analyst_feed(cfg, days=7):
+    """Recent rating actions for every large company.
+    Returns (feed, newest day in the feed). feed = [{ticker, name, rows}], and each row is
+    (ratings day in New York, firm, grade, action, price-target action), newest first."""
     import pandas as pd
     import yfinance as yf
     Q = yf.EquityQuery
     quotes = [q for q in universe(Q("gt", ["intradaymarketcap", int(cfg["analyst_min_market_cap"])]))
               if q.get("averageAnalystRating")]
-    print("companies with analyst coverage:", len(quotes))
-    since = pd.Timestamp(dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=hours)).tz_localize(None)
+    since = pd.Timestamp(dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days)).tz_localize(None)
     newest = []
 
     def fetch(q):
@@ -161,77 +176,143 @@ def analyst_scan(cfg, hours, skip=lambda ticker: False):
             newest.append(df.index.max())
             df = df[df.index >= since]
             if df.empty:
-                return "quiet"
-            buy, other, upgrades, raised, lowered = set(), set(), set(), set(), set()
-            for firm, row in df[~df["Firm"].duplicated()].set_index("Firm").iterrows():   # newest action per firm
-                grade = str(row["ToGrade"]).strip().lower()
-                if grade in BUY_GRADES:
-                    buy.add(firm)
-                    if str(row["Action"]).lower() in ("up", "init"):
-                        upgrades.add(firm)
-                    target = str(row.get("priceTargetAction", "")).lower()
-                    if target.startswith("raise"):
-                        raised.add(firm)
-                    elif target.startswith("lower"):
-                        lowered.add(firm)
-                elif grade:
-                    other.add(firm)
-            if not buy:
-                return "quiet"
-            return {"ticker": sym, "buy": len(buy), "upgrades": len(upgrades), "other": len(other),
-                    "raised": len(raised), "lowered": len(lowered),
-                    "firms": sorted(buy)[:12], "name": q.get("shortName") or sym}
+                return None
+            ny_days = [t.date().isoformat() for t in df.index.tz_localize("UTC").tz_convert(NY)]
+            target = df["priceTargetAction"] if "priceTargetAction" in df.columns else [""] * len(df)
+            rows = [(d, str(f), str(g).strip().lower(), str(a).lower(), str(p).lower())
+                    for d, f, g, a, p in zip(ny_days, df["Firm"], df["ToGrade"], df["Action"], target)]
+            return {"ticker": sym, "name": q.get("shortName") or sym, "rows": rows}
         except Exception:
             return "error"
 
-    with ThreadPoolExecutor(8) as ex:
+    with ThreadPoolExecutor(4) as ex:
         res = list(ex.map(fetch, quotes))
-    errors = sum(1 for r in res if r == "error")
-    empty = sum(1 for r in res if r == "empty")
-    rated = sorted((r for r in res if isinstance(r, dict)), key=lambda r: (-r["buy"], -r["upgrades"], r["other"]))
-    hits = [r for r in rated if r["buy"] >= int(cfg["analyst_min_buy_ratings"])]
-    print(f"yfinance {yf.__version__}, pandas {pd.__version__} | ratings since {since} UTC")
-    print(f"lookups failed: {errors} | came back with no ratings history: {empty} | with buy ratings in the window: {len(rated)}")
-    print("most buy ratings:", [(r["ticker"], r["buy"]) for r in rated[:8]])
-    if newest:
-        per_day = pd.Series(1, index=pd.DatetimeIndex(newest)).groupby(lambda t: t.date()).sum()
-        print("newest rating anywhere:", max(newest), "UTC | companies whose latest rating is on:", dict(list(per_day.items())[-5:]))
-    print(f"stocks with {cfg['analyst_min_buy_ratings']}+ buy ratings: {[(r['ticker'], r['buy']) for r in hits]}")
-    if quotes and empty + errors > len(quotes) * 0.5:
-        raise RuntimeError(f"analyst data missing for {empty + errors} of {len(quotes)} companies - not trusting this run")
-    skipped = [r["ticker"] for r in hits if skip(r["ticker"])]
-    if skipped:
-        print("already sent in the last weeks and in the weekly report, not repeated:", skipped)
-    hits = [r for r in hits if not skip(r["ticker"])][:int(cfg["analyst_max_stocks"])]
-    if hits:
-        names = nice_names()
-        full = closes([r["ticker"] for r in hits], "max")
-        for r in hits:
-            r["name"] = names.get(r["ticker"]) or tidy(r["name"])
-            s = full[r["ticker"]].dropna() if r["ticker"] in full.columns else None
-            if s is not None and len(s) > 1:
-                w = s.iloc[-30:]
-                r.update(price=round(float(s.iloc[-1]), 2), ath=round(float(s.max()), 2), ath_date=str(s.idxmax().date()),
-                         high30=round(float(w.max()), 2), low30=round(float(w.min()), 2))
-    return hits
+    failed = [i for i, r in enumerate(res) if r == "error"]
+    if failed and len(failed) < len(quotes) * 0.5:       # a few hiccups: wait and try those once more
+        import time
+        time.sleep(20)
+        for i in failed:
+            res[i] = fetch(quotes[i])
+            time.sleep(0.3)
+    errors, empty = sum(1 for r in res if r == "error"), sum(1 for r in res if r == "empty")
+    feed = [r for r in res if isinstance(r, dict)]
+    newest_ts = max(newest) if newest else None
+    newest_day = newest_ts.tz_localize("UTC").tz_convert(NY).date().isoformat() if newest_ts is not None else None
+    print(f"yfinance {yf.__version__}, pandas {pd.__version__} | companies checked: {len(quotes)} | "
+          f"lookups failed: {errors} | no ratings history: {empty}")
+    print(f"newest rating in the feed: {newest_ts} UTC (ratings day {newest_day})")
+    if not quotes or empty + errors > len(quotes) * 0.15:
+        raise RuntimeError(f"analyst data missing for {empty + errors} of {len(quotes)} companies - "
+                           f"not trusting this run; the next run tries again")
+    return feed, newest_day
 
 
-def analyst_message(hits):
-    title = "Most analyst buy ratings today: " + ", ".join(r["ticker"] for r in hits)
-    parts = []
-    for r in hits:
-        up = f", {r['upgrades']} of them new or upgraded" if r["upgrades"] else ""
-        neg = f" {r['other']} rated it Hold or lower." if r["other"] else ""
-        lines = [f"{r['name']} ({r['ticker']}): {r['buy']} analyst firms rated it Buy today{up}.{neg}"]
-        if r.get("sent_before"):
-            lines.append(f"Sent to you before on {r['sent_before']}. It is not in your weekly report.")
-        if r.get("raised") or r.get("lowered"):
-            lines.append(f"Their price targets: {r.get('raised', 0)} raised, {r.get('lowered', 0)} lowered.")
-        if "price" in r:
-            lines += [f"Now ${r['price']:,.2f}", f"All-time high ${r['ath']:,.2f} ({r['ath_date']})",
-                      f"30-day high ${r['high30']:,.2f}", f"30-day low ${r['low30']:,.2f}"]
-        parts.append("\n".join(lines))
-    return title, "\n\n".join(parts) + "\n\nThese are analysts' published ratings, not advice."
+def day_candidates(feed, day, cfg):
+    """Stocks with enough Buy-type ratings from different firms on one ratings day, best first."""
+    out = []
+    for f in feed:
+        seen, buy, other, upgrades, raised, lowered = set(), set(), set(), set(), set(), set()
+        for d, firm, grade, action, target in f["rows"]:
+            if d != day or firm in seen:                    # newest action per firm that day
+                continue
+            seen.add(firm)
+            if grade in BUY_GRADES:
+                buy.add(firm)
+                if action in ("up", "init"):
+                    upgrades.add(firm)
+                if target.startswith("raise"):
+                    raised.add(firm)
+                elif target.startswith("lower"):
+                    lowered.add(firm)
+            elif grade:
+                other.add(firm)
+        if len(buy) >= int(cfg["analyst_min_buy_ratings"]):
+            out.append({"ticker": f["ticker"], "name": f["name"], "day": day, "buy": len(buy), "upgrades": len(upgrades),
+                        "other": len(other), "raised": len(raised), "lowered": len(lowered), "firms": sorted(buy)[:12]})
+    return sorted(out, key=lambda r: (-r["buy"], -r["upgrades"], r["other"]))
+
+
+def add_prices(hit):
+    full = closes([hit["ticker"]], "max")
+    s = full[hit["ticker"]].dropna() if hit["ticker"] in full.columns else None
+    if s is not None and len(s) > 1:
+        w = s.iloc[-30:]
+        hit.update(price=round(float(s.iloc[-1]), 2), ath=round(float(s.max()), 2), ath_date=str(s.idxmax().date()),
+                   high30=round(float(w.max()), 2), low30=round(float(w.min()), 2))
+    hit["name"] = nice_names().get(hit["ticker"]) or tidy(hit["name"])
+    return hit
+
+
+def analyst_message(r):
+    day = nice_day(r["day"])
+    title = f"Most analyst buy ratings: {r['name']} ({r['ticker']})"
+    up = f", {r['upgrades']} of them new or upgraded" if r["upgrades"] else ""
+    neg = f" {r['other']} rated it Hold or lower." if r["other"] else ""
+    lines = [f"{r['buy']} analyst firms rated {r['name']} a Buy on {day}{up}.{neg}"]
+    if r.get("raised") or r.get("lowered"):
+        lines.append(f"Their price targets: {r.get('raised', 0)} raised, {r.get('lowered', 0)} lowered.")
+    if r.get("sent_before"):
+        lines.append(f"Sent to you before on {nice_day(r['sent_before'])} and it is getting Buy ratings again. "
+                     f"It is not in your weekly report.")
+    if "price" in r:
+        lines += [f"Now ${r['price']:,.2f}", f"All-time high ${r['ath']:,.2f} ({r['ath_date']})",
+                  f"30-day high ${r['high30']:,.2f}", f"30-day low ${r['low30']:,.2f}"]
+    return title, "\n".join(lines) + "\n\nThese are analysts' published ratings, not advice."
+
+
+def run_analysts(cfg, state, argv, send, now_ny):
+    """Handle every ratings day that is new since the last run. Returns True if state changed."""
+    today = now_ny.date()
+    feed, newest_day = analyst_feed(cfg)
+    if not newest_day:
+        print("the ratings feed is empty - nothing to do")
+        return False
+    days = state.setdefault("analyst_days", {})       # ratings day -> ticker sent ("" = nothing qualified)
+    sent = state.setdefault("analyst_sent", {})       # ticker -> the day I sent it
+    if "--from" in argv:
+        start = argv[argv.index("--from") + 1]
+    else:
+        # the first run only notes where the feed stands; days already in it are not replayed
+        start = state.setdefault("analyst_start", newest_day)
+    picked = set(load_json(os.path.join(DATA_DIR, "settings.json"), {}).get("picked", []))
+    repeat_days = int(cfg["analyst_repeat_days"])
+
+    def age(ticker):
+        return (today - dt.date.fromisoformat(sent[ticker])).days if ticker in sent else None
+
+    def skip(ticker):
+        a = age(ticker)
+        if a is None:
+            return False                               # never sent: send it
+        if a < repeat_days:
+            return True                                # sent in the last two weeks: stay quiet
+        return ticker in picked                        # later: again only if not in the weekly report
+
+    after_close = (now_ny.hour, now_ny.minute) >= (16, 30)
+    for day in sorted({row[0] for f in feed for row in f["rows"]}):
+        if day <= start or (day in days and "--force" not in argv):
+            continue
+        if day == today.isoformat() and not after_close:
+            continue                                   # today's ratings are still coming in
+        cands = day_candidates(feed, day, cfg)
+        print(f"ratings day {day}: {[(c['ticker'], c['buy']) for c in cands[:6]] or 'no stock reached the bar'}")
+        quiet = [c["ticker"] for c in cands if skip(c["ticker"])]
+        if quiet:
+            print("  not repeated (sent recently, or already in the weekly report):", quiet)
+        pick = next((c for c in cands if not skip(c["ticker"])), None)
+        if pick:
+            pick["sent_before"] = sent.get(pick["ticker"])
+            if send(*analyst_message(add_prices(pick))):
+                days[day] = pick["ticker"]
+                sent[pick["ticker"]] = today.isoformat()
+        elif (today - dt.date.fromisoformat(day)).days >= 2:
+            days[day] = ""                             # settled: nothing worth sending that day
+    for key in [d for d in days if (today - dt.date.fromisoformat(d)).days > 30]:
+        del days[key]
+    for key in [t for t in sent if age(t) > int(cfg["analyst_memory_days"])]:
+        del sent[key]
+    state.pop("analysts", None)                        # old format
+    return True
 
 
 # ------------------------------------------------------------ friday (weekly) ---
@@ -298,9 +379,6 @@ def main(argv):
     now_ny = dt.datetime.now(NY)
     today = now_ny.date().isoformat()
     if what == "auto":
-        if now_ny.weekday() > 4:
-            print("weekend - nothing to scan")
-            return
         todo = ["analysts"] + (["friday"] if now_ny.weekday() == 4 and cfg.get("friday_scan_enabled") else [])
     else:
         todo = ["analysts", "friday"] if what == "both" else [what]
@@ -320,35 +398,7 @@ def main(argv):
         return bool(res["feed"] or res["pushed"])
 
     if "analysts" in todo:
-        if state.get("analysts", {}).get("date") == today and not force:
-            print("analyst check already done today")
-        else:
-            hours = int(argv[argv.index("--hours") + 1]) if "--hours" in argv else (72 if now_ny.weekday() == 0 else 24)
-            # Repeat rule: a stock already sent in the last `analyst_repeat_days` days is sent again
-            # only if it is NOT one of the stocks picked for the weekly report.
-            picked = set(load_json(os.path.join(DATA_DIR, "settings.json"), {}).get("picked", []))
-            sent = state.setdefault("analyst_sent", {})
-            if not sent and state.get("analysts", {}).get("stocks"):          # first run with this rule
-                for r in state["analysts"]["stocks"]:
-                    sent[r["ticker"]] = state["analysts"]["date"]
-            repeat_days = int(cfg["analyst_repeat_days"])
-
-            def recently(ticker):
-                when = sent.get(ticker)
-                return bool(when) and (now_ny.date() - dt.date.fromisoformat(when)).days < repeat_days
-
-            hits = analyst_scan(cfg, hours, skip=lambda t: recently(t) and t in picked)
-            for r in hits:
-                r["sent_before"] = sent[r["ticker"]] if recently(r["ticker"]) else None
-            ok = send(*analyst_message(hits)) if hits else True
-            if not hits:
-                print("no new recommended stock today - nothing sent")
-            if ok and not dry:
-                state["analysts"] = {"date": today, "stocks": hits}
-                for r in hits:
-                    sent[r["ticker"]] = today
-                for old in [t for t, d in sent.items() if (now_ny.date() - dt.date.fromisoformat(d)).days > 60]:
-                    del sent[old]
+        run_analysts(cfg, state, argv, send, now_ny)
 
     if "friday" in todo:
         if state.get("friday", {}).get("date") == today and not force:

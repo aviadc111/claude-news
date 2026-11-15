@@ -2,10 +2,14 @@ name: Market scans
 
 on:
   schedule:
-    # Monday-Friday 21:30 UTC, after the US market has closed (23:30 in Israel in winter):
-    # the analyst buy-ratings check, one stock at most. The Friday whole-market dip
-    # check is switched off (friday_scan_enabled in worker/config.json).
-    - cron: "30 21 * * 1-5"
+    # The analyst buy-ratings check, twice a day, every day:
+    #   21:30 UTC  after the US market closes (23:30 in Israel in winter)
+    #   06:30 UTC  a morning catch-up (08:30 in Israel in winter)
+    # The ratings feed reaches GitHub a day or more late, so each run handles whatever
+    # ratings days have newly arrived, one stock per ratings day at most.
+    # The Friday whole-market dip check is switched off (friday_scan_enabled in worker/config.json).
+    - cron: "30 21 * * *"
+    - cron: "30 6 * * *"
   workflow_dispatch:
     inputs:
       what:
@@ -14,11 +18,11 @@ on:
         default: auto
         options: [auto, analysts, friday, both]
       force:
-        description: "Run even if it already ran today"
+        description: "Handle ratings days again even if already handled"
         type: boolean
         default: false
-      hours:
-        description: "Analyst check: look back this many hours (empty = automatic)"
+      from:
+        description: "Analyst check: handle ratings days after this date (YYYY-MM-DD, empty = automatic)"
         type: string
         default: ""
       dry:
@@ -55,9 +59,9 @@ jobs:
           TZ: Asia/Jerusalem
           WHAT: ${{ inputs.what || 'auto' }}
           FORCE: ${{ inputs.force && '--force' || '' }}
-          HOURS: ${{ inputs.hours && format('--hours {0}', inputs.hours) || '' }}
+          FROM: ${{ inputs.from && format('--from {0}', inputs.from) || '' }}
           DRY: ${{ inputs.dry && '--dry' || '' }}
-        run: python worker/scans.py $WHAT $FORCE $HOURS $DRY
+        run: python worker/scans.py $WHAT $FORCE $FROM $DRY
 
       - name: Save the results back to the repository
         run: |
