@@ -1,29 +1,7 @@
 {
  "analysts": {
   "date": "2026-11-15",
-  "stocks": [
-   {
-    "ticker": "NVDA",
-    "buy": 5,
-    "upgrades": 0,
-    "other": 3,
-    "raised": 0,
-    "lowered": 5,
-    "firms": [
-     "B of A Securities",
-     "BMO Capital",
-     "Citigroup",
-     "DA Davidson",
-     "Goldman Sachs"
-    ],
-    "name": "NVIDIA",
-    "price": 162.85,
-    "ath": 239.24,
-    "ath_date": "2026-10-06",
-    "high30": 239.24,
-    "low30": 162.85
-   }
-  ]
+  "stocks": []
  },
  "friday": {
   "date": "2026-11-15",
@@ -1183,5 +1161,8 @@
     "ath": 44960000.0
    }
   ]
+ },
+ "analyst_sent": {
+  "NVDA": "2026-11-15"
  }
 }
