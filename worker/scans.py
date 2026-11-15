@@ -154,12 +154,12 @@ def analyst_scan(cfg, hours, skip=lambda ticker: False):
         try:
             df = yf.Ticker(sym).upgrades_downgrades
             if df is None or df.empty:
-                return None
+                return "empty"
             if df.index.tz is not None:
-                df.index = df.index.tz_localize(None)
+                df.index = df.index.tz_convert("UTC").tz_localize(None)
             df = df[df.index >= since]
             if df.empty:
-                return None
+                return "quiet"
             buy, other, upgrades, raised, lowered = set(), set(), set(), set(), set()
             for firm, row in df[~df["Firm"].duplicated()].set_index("Firm").iterrows():   # newest action per firm
                 grade = str(row["ToGrade"]).strip().lower()
@@ -175,7 +175,7 @@ def analyst_scan(cfg, hours, skip=lambda ticker: False):
                 elif grade:
                     other.add(firm)
             if not buy:
-                return None
+                return "quiet"
             return {"ticker": sym, "buy": len(buy), "upgrades": len(upgrades), "other": len(other),
                     "raised": len(raised), "lowered": len(lowered),
                     "firms": sorted(buy)[:12], "name": q.get("shortName") or sym}
@@ -185,10 +185,15 @@ def analyst_scan(cfg, hours, skip=lambda ticker: False):
     with ThreadPoolExecutor(8) as ex:
         res = list(ex.map(fetch, quotes))
     errors = sum(1 for r in res if r == "error")
-    hits = sorted((r for r in res if isinstance(r, dict) and r["buy"] >= int(cfg["analyst_min_buy_ratings"])),
-                  key=lambda r: (-r["buy"], -r["upgrades"], r["other"]))
-    print(f"lookups failed: {errors} | stocks with {cfg['analyst_min_buy_ratings']}+ buy ratings: "
-          f"{[(r['ticker'], r['buy']) for r in hits]}")
+    empty = sum(1 for r in res if r == "empty")
+    rated = sorted((r for r in res if isinstance(r, dict)), key=lambda r: (-r["buy"], -r["upgrades"], r["other"]))
+    hits = [r for r in rated if r["buy"] >= int(cfg["analyst_min_buy_ratings"])]
+    print(f"yfinance {yf.__version__}, pandas {pd.__version__} | ratings since {since} UTC")
+    print(f"lookups failed: {errors} | came back with no ratings history: {empty} | with buy ratings in the window: {len(rated)}")
+    print("most buy ratings:", [(r["ticker"], r["buy"]) for r in rated[:8]])
+    print(f"stocks with {cfg['analyst_min_buy_ratings']}+ buy ratings: {[(r['ticker'], r['buy']) for r in hits]}")
+    if quotes and empty + errors > len(quotes) * 0.5:
+        raise RuntimeError(f"analyst data missing for {empty + errors} of {len(quotes)} companies - not trusting this run")
     skipped = [r["ticker"] for r in hits if skip(r["ticker"])]
     if skipped:
         print("already sent in the last weeks and in the weekly report, not repeated:", skipped)
