@@ -336,9 +336,11 @@
 <section id="ig" class="screen" hidden aria-label="Instagram follow-back check">
   <div class="bar">
     <button class="iconbtn" data-close="ig" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
-    <h2>Follow-back check</h2>
+    <h2>Followers report</h2>
     <span id="igWhen" class="sub"></span>
   </div>
+  <div id="igPc" class="igsum"></div>
+  <div class="ighead">Without the PC: from an Instagram export file</div>
   <div id="igSummary" class="igsum"></div>
   <label id="igPick" class="filebtn" for="igFile">Load my Instagram export</label>
   <input id="igFile" class="vh" type="file" accept=".zip,.json,.html,application/zip,application/json,text/html" multiple>
@@ -402,7 +404,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "2.0";
+  const APP_VERSION = "2.1";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -1047,8 +1049,8 @@
   function renderIg() {
     const d = igData;
     if (!d) {
-      $("igSummary").innerHTML = `<div class="lbl">No check yet</div><div class="d">Load your Instagram export to see how many people you follow don't follow you back, and who they are.</div>`;
-      $("igWhen").textContent = ""; $("igList").innerHTML = ""; $("igHow").open = true;
+      $("igSummary").innerHTML = `<div class="d">If the PC is off, you can still check here by loading Instagram's export file.</div>`;
+      $("igWhen").textContent = ""; $("igList").innerHTML = "";
       return;
     }
     const prev = Array.isArray(d.prevNotBack) ? d.prevNotBack : null;
@@ -1089,7 +1091,46 @@
     $("igPick").classList.remove("busy"); $("igPick").textContent = "Load my Instagram export";
     e.target.value = "";
   });
-  $("igBtn").onclick = () => { $("igError").hidden = true; renderIg(); openScreen("ig"); };
+  // Check button: ask the PC. If it is on, it answers and sends a fresh followers report.
+  let pcAsking = false;
+  async function askPc() {
+    if (pcAsking) return;
+    pcAsking = true;
+    const el = $("igPc");
+    const show = (cls, title, text, again) => {
+      el.innerHTML = `<div class="lbl ${cls}">${esc(title)}</div><div class="d">${esc(text)}</div>`
+        + (again ? `<button id="igAgain" class="small ghost" style="margin-top:10px">Ask the PC again</button>` : "");
+      if (again) $("igAgain").onclick = askPc;
+    };
+    const id = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+    show("", "Asking your PC…", "Checking whether it is switched on.", false);
+    try {
+      const r = await fetch(`${C.ntfy}/${C.topic}-commands`, { method: "POST", headers: { "Title": "instagram-check" },
+        body: JSON.stringify({ type: "instagram-check", id, time: Date.now() }) });
+      if (!r.ok) throw new Error(r.status);
+    } catch {
+      show("down", "Could not send the request", "Check this phone's internet connection and try again.", true);
+      pcAsking = false; return;
+    }
+    let ack = null;
+    const deadline = Date.now() + 26000;
+    while (!ack && Date.now() < deadline) {
+      await new Promise((res) => setTimeout(res, 2000));
+      try {
+        const text = await (await fetch(`${C.ntfy}/${C.topic}-status/json?poll=1&since=3m`, { cache: "no-store" })).text();
+        for (const line of text.split("\n")) {
+          if (!line.trim()) continue;
+          let m, d;
+          try { m = JSON.parse(line); d = JSON.parse(m.message); } catch { continue; }
+          if (m.event === "message" && d && d.id === id) ack = d;
+        }
+      } catch { /* keep trying until the deadline */ }
+    }
+    if (!ack) show("down", "Your PC did not answer", "It is switched off or asleep, so a report can't be made right now. The next automatic one is on Friday at 12:00. Press Check again when the PC is on.", true);
+    else show(ack.state === "started" || ack.state === "busy" ? "up" : "", ack.title || "Your PC is on", ack.text || "", ack.state !== "started");
+    pcAsking = false;
+  }
+  $("igBtn").onclick = () => { $("igError").hidden = true; renderIg(); openScreen("ig"); askPc(); };
 
   // ---- settings sheet -----------------------------------------------------
   function openSheet(open) { $("sheet").hidden = !open; $("sheetBg").hidden = !open; }
