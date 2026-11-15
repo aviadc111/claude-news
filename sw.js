@@ -1,5 +1,5 @@
 /* Claude News service worker: offline shell + push notifications. */
-const CACHE = "claude-news-v6";
+const CACHE = "claude-news-v7";
 const SHELL = ["./", "./index.html", "./config.js", "./manifest.webmanifest",
                "./icons/icon-192.png", "./icons/icon-512.png", "./icons/logo.svg"];
 
@@ -54,7 +54,8 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     caches.open(CACHE).then(async (cache) => {
       const cached = await cache.match(event.request);
-      const network = fetch(event.request, isPage ? { cache: "no-cache" } : undefined).then((res) => {
+      const req = isPage ? new Request(url.href, { cache: "no-cache", credentials: "same-origin" }) : event.request;
+      const network = fetch(req).then((res) => {
         if (res && res.ok) cache.put(event.request, res.clone());
         return res;
       }).catch(() => cached);

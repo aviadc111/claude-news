@@ -125,6 +125,9 @@
   .status.on { color: var(--ok); } .status.off { color: var(--danger); }
   code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; background: var(--surface-2); padding: 3px 8px; border-radius: 8px; word-break: break-all; display: inline-block; }
   /* stocks board */
+  .chartsbtn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; font-size: 14px; font-weight: 700;
+               background: #22c55e; color: #052e16; box-shadow: 0 4px 14px rgba(34,197,94,.3); }
+  .chartsbtn svg { width: 18px; height: 18px; }
   .section-title .lead { display: flex; align-items: center; gap: 10px; }
   .screen {
     position: fixed; inset: 0; z-index: 15; background: var(--bg); overflow-y: auto; -webkit-overflow-scrolling: touch;
@@ -196,8 +199,9 @@
 
   <div class="section-title">
     <div class="lead">
-      <button id="boardBtn" class="iconbtn" aria-label="Open stocks board" hidden>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>
+      <button id="boardBtn" class="chartsbtn" aria-label="Open stock charts" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>
+        Charts
       </button>
       <h2 id="tabTitle">Stocks</h2>
     </div>
@@ -261,7 +265,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "1.4";
+  const APP_VERSION = "1.5";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -615,7 +619,10 @@
   $("refreshBtn").onclick = () => { fetchRecent(); toast("Refreshed"); };
   $("installBtn").onclick = async () => { if (deferredInstall) { deferredInstall.prompt(); deferredInstall = null; $("installBtn").hidden = true; } };
   window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferredInstall = e; if (!standalone) $("installBtn").hidden = false; });
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) fetchRecent(); });
+  function checkForUpdate() { if (registration) registration.update().catch(() => {}); }
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { fetchRecent(); checkForUpdate(); } });
+  window.addEventListener("pageshow", checkForUpdate);
+  setInterval(() => { if (!document.hidden) checkForUpdate(); }, 15 * 60000);
   setInterval(() => { if (!document.hidden) fetchRecent(); }, 60000);
   let reloading = false;
   const hadController = "serviceWorker" in navigator && !!navigator.serviceWorker.controller;   // false on first ever load
