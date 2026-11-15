@@ -6,10 +6,11 @@
   "AMZN",
   "GOOGL",
   "META",
-  "TSLA"
+  "TSLA",
+  "F"
  ],
- "since": "ILACam7vPL4V",
- "updated": "2026-11-15T15:18:04+00:00",
+ "since": "s99cd2FwWLgd",
+ "updated": "2026-11-15T17:25:47+00:00",
  "tickers": {
   "NVDA": "NVIDIA",
   "AAPL": "Apple",
@@ -17,7 +18,8 @@
   "AMZN": "Amazon",
   "GOOGL": "Alphabet (Google)",
   "META": "Meta",
-  "TSLA": "Tesla"
+  "TSLA": "Tesla",
+  "F": "Ford Motor"
  },
  "known": [
   "NVDA",
@@ -26,7 +28,8 @@
   "AMZN",
   "GOOGL",
   "META",
-  "TSLA"
+  "TSLA",
+  "F"
  ],
  "rejected": {},
  "name_tried": []
