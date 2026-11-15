@@ -1,0 +1,49 @@
+name: Test - send all stock messages
+
+# Sends a test copy of every Stocks message from GitHub, optionally after a delay.
+# Used to prove the messages arrive while the PC is switched off.
+on:
+  workflow_dispatch:
+    inputs:
+      delay_minutes:
+        description: "Wait this many minutes before sending"
+        type: string
+        default: "0"
+      dry:
+        description: "Print the messages, send nothing"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: worker/requirements.txt
+
+      - run: pip install -q -r worker/requirements.txt
+
+      - name: Wait
+        env:
+          DELAY: ${{ inputs.delay_minutes || '0' }}
+        run: |
+          case "$DELAY" in ''|*[!0-9]*) DELAY=0 ;; esac
+          echo "waiting $DELAY minutes"
+          sleep $((DELAY * 60))
+
+      - name: Send the test messages
+        env:
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          DEVICES_KEY: ${{ secrets.DEVICES_KEY }}
+          TZ: Asia/Jerusalem
+          DRY: ${{ inputs.dry && '--dry' || '' }}
+        run: python worker/test_messages.py $DRY
