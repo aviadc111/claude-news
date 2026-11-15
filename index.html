@@ -233,6 +233,27 @@
   .adderror { display: inline-block; margin: 0 0 10px; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 700;
               background: color-mix(in srgb, var(--danger) 20%, transparent); color: var(--danger); }
   @media (prefers-reduced-motion: no-preference) { .adderror { animation: pop .18s ease-out; } @keyframes pop { from { transform: scale(.9); opacity: 0; } } }
+
+  /* v2.0: Instagram follow-back check */
+  .chartsbtn.ig { background: #e1306c; color: #fff; box-shadow: 0 4px 14px rgba(225, 48, 108, .3); }
+  .igsum { background: var(--surface); border-radius: 16px; padding: 16px; margin: 4px 0 12px; }
+  .igsum .num { font-size: 44px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .igsum .lbl { font-size: 15px; font-weight: 700; margin-top: 4px; }
+  .igsum .d { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  .igsum .chg { font-size: 13px; margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .filebtn { display: block; text-align: center; font-weight: 700; border-radius: 12px; padding: 12px 16px; cursor: pointer; background: #e1306c; color: #fff; margin-bottom: 10px; }
+  .filebtn.busy { opacity: .6; pointer-events: none; }
+  .vh { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+  .howto { background: var(--surface); border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; font-size: 14px; }
+  .howto summary { font-weight: 700; cursor: pointer; }
+  .howto ol { margin: 10px 0 0; padding-left: 20px; color: var(--muted); }
+  .howto li { margin: 6px 0; }
+  .howto b { color: var(--fg); }
+  .ighead { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin: 14px 2px 8px; }
+  .igrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--surface); border-radius: 12px; padding: 11px 14px; margin-bottom: 6px;
+           color: var(--fg); text-decoration: none; font-weight: 600; }
+  .igrow span.u { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .igrow .go { color: var(--muted); font-size: 12px; font-weight: 600; flex: 0 0 auto; }
 </style>
 </head>
 <body>
@@ -245,6 +266,10 @@
   <button id="boardBtn" class="chartsbtn" aria-label="Open stock charts" hidden>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>
     Charts
+  </button>
+  <button id="igBtn" class="chartsbtn ig" aria-label="Open the follow-back check" hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="17.5" cy="9" r="2.5"/><path d="M17 14.2c2.6.2 4.5 2 4.5 4.8"/></svg>
+    Check
   </button>
   <button id="settingsBtn" class="iconbtn" aria-label="Settings">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
@@ -308,6 +333,32 @@
   <button id="dRemove" class="ghost">Remove from my list</button>
 </section>
 
+<section id="ig" class="screen" hidden aria-label="Instagram follow-back check">
+  <div class="bar">
+    <button class="iconbtn" data-close="ig" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <h2>Follow-back check</h2>
+    <span id="igWhen" class="sub"></span>
+  </div>
+  <div id="igSummary" class="igsum"></div>
+  <label id="igPick" class="filebtn" for="igFile">Load my Instagram export</label>
+  <input id="igFile" class="vh" type="file" accept=".zip,.json,.html,application/zip,application/json,text/html" multiple>
+  <p id="igError" class="adderror" role="alert" hidden></p>
+  <details class="howto" id="igHow">
+    <summary>How to get the export from Instagram (about 2 minutes)</summary>
+    <ol>
+      <li>In Instagram open your profile, then the menu, then <b>Accounts Center</b>.</li>
+      <li>Go to <b>Your information and permissions</b>, then <b>Download your information</b> (it may be called Export your information).</li>
+      <li>Choose <b>Download or transfer information</b>, pick your Instagram account, then <b>Some of your information</b>.</li>
+      <li>Tick only <b>Followers and following</b>, then Next.</li>
+      <li>Choose <b>Download to device</b>. Date range: <b>All time</b>. Format: <b>JSON</b>. Then Create files.</li>
+      <li>Instagram tells you when the file is ready, usually within minutes. Download it. It is a ZIP file.</li>
+      <li>Come back here, press <b>Load my Instagram export</b> and choose that file.</li>
+    </ol>
+  </details>
+  <div id="igList"></div>
+  <p class="note" style="margin-top:14px;">Your lists are read on this phone only. They are not sent anywhere.</p>
+</section>
+
 <div id="holdBg" class="sheet-bg" hidden></div>
 <section id="hold" class="sheet" hidden aria-label="My shares">
   <div class="grab"></div>
@@ -351,12 +402,12 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "1.9";
+  const APP_VERSION = "2.0";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
   document.addEventListener("touchend", (e) => { const now = Date.now(); if (now - lastTap < 300 && !e.target.closest("input, button, a")) e.preventDefault(); lastTap = now; }, { passive: false });
-  const DEFAULT_TABS = ["Stocks", "Claude News"];
+  const DEFAULT_TABS = ["Stocks", "Claude News", "Instagram"];
   document.getElementById("version").textContent = APP_VERSION;
   let registration = null, subscription = null, deferredInstall = null;
   let messages = new Map(), tabs = [], current = "Stocks", seen = {};
@@ -408,9 +459,11 @@
   function projectColor(p) {
     if (p === "Stocks") return "#22c55e";
     if (p === "Claude News") return "#f59e0b";
+    if (p === "Instagram") return "#e1306c";
     return `hsl(${hue(p)} 70% 62%)`;
   }
   const ICONS = {
+    "Instagram": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="17.5" cy="9" r="2.5"/><path d="M17 14.2c2.6.2 4.5 2 4.5 4.8"/></svg>',
     "Stocks": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>',
     "Claude News": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="14" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/></svg>',
   };
@@ -479,6 +532,7 @@
     const shown = all.filter((m) => m.project === current);
     $("tabTitle").textContent = current;
     $("boardBtn").hidden = current !== "Stocks";
+    $("igBtn").hidden = current !== "Instagram";
     $("tabCount").textContent = shown.length ? `${shown.length} message${shown.length === 1 ? "" : "s"}` : "";
     let html = "", lastDay = "";
     for (const m of shown) {
@@ -932,6 +986,110 @@
   chart.addEventListener("mouseleave", () => drawDetail());
   window.addEventListener("resize", () => { if (!$("detail").hidden) drawDetail(); if (!$("board").hidden && stocks) renderBoard(stocks); });
   $("boardBtn").onclick = openBoard;
+
+  // ---- Instagram: who doesn't follow me back --------------------------------
+  // Reads the official Instagram export ("Followers and following") on this phone.
+  // Nothing is uploaded: the lists stay in this phone's storage.
+  let igData = null;
+  try { igData = JSON.parse(ls.get("cn.ig", "null")); } catch { igData = null; }
+  const IG_FOLLOWERS = /(^|\/)followers(_\d+)?\.(json|html)$/i, IG_FOLLOWING = /(^|\/)following(_\d+)?\.(json|html)$/i;
+  function loadZipReader() {
+    return new Promise((res, rej) => {
+      if (window.JSZip) return res();
+      const s = document.createElement("script");
+      s.src = "vendor/jszip.min.js"; s.onload = res;
+      s.onerror = () => rej(new Error("Could not load the ZIP reader. Check your connection and try again."));
+      document.head.appendChild(s);
+    });
+  }
+  function igName(entry) {
+    const d = (entry.string_list_data && entry.string_list_data[0]) || {};
+    let name = d.value || entry.title || "";
+    if (!name && d.href) name = d.href.replace(/[?#].*$/, "").replace(/\/+$/, "").split("/").pop();
+    return String(name).trim().replace(/^@/, "").toLowerCase();
+  }
+  function igCollect(node, out) {                       // the export's shape has changed over the years
+    if (Array.isArray(node)) node.forEach((n) => igCollect(n, out));
+    else if (node && typeof node === "object") {
+      if (Array.isArray(node.string_list_data)) { const n = igName(node); if (n) out.add(n); }
+      else Object.values(node).forEach((v) => igCollect(v, out));
+    }
+  }
+  function igParse(name, text, out) {
+    if (/\.json$/i.test(name)) igCollect(JSON.parse(text), out);
+    else new DOMParser().parseFromString(text, "text/html").querySelectorAll('a[href*="instagram.com"]').forEach((a) => {
+      const n = (a.textContent.trim() || a.getAttribute("href").replace(/[?#].*$/, "").replace(/\/+$/, "").split("/").pop()).replace(/^@/, "").toLowerCase();
+      if (n) out.add(n);
+    });
+  }
+  async function igRead(files) {
+    const followers = new Set(), following = new Set();
+    let sawFollowers = false, sawFollowing = false;
+    const take = (path, text) => {
+      if (IG_FOLLOWERS.test(path)) { sawFollowers = true; igParse(path, text, followers); }
+      else if (IG_FOLLOWING.test(path)) { sawFollowing = true; igParse(path, text, following); }
+    };
+    for (const file of files) {
+      if (/\.zip$/i.test(file.name) || /zip/.test(file.type)) {
+        await loadZipReader();
+        const zip = await JSZip.loadAsync(file);
+        for (const path of Object.keys(zip.files)) {
+          if (IG_FOLLOWERS.test(path) || IG_FOLLOWING.test(path)) take(path, await zip.files[path].async("string"));
+        }
+      } else take(file.name, await file.text());
+    }
+    if (!sawFollowers && !sawFollowing) throw new Error("This file has no follower lists. In the export, tick Followers and following.");
+    if (!sawFollowers) throw new Error("The followers list is missing from this file.");
+    if (!sawFollowing) throw new Error("The following list is missing from this file.");
+    if (!following.size) throw new Error("The following list in this file is empty.");
+    return { followers: followers.size, following: following.size, notBack: [...following].filter((u) => !followers.has(u)).sort() };
+  }
+  function renderIg() {
+    const d = igData;
+    if (!d) {
+      $("igSummary").innerHTML = `<div class="lbl">No check yet</div><div class="d">Load your Instagram export to see how many people you follow don't follow you back, and who they are.</div>`;
+      $("igWhen").textContent = ""; $("igList").innerHTML = ""; $("igHow").open = true;
+      return;
+    }
+    const prev = Array.isArray(d.prevNotBack) ? d.prevNotBack : null;
+    const fresh = prev ? d.notBack.filter((u) => !prev.includes(u)) : [];
+    const gone = prev ? prev.filter((u) => !d.notBack.includes(u)) : [];
+    const at = new Date(d.checkedAt);
+    $("igWhen").textContent = "checked " + at.toLocaleDateString([], { day: "numeric", month: "short" });
+    $("igSummary").innerHTML = `<div class="num">${d.notBack.length}</div>
+      <div class="lbl">${d.notBack.length === 1 ? "person doesn't" : "people don't"} follow you back</div>
+      <div class="d">You follow ${d.following.toLocaleString()} · ${d.followers.toLocaleString()} follow you</div>`
+      + (prev ? `<div class="chg"><span class="tag${fresh.length ? " big" : ""}">${fresh.length} new since last check</span><span class="tag">${gone.length} no longer on the list</span></div>` : "");
+    const row = (u) => `<a class="igrow" href="https://www.instagram.com/${encodeURIComponent(u)}/" target="_blank" rel="noopener"><span class="u">@${esc(u)}</span><span class="go">open profile</span></a>`;
+    $("igList").innerHTML = (fresh.length ? `<div class="ighead">New since last check</div>` + fresh.map(row).join("") : "")
+      + (d.notBack.length ? `<div class="ighead">${fresh.length ? "Everyone" : "Who they are"} (${d.notBack.length})</div>` + d.notBack.map(row).join("")
+                          : `<div class="empty"><strong>Everyone you follow follows you back</strong></div>`);
+  }
+  $("igFile").addEventListener("change", async (e) => {
+    const files = [...e.target.files];
+    if (!files.length) return;
+    $("igError").hidden = true; $("igPick").classList.add("busy"); $("igPick").textContent = "Reading the file…";
+    try {
+      const r = await igRead(files);
+      const prev = igData;
+      igData = { checkedAt: Date.now(), followers: r.followers, following: r.following, notBack: r.notBack,
+                 prevNotBack: prev ? prev.notBack : null, prevAt: prev ? prev.checkedAt : null };
+      ls.set("cn.ig", JSON.stringify(igData));
+      $("igHow").open = false;
+      renderIg();
+      const fresh = prev ? r.notBack.filter((u) => !prev.notBack.includes(u)).length : null;
+      const note = { id: "ig-" + igData.checkedAt, time: igData.checkedAt, project: "Instagram", url: "",
+                     title: `${r.notBack.length} ${r.notBack.length === 1 ? "person doesn't" : "people don't"} follow you back`,
+                     body: `You follow ${r.following.toLocaleString()} and ${r.followers.toLocaleString()} follow you.` + (fresh === null ? "" : ` ${fresh} new since the last check.`) + "\nPress Check to see who they are." };
+      addMessages([note]); dbPut([note]); render();
+      toast("Done: " + note.title);
+    } catch (err) {
+      const el = $("igError"); el.textContent = (err && err.message) || "Could not read this file."; el.hidden = false;
+    }
+    $("igPick").classList.remove("busy"); $("igPick").textContent = "Load my Instagram export";
+    e.target.value = "";
+  });
+  $("igBtn").onclick = () => { $("igError").hidden = true; renderIg(); openScreen("ig"); };
 
   // ---- settings sheet -----------------------------------------------------
   function openSheet(open) { $("sheet").hidden = !open; $("sheetBg").hidden = !open; }

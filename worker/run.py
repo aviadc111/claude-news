@@ -296,14 +296,22 @@ def sudden_message(r):
     return title, body
 
 
-def weekly_due(state, cfg, now):
-    w = cfg["weekly"]
+def weekly_due(state, cfg, now, spec=None, key="_weekly"):
+    """True once per week, from `time` on `weekday` (Monday is 0, Sunday is 6)."""
+    w = spec or cfg["weekly"]
     hh, mm = (int(x) for x in w["time"].split(":"))
-    if now.weekday() != int(w["weekday"]):          # Monday is 0, Sunday is 6
+    if now.weekday() != int(w["weekday"]):
         return False
     if (now.hour, now.minute) < (hh, mm):
         return False
-    return state.get("_weekly", {}).get("date") != now.date().isoformat()
+    return state.get(key, {}).get("date") != now.date().isoformat()
+
+
+INSTAGRAM_REMINDER = ("Weekly Instagram check",
+                      "It's time to see who doesn't follow you back.\n"
+                      "1. In Instagram, request your export: Followers and following, format JSON.\n"
+                      "2. When the file is ready, open the Instagram tab here, press Check and load it.\n"
+                      "The steps are listed inside Check.")
 
 
 def weekly_message(results, now):
@@ -379,6 +387,17 @@ def main(argv):
         devices_changed |= ch
         if res["feed"] or res["pushed"]:
             state["_weekly"] = {"date": now.date().isoformat()}
+
+    # Instagram: the follow-back check needs a fresh export from the user, so this is a reminder.
+    # (Instagram offers no approved way for a program to read follower lists by itself.)
+    ig = cfg.get("instagram_reminder")
+    if ig:
+        now_ig = dt.datetime.now(ZoneInfo(ig.get("timezone", "Asia/Jerusalem")))
+        if "--instagram" in argv or weekly_due(state, cfg, now_ig, spec=ig, key="_instagram"):
+            res, ch = cn.notify(*INSTAGRAM_REMINDER, project="Instagram", cfg=app_cfg, state=devices)
+            devices_changed |= ch
+            if res["feed"] or res["pushed"]:
+                state["_instagram"] = {"date": now_ig.date().isoformat()}
 
     # pick up newly registered phones so the next message reaches them
     devices_changed |= cn.refresh_devices(app_cfg, devices)

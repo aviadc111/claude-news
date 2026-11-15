@@ -9,6 +9,7 @@
     "TSLA": "Tesla"
   },
   "weekly": { "weekday": 6, "time": "08:30", "timezone": "Asia/Jerusalem" },
+  "instagram_reminder": { "weekday": 4, "time": "12:00", "timezone": "Asia/Jerusalem" },
   "sudden_drop_day_pct": 5.0,
   "sudden_drop_5day_pct": 10.0,
   "cooldown_hours": 24,
