@@ -6,10 +6,11 @@
   "AMZN",
   "GOOGL",
   "META",
-  "TSLA"
+  "TSLA",
+  "E"
  ],
- "since": "nWW0qzJCSMrE",
- "updated": "2026-11-16T19:25:51+00:00",
+ "since": "0UOYGPoLVXxL",
+ "updated": "2026-11-16T19:28:47+00:00",
  "tickers": {
   "NVDA": "NVIDIA",
   "AAPL": "Apple",
@@ -17,7 +18,8 @@
   "AMZN": "Amazon",
   "GOOGL": "Alphabet (Google)",
   "META": "Meta",
-  "TSLA": "Tesla"
+  "TSLA": "Tesla",
+  "E": "ENI S.p.A."
  },
  "known": [
   "NVDA",
@@ -28,7 +30,8 @@
   "META",
   "TSLA",
   "F",
-  "BIXI"
+  "BIXI",
+  "E"
  ],
  "rejected": {},
  "name_tried": []
