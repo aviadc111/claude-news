@@ -431,7 +431,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "2.7";
+  const APP_VERSION = "2.8";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -498,7 +498,7 @@
   };
   // The name a category is shown under. Messages keep their own project name ("Instagram"),
   // so nothing that sends messages has to change.
-  const LABELS = { "Instagram": "Instagram Follow" };
+  const LABELS = { "Instagram": "FollowBack" };
   const label = (p) => LABELS[p] || p;
   function tabIcon(p) { return ICONS[p] || `<span class="letter">${esc(p.trim()[0] || "?").toUpperCase()}</span>`; }
   // How long ago a message was sent: right now, 1 to 59 minutes, 1 to 23 hours, then 1 day
