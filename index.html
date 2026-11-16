@@ -88,7 +88,11 @@
   .msg { cursor: pointer; -webkit-tap-highlight-color: transparent; }
   .msg:active { opacity: .82; }
   /* an opened message */
-  #msgSheet { gap: 10px; max-height: 88%; padding-bottom: calc(26vh + env(safe-area-inset-bottom, 0px)); }
+  #msgSheet { display: flex; flex-direction: column; gap: 10px; max-height: 88%; overflow: hidden; }
+  #msgScroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+               display: grid; gap: 10px; align-content: start; }
+  #msgSpace { height: 0; }
+  #msgClose { flex: 0 0 auto; }
   .sheet, .screen { overscroll-behavior: contain; }
   #msgSheet .from { font-size: 13px; color: var(--muted); font-weight: 700; }
   #msgSheet .from .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--pc, var(--accent)); display: inline-block; margin-right: 6px; vertical-align: middle; }
@@ -394,11 +398,14 @@
 <div id="msgBg" class="sheet-bg" hidden></div>
 <section id="msgSheet" class="sheet" hidden aria-label="Message">
   <div class="grab"></div>
-  <div class="from" id="msgFrom"></div>
-  <h2 id="msgTitle"></h2>
-  <div class="when"><b id="msgExact"></b><span id="msgAgo"></span></div>
-  <div class="text" id="msgText"></div>
-  <a id="msgLink" target="_blank" rel="noopener" hidden>Open link</a>
+  <div id="msgScroll">
+    <div class="from" id="msgFrom"></div>
+    <h2 id="msgTitle"></h2>
+    <div class="when"><b id="msgExact"></b><span id="msgAgo"></span></div>
+    <div class="text" id="msgText"></div>
+    <a id="msgLink" target="_blank" rel="noopener" hidden>Open link</a>
+    <div id="msgSpace" aria-hidden="true"></div>
+  </div>
   <button type="button" id="msgClose" class="ghost">Close</button>
 </section>
 
@@ -432,7 +439,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "2.9";
+  const APP_VERSION = "3.0";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -630,7 +637,22 @@
     $("msgText").textContent = m.body || ""; $("msgText").hidden = !m.body;
     if (m.url) { $("msgLink").href = m.url; $("msgLink").hidden = false; } else { $("msgLink").removeAttribute("href"); $("msgLink").hidden = true; }
     $("msgSheet").style.transform = ""; $("msgBg").style.opacity = "";          // not where the last one was left
-    $("msgSheet").hidden = false; $("msgBg").hidden = false; $("msgSheet").scrollTop = 0;
+    $("msgSheet").hidden = false; $("msgBg").hidden = false;
+    sizeMsg();
+    $("msgScroll").scrollTop = 0;
+  }
+  // The card is as tall as its text plus a little empty space, an eighth of the screen (at most 88% of
+  // the screen), with Close at its bottom. Under the text there is extra room to scroll into, so
+  // the text can be moved up until its last line is near the top of the card.
+  function sizeMsg() {
+    const card = $("msgSheet"), area = $("msgScroll"), space = $("msgSpace");
+    space.style.height = "0px"; card.style.height = "";
+    const text = area.scrollHeight;                           // the message itself
+    const frame = card.offsetHeight - area.clientHeight;      // the handle, Close and the card's edges
+    const air = Math.round(window.innerHeight * 0.12);
+    const height = Math.min(Math.round(window.innerHeight * 0.88), text + frame + air);
+    card.style.height = height + "px";
+    space.style.height = Math.max(air, height - frame - 70) + "px";
   }
   function closeMsg() { openMsgId = null; $("msgSheet").hidden = true; $("msgBg").hidden = true; }
   $("msgBg").onclick = closeMsg; $("msgClose").onclick = closeMsg;
