@@ -14,6 +14,8 @@ Every run:
      stocks and nothing else
 
 State between runs lives in data/alert_state.json (committed by the workflow).
+worker/loop.py calls this script: once per run outside trading hours, and on every quarter
+hour while the US market is open and around the weekly message time.
 
     python worker/run.py            normal run
     python worker/run.py --dry      compute and write stocks.json only, send nothing
@@ -320,6 +322,32 @@ def weekly_message(results, now):
     return title, body
 
 
+def same_board(old, new, cents=0.011):
+    """True when the charts data did not really change.
+
+    Yahoo re-serves old closing prices with one-cent rounding wobbles, which made every run
+    look like a change. Everything except the history must match exactly; a history point may
+    differ by a cent. A real move always changes the current price, which is compared exactly."""
+    def split(board):
+        board = json.loads(json.dumps(board))
+        series = [s.pop("series", []) for s in board.get("stocks", []) if isinstance(s, dict)]
+        return board, series
+    try:
+        a, sa = split(old)
+        b, sb = split(new)
+        if a != b or len(sa) != len(sb):
+            return False
+        for x, y in zip(sa, sb):
+            if len(x) != len(y):
+                return False
+            for (d1, p1), (d2, p2) in zip(x, y):
+                if d1 != d2 or abs(p1 - p2) > cents:
+                    return False
+        return True
+    except (TypeError, ValueError, AttributeError):
+        return False
+
+
 # -------------------------------------------------------------------- main ---
 def main(argv):
     dry = "--dry" in argv
@@ -359,7 +387,7 @@ def main(argv):
     }
     old = load_json(STOCKS_PATH, {})
     old.pop("updated", None)
-    if results and old != json.loads(json.dumps(board)):     # weekends: nothing moves, nothing to commit
+    if results and not same_board(old, board):               # market closed: nothing moves, nothing to commit
         save_json(STOCKS_PATH, {"updated": utc_now(), **board}, compact=True)
         print("wrote", STOCKS_PATH)
     else:

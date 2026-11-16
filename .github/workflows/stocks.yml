@@ -2,15 +2,20 @@ name: Stock dip checks
 
 on:
   schedule:
-    # Every 15 minutes, around the clock. Each run picks up stocks added or picked in
-    # the app, refreshes the charts data, sends a sudden-dip alert when one happens,
-    # and on Sunday from 08:30 Israel time sends the weekly prices message once.
+    # GitHub is asked for a run every 15 minutes but really starts one every 1 to 2.5 hours.
+    # So a run that starts in busy hours stays alive and checks on every quarter hour itself
+    # (worker/loop.py): Monday to Friday 06:00 to 16:20 New York time, and Sunday morning up to
+    # the 08:30 weekly message. Outside busy hours a run checks once and ends.
+    # Each check picks up stocks added or picked in the app, refreshes the charts data, sends
+    # a sudden-dip alert when one happens, and sends the weekly prices message when it is due.
     - cron: "*/15 * * * *"
   workflow_dispatch:
 
 permissions:
   contents: write
+  actions: read          # lets a run see that a newer run is waiting, so it can hand over
 
+# One run works at a time. A newer run waits; the working run sees it and ends after its check.
 concurrency:
   group: stock-checks
   cancel-in-progress: false
@@ -18,7 +23,7 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
 
@@ -30,24 +35,11 @@ jobs:
 
       - run: pip install -q -r worker/requirements.txt
 
-      - name: Check prices, send messages, write stocks.json
+      - name: Check prices, send messages, save data (repeats every 15 minutes in busy hours)
         env:
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
           DEVICES_KEY: ${{ secrets.DEVICES_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
           TZ: Asia/Jerusalem
-        run: python worker/run.py
-
-      - name: Save data back to the repository
-        run: |
-          git config user.name "stock-checks[bot]"
-          git config user.email "stock-checks@users.noreply.github.com"
-          git add data/
-          if git diff --cached --quiet; then
-            echo "nothing changed"
-          else
-            git commit -m "data: stocks $(date -u +'%Y-%m-%d %H:%M') UTC"
-            for attempt in 1 2 3; do
-              git pull --rebase --autostash && git push && break
-              sleep 5
-            done
-          fi
+          PYTHONUNBUFFERED: "1"
+        run: python worker/loop.py
