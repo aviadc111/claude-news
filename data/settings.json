@@ -6,10 +6,11 @@
   "AMZN",
   "GOOGL",
   "META",
-  "TSLA"
+  "TSLA",
+  "BIXI"
  ],
- "since": "cUcXvai1U00c",
- "updated": "2026-11-15T18:35:04+00:00",
+ "since": "CwO2NduIwCJa",
+ "updated": "2026-11-16T18:54:10+00:00",
  "tickers": {
   "NVDA": "NVIDIA",
   "AAPL": "Apple",
@@ -17,7 +18,8 @@
   "AMZN": "Amazon",
   "GOOGL": "Alphabet (Google)",
   "META": "Meta",
-  "TSLA": "Tesla"
+  "TSLA": "Tesla",
+  "BIXI": "Bitcoin Infrastructure Acquisition (Class A)"
  },
  "known": [
   "NVDA",
@@ -27,7 +29,8 @@
   "GOOGL",
   "META",
   "TSLA",
-  "F"
+  "F",
+  "BIXI"
  ],
  "rejected": {},
  "name_tried": []
