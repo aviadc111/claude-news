@@ -85,6 +85,18 @@
   .msg .title { font-weight: 700; font-size: 15px; }
   .msg .body { white-space: pre-wrap; opacity: .9; font-size: 14px; }
   .msg a { color: var(--accent); font-size: 13px; }
+  .msg { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .msg:active { opacity: .82; }
+  /* an opened message */
+  #msgSheet { gap: 10px; }
+  #msgSheet .from { font-size: 13px; color: var(--muted); font-weight: 700; }
+  #msgSheet .from .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--pc, var(--accent)); display: inline-block; margin-right: 6px; vertical-align: middle; }
+  #msgSheet h2 { font-size: 20px; line-height: 1.25; }
+  #msgSheet .when { display: grid; gap: 2px; font-size: 14px; }
+  #msgSheet .when b { font-variant-numeric: tabular-nums; }
+  #msgSheet .when span { color: var(--muted); font-size: 13px; }
+  #msgSheet .text { white-space: pre-wrap; font-size: 15px; line-height: 1.45; border-top: 1px solid var(--line); padding-top: 10px; -webkit-user-select: text; user-select: text; }
+  #msgSheet a { color: var(--accent); font-size: 14px; }
   .empty { text-align: center; color: var(--muted); padding: 48px 12px; }
   .empty strong { display: block; color: var(--fg); font-size: 16px; margin-bottom: 4px; }
 
@@ -378,6 +390,17 @@
   <p class="note">Saved on this phone only. It is not sent anywhere.</p>
 </section>
 
+<div id="msgBg" class="sheet-bg" hidden></div>
+<section id="msgSheet" class="sheet" hidden aria-label="Message">
+  <div class="grab"></div>
+  <div class="from" id="msgFrom"></div>
+  <h2 id="msgTitle"></h2>
+  <div class="when"><b id="msgExact"></b><span id="msgAgo"></span></div>
+  <div class="text" id="msgText"></div>
+  <a id="msgLink" target="_blank" rel="noopener" hidden>Open link</a>
+  <button type="button" id="msgClose" class="ghost">Close</button>
+</section>
+
 <div id="sheetBg" class="sheet-bg" hidden></div>
 <section id="sheet" class="sheet" hidden aria-label="Settings">
   <div class="grab"></div>
@@ -408,7 +431,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "2.5";
+  const APP_VERSION = "2.6";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -474,11 +497,26 @@
     "Claude News": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="14" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/></svg>',
   };
   function tabIcon(p) { return ICONS[p] || `<span class="letter">${esc(p.trim()[0] || "?").toUpperCase()}</span>`; }
-  function fmtTime(ms) {
-    const d = new Date(ms), now = new Date(), diff = (now - d) / 60000;
-    if (diff < 1) return "just now";
-    if (diff < 60) return `${Math.round(diff)} min ago`;
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  // How long ago a message was sent: right now, 1 to 59 minutes, 1 to 23 hours, then 1 day
+  // (a message deletes itself when it is 48 hours old).
+  function fmtAgo(ms, now) {
+    const mins = Math.floor(((now || Date.now()) - ms) / 60000);
+    if (mins < 1) return "right now";
+    if (mins < 60) return `${mins} minute${mins === 1 ? "" : "s"} ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+    return "1 day ago";
+  }
+  function fmtExact(ms) {
+    const d = new Date(ms);
+    return d.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+      + " at " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
+  }
+  function fmtLeft(ms) {                  // until the message deletes itself
+    const mins = Math.max(0, Math.floor((ms + 48 * 3600000 - Date.now()) / 60000));
+    if (mins < 60) return mins < 1 ? "in less than a minute" : `in ${mins} minute${mins === 1 ? "" : "s"}`;
+    const hours = Math.floor(mins / 60);
+    return `in ${hours} hour${hours === 1 ? "" : "s"}`;
   }
   function dayLabel(ms) {
     const d = new Date(ms), now = new Date();
@@ -544,14 +582,23 @@
     for (const m of shown) {
       const day = dayLabel(m.time);
       if (day !== lastDay) { html += `<li class="day">${day}</li>`; lastDay = day; }
-      html += `<li class="msg">
-        <div class="meta"><span><span class="dot" style="--pc:${projectColor(m.project)}"></span>${esc(m.project)}</span><span>${fmtTime(m.time)}</span></div>
+      html += `<li class="msg" data-id="${esc(m.id)}" tabindex="0" role="button" aria-label="Open the message: ${esc(m.title)}">
+        <div class="meta"><span><span class="dot" style="--pc:${projectColor(m.project)}"></span>${esc(m.project)}</span><span data-ago="${m.time}">${fmtAgo(m.time)}</span></div>
         <div class="title">${esc(m.title)}</div>
         ${m.body ? `<div class="body">${esc(m.body)}</div>` : ""}
         ${m.url ? `<a href="${esc(m.url)}" target="_blank" rel="noopener">Open link</a>` : ""}
       </li>`;
     }
     $("feed").innerHTML = html;
+    $("feed").querySelectorAll(".msg").forEach((li) => {
+      const open = (e) => {
+        if (e.target.closest("a")) return;                               // the message's own link
+        if (String(window.getSelection && window.getSelection()).length) return;   // text is being selected
+        openMsg(li.dataset.id);
+      };
+      li.onclick = open;
+      li.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(e); } };
+    });
     $("empty").hidden = shown.length > 0;
     $("empty").innerHTML = `<strong>Nothing from ${esc(current)} right now</strong>New messages show up here. Each one deletes itself 48 hours after it was sent.`;
     // mark the current tab as seen
@@ -559,6 +606,34 @@
     if (newest > (seen[current] || 0)) { seen[current] = newest; ls.set("cn.seen", JSON.stringify(seen)); }
   }
   function selectTab(p) { current = p; ls.set("cn.tab", p); render(); window.scrollTo({ top: 0 }); }
+  // ---- an opened message: its full text and the exact time it was sent --------
+  let openMsgId = null;
+  function fillMsgTimes(m) {
+    $("msgExact").textContent = "Sent " + fmtExact(m.time);
+    $("msgAgo").textContent = fmtAgo(m.time) + " · deletes itself " + fmtLeft(m.time);
+  }
+  function openMsg(id) {
+    const m = messages.get(id);
+    if (!m) return;
+    openMsgId = id;
+    $("msgFrom").innerHTML = `<span class="dot" style="--pc:${projectColor(m.project)}"></span>${esc(m.project)}`;
+    $("msgTitle").textContent = m.title || "";
+    fillMsgTimes(m);
+    $("msgText").textContent = m.body || ""; $("msgText").hidden = !m.body;
+    if (m.url) { $("msgLink").href = m.url; $("msgLink").hidden = false; } else { $("msgLink").removeAttribute("href"); $("msgLink").hidden = true; }
+    $("msgSheet").hidden = false; $("msgBg").hidden = false; $("msgSheet").scrollTop = 0;
+  }
+  function closeMsg() { openMsgId = null; $("msgSheet").hidden = true; $("msgBg").hidden = true; }
+  $("msgBg").onclick = closeMsg; $("msgClose").onclick = closeMsg;
+  // The "ago" labels move on by themselves; a message that reached 48 hours disappears.
+  function tickTimes() {
+    if (document.hidden) return;
+    if ([...messages.values()].some(expired)) { render(); }
+    else document.querySelectorAll("#feed [data-ago]").forEach((el) => { const t = fmtAgo(Number(el.dataset.ago)); if (el.textContent !== t) el.textContent = t; });
+    if (openMsgId) { const m = messages.get(openMsgId); if (m) fillMsgTimes(m); else closeMsg(); }
+  }
+  setInterval(tickTimes, 15000);
+  document.addEventListener("visibilitychange", tickTimes);
   // A tapped notification opens the app on the category its message belongs to.
   function goToTab(p, fromMessage) {
     if (!p) return;
@@ -569,6 +644,7 @@
     document.querySelectorAll(".screen").forEach((s) => { s.hidden = true; });
     try { closeHold(); } catch {}
     try { openSheet(false); } catch {}
+    try { closeMsg(); } catch {}
     selectTab(p);
   }
   // ---- which category to open after a notification is tapped ------------------
