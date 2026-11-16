@@ -10,6 +10,11 @@ itself on every quarter hour:
     it, so the Sunday 08:30 message leaves at 08:30.
 Outside busy hours a run checks once and ends, as before.
 
+Between two checks the run does not sleep: it listens on the app's settings channel. When a
+stock is added, removed or picked in the app, the check runs a few seconds later instead of
+at the next quarter hour. After a check that applied such a change, a short note goes to the
+app's status channel, so an open app fetches the new data at once.
+
 Runs hand over to each other. Only one run may work at a time, so a newer run that GitHub
 starts has to wait. When this run sees one waiting, it ends after its current check and the
 newer one carries on. A run also ends by itself after MAX_HOURS, which is under GitHub's
@@ -45,6 +50,9 @@ MARKET_FROM = dt.time(6, 0)       # 3.5 hours before the open: GitHub can take 2
 MARKET_UNTIL = dt.time(16, 20)    # the close is 16:00; the 16:15 and 16:30 checks pick up the final price
 WEEKLY_LEAD = dt.timedelta(hours=3, minutes=30)
 WEEKLY_TAIL = dt.timedelta(minutes=10)
+SETTLE_SECONDS = 4                # the app saves a moment after the last tap: wait for quick changes to finish
+LISTEN_SECONDS = 40               # one listening connection; a new one follows straight away
+MAX_EARLY_CHECKS = 80             # per run, so a flood of changes cannot keep the job checking nonstop
 
 
 def utc_now():
@@ -99,6 +107,80 @@ def newer_run_waiting(env=None):
         return False
 
 
+def app_channel(name):
+    """Address of one of the app's ntfy channels ("settings", "status"), or None."""
+    try:
+        if HERE not in sys.path:
+            sys.path.insert(0, HERE)
+        import claude_news_core as cn
+        c = cn.load_app_config()
+        return f"{c['ntfy'].rstrip('/')}/{c['topic']}-{name}"
+    except Exception as e:
+        print("no app channel:", type(e).__name__, flush=True)
+        return None
+
+
+def settings_mark():
+    """Id of the newest app change the checker has applied (kept in data/settings.json)."""
+    try:
+        with open(os.path.join(ROOT, "data", "settings.json"), encoding="utf-8") as f:
+            return json.load(f).get("since")
+    except (OSError, ValueError):
+        return None
+
+
+def wait_for_change(url, since, until, now=utc_now, get=None):
+    """Wait until `until`. Returns the id of a change made in the app in the meantime, else None.
+
+    `since` is the id of the last change already seen (or a unix time): anything newer counts,
+    also a change that arrived while a check was running.
+    """
+    get = get or requests.get
+    complained = False
+    while True:
+        left = (until - now()).total_seconds()
+        if left <= 0:
+            return None
+        if not url:
+            time.sleep(min(left, 30))
+            continue
+        span = min(left, LISTEN_SECONDS)
+        began = time.monotonic()
+        try:
+            with get(url + "/json", params={"since": since}, stream=True, timeout=(min(10, max(span, 1)), span)) as r:
+                r.raise_for_status()
+                for line in r.iter_lines():
+                    if line:
+                        try:
+                            m = json.loads(line)
+                        except ValueError:
+                            continue
+                        if m.get("event") == "message":
+                            return m.get("id") or "change"
+                    if time.monotonic() - began >= span:
+                        break
+        except Exception as e:
+            if time.monotonic() - began < max(span - 1, 0.5):   # not just the quiet end of a connection
+                if not complained:
+                    print("could not listen for app changes, trying again:", type(e).__name__, flush=True)
+                    complained = True
+                time.sleep(max(0, min(15, (until - now()).total_seconds())))
+        if time.monotonic() - began < 0.5:                   # a connection that ended at once: never spin
+            time.sleep(max(0, min(1, (until - now()).total_seconds())))
+
+
+def tell_app(dry=False):
+    """A short note on the status channel: new data is in the repository. An open app fetches it."""
+    url = app_channel("status")
+    if dry or not url:
+        return
+    try:
+        requests.post(url, headers={"Title": "stocks-updated"}, timeout=15,
+                      data=json.dumps({"type": "stocks-updated", "time": int(time.time() * 1000)}))
+    except Exception as e:
+        print("could not tell the app:", type(e).__name__, flush=True)
+
+
 def git(*args, check=False):
     p = subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True)
     if p.returncode and check:
@@ -115,14 +197,15 @@ def save_data():
     git("add", "data/")
     if git("diff", "--cached", "--quiet").returncode == 0:
         print("nothing changed", flush=True)
-        return
+        return True
     git("commit", "-m", f"data: stocks {utc_now():%Y-%m-%d %H:%M} UTC", check=True)
     for _ in range(3):
         if git("pull", "--rebase", "--autostash").returncode == 0 and git("push").returncode == 0:
             print("saved data to the repository", flush=True)
-            return
+            return True
         time.sleep(5)
     print("could not push the data; the next check tries again", flush=True)
+    return False
 
 
 def run_check(dry):
@@ -156,17 +239,27 @@ def main(argv):
     if not dry:
         git("config", "user.name", "stock-checks[bot]")
         git("config", "user.email", "stock-checks@users.noreply.github.com")
-    failed, checks = False, 0
+    failed, checks, early = False, 0, 0
+    settings_url = app_channel("settings")
+    seen = None                       # the last app change this run has seen
+    tick = None                       # the planned quarter-hour check
     while True:
         if not dry:
             fetch_latest()
-        print(f"--- check {checks + 1} at {utc_now():%Y-%m-%d %H:%M:%S} UTC", flush=True)
+        check_began = utc_now()
+        before = settings_mark()
+        print(f"--- check {checks + 1} at {check_began:%Y-%m-%d %H:%M:%S} UTC", flush=True)
         failed = run_check(dry) != 0
         checks += 1
         if failed:
             print("the check failed; carrying on", flush=True)
+        after = settings_mark()
+        applied = after != before     # this check applied a change made in the app
+        if applied or seen is None:
+            seen = after or int(started)
         if not dry:
-            save_data()
+            if save_data() and applied:
+                tell_app()
         now = utc_now()
         why = busy(now, cfg)
         if once:
@@ -180,13 +273,15 @@ def main(argv):
         if newer_run_waiting():
             print("a newer run is waiting: handing over to it", flush=True)
             break
-        tick = next_tick(now)
-        print(f"busy hours ({why}): next check at {tick:%H:%M:%S} UTC", flush=True)
-        while True:
-            left = (tick - utc_now()).total_seconds()
-            if left <= 0:
-                break
-            time.sleep(min(left, 30))
+        if tick is None or check_began >= tick:           # after an early check the planned one is still owed
+            tick = next_tick(now)
+        print(f"busy hours ({why}): next check at {tick:%H:%M:%S} UTC, or sooner when the app changes the list", flush=True)
+        change = wait_for_change(settings_url if early < MAX_EARLY_CHECKS else None, seen, tick)
+        if change:
+            early += 1
+            seen = change
+            print("the list was changed in the app: checking now", flush=True)
+            time.sleep(SETTLE_SECONDS)
     print(f"done after {checks} check{'s' if checks != 1 else ''}", flush=True)
     return 1 if failed else 0
 

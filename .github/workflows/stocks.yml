@@ -6,6 +6,8 @@ on:
     # So a run that starts in busy hours stays alive and checks on every quarter hour itself
     # (worker/loop.py): Monday to Friday 06:00 to 16:20 New York time, and Sunday morning up to
     # the 08:30 weekly message. Outside busy hours a run checks once and ends.
+    # Between checks a run in busy hours listens for changes made in the app, so a stock that
+    # is added shows up about a minute later instead of at the next quarter hour.
     # Each check picks up stocks added or picked in the app, refreshes the charts data, sends
     # a sudden-dip alert when one happens, and sends the weekly prices message when it is due.
     - cron: "*/15 * * * *"

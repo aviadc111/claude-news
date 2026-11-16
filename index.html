@@ -408,7 +408,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "2.3";
+  const APP_VERSION = "2.4";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -740,13 +740,33 @@
   const dayToDate = (d) => new Date(d * 86400000);
   const fmtDate = (d) => dayToDate(d).toLocaleDateString([], { day: "numeric", month: "short", year: "2-digit" });
 
+  function keepNewer(data) {               // the website copy can lag behind the repository: never step back
+    if (data && data.stocks && (!stocks || !stocks.updated || String(data.updated) >= String(stocks.updated))) stocks = data;
+    if (data && data.stocks) stocksAt = Date.now();
+    return stocks;
+  }
   async function loadStocks(force) {
     if (stocks && !force && Date.now() - stocksAt < 60000) return stocks;
     try {
       const r = await fetch("data/stocks.json", { cache: "no-store" });
-      if (r.ok) { stocks = await r.json(); stocksAt = Date.now(); }
+      if (r.ok) keepNewer(await r.json());
     } catch {}
     return stocks;
+  }
+  // The same file straight from the repository. The website copy is republished about a
+  // minute after every save; this one is there at once. Used right after a change to the list.
+  const REPO_FILE = (() => {
+    const m = location.hostname.match(/^([a-z0-9-]+)\.github\.io$/i), repo = location.pathname.split("/")[1];
+    return m && repo ? `https://api.github.com/repos/${m[1]}/${repo}/contents/data/stocks.json` : null;
+  })();
+  async function loadStocksFresh() {
+    if (REPO_FILE) {
+      try {
+        const r = await fetch(REPO_FILE, { headers: { Accept: "application/vnd.github.raw+json" }, cache: "no-store" });
+        if (r.ok) return keepNewer(await r.json());
+      } catch {}
+    }
+    return loadStocks(true);
   }
   function sliceSeries(series, years) {
     if (!series.length) return series;
@@ -828,6 +848,7 @@
     $("boardUpdated").textContent = "Loading…";
     const data = await loadStocks(true);
     renderBoard(data);
+    followChecker();
   }
   // ---- my stocks: the list, the picks (Sunday report) and my shares ----------
   const TICKER_RE = /^[A-Z0-9.\-=^]{1,12}$/;
@@ -883,7 +904,57 @@
         body: JSON.stringify({ type: "stocks", picked, tickers: myTickers, names: myNames, time: Date.now() }) });
       if (!r.ok) throw new Error(r.status);
       toast("Saved");
+      followChecker();
     } catch { toast("Could not save. Check your connection."); }
+  }
+  // Is the checker's data the same list and picks as on this phone?
+  function inSync(data) {
+    const tickers = listTickers(data), srv = serverTickers(data), rejected = data.rejected || {};
+    const live = tickers.filter((t) => !rejected[t]);
+    const listSynced = !Array.isArray(myTickers) || (live.length === srv.length && live.every((t) => srv.includes(t)));
+    const liveMine = currentPicked(data).filter((t) => !rejected[t]);
+    const picksSynced = !Array.isArray(picked) || (Array.isArray(data.picked) && data.picked.length === liveMine.length && liveMine.every((t) => data.picked.includes(t)));
+    return listSynced && picksSynced;
+  }
+  // The checker listens for changes while it is on duty (Mon to Fri, surely from 15:30 to 23:15 Israel
+  // winter time, by the New York clock) and answers within about a minute.
+  function checkerOnDuty() {
+    try {
+      const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date()).map((x) => [x.type, x.value]));
+      const mins = Number(p.hour) * 60 + Number(p.minute);
+      return !["Sat", "Sun"].includes(p.weekday) && mins >= 8 * 60 + 30 && mins < 16 * 60 + 15;
+    } catch { return false; }
+  }
+  // After a change: wait for the checker's note that new data is ready, and show it at once.
+  let followEs = null, followTimer = null, followUntil = 0;
+  function stopFollow() {
+    if (followEs) { try { followEs.close(); } catch {} followEs = null; }
+    clearInterval(followTimer); followTimer = null;
+  }
+  async function refreshBoard(fresh) {
+    const before = stocks && stocks.updated;
+    const data = fresh ? await loadStocksFresh() : await loadStocks(true);
+    if (!data || !data.stocks) return;
+    if (data.updated !== before) {
+      if (!$("board").hidden) renderBoard(data);
+      if (inSync(data)) toast("Your list is up to date");
+    }
+    if (inSync(data)) stopFollow();
+  }
+  function followChecker() {
+    stopFollow();
+    if (!stocks || !stocks.stocks || inSync(stocks) || !C.topic) return;
+    followUntil = Date.now() + 10 * 60000;
+    try {
+      followEs = new EventSource(`${C.ntfy}/${C.topic}-status/sse?since=${Math.floor(Date.now() / 1000) - 20}`);
+      followEs.onmessage = (e) => {
+        try { if (JSON.parse(JSON.parse(e.data).message).type === "stocks-updated") refreshBoard(true); } catch {}
+      };
+    } catch { followEs = null; }
+    followTimer = setInterval(() => {
+      if (Date.now() > followUntil) { stopFollow(); return; }
+      if (!document.hidden) refreshBoard(false);
+    }, 20000);
   }
   function holdingOf(t, price) {
     const lots = holdings[t] || [];
@@ -904,13 +975,10 @@
     const at = new Date(data.updated);
     $("boardUpdated").textContent = "prices " + at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + (at.toDateString() === new Date().toDateString() ? "" : " " + at.toLocaleDateString([], { day: "numeric", month: "short" }));
     const tickers = listTickers(data), mine = currentPicked(data), srv = serverTickers(data), rejected = data.rejected || {};
-    const live = tickers.filter((t) => !rejected[t]);
-    const listSynced = !Array.isArray(myTickers) || (live.length === srv.length && live.every((t) => srv.includes(t)));
-    const liveMine = mine.filter((t) => !rejected[t]);
-    const picksSynced = !Array.isArray(picked) || (Array.isArray(data.picked) && data.picked.length === liveMine.length && liveMine.every((t) => data.picked.includes(t)));
+    const synced = inSync(data), soon = checkerOnDuty();
     const when = (data.weekly && data.weekly.time) || "08:30";
     $("boardHint").innerHTML = `Stocks with a <b class="glowtxt">green glow</b> are in your Sunday ${when} report (<b>${mine.length} of ${tickers.length}</b>). Tap the circle to put one in or take it out.`
-      + (listSynced && picksSynced ? "" : `<br><span class="pending">Saved on this phone. The checker follows within about 15 minutes.</span>`);
+      + (synced ? "" : `<br><span class="pending">Saved on this phone. ${soon ? "The checker follows in about a minute." : "The market is closed, so the checker follows at its next round, within about 2 hours."}</span>`);
     const withData = tickers.map((t) => data.stocks.find((s) => s.ticker === t)).filter(Boolean).sort((a, b) => a.from_lt_high_pct - b.from_lt_high_pct);
     const waiting = tickers.filter((t) => !data.stocks.some((s) => s.ticker === t));
     list.innerHTML = waiting.map((t) => {
@@ -919,7 +987,7 @@
       <div class="srow wait">
         <span></span>
         <div class="info"><div class="nm">${esc(myNames[t] || t)}${myNames[t] ? ` <span class="tk">${esc(t)}</span>` : ""} <span class="tag${bad ? " big" : ""}">${bad ? "NOT FOUND" : "WAITING"}</span></div>
-          <div class="sub">${bad ? "No stock has this ticker. Check the symbol." : "Its prices arrive with the next check, usually within 15 minutes."}</div></div>
+          <div class="sub">${bad ? "No stock has this ticker. Check the symbol." : (soon ? "Getting its prices now. This takes about a minute." : "The market is closed. Its prices arrive at the checker's next round, within about 2 hours.")}</div></div>
         <span></span>
         <button class="pick" data-remove="${esc(t)}" aria-label="Remove ${esc(t)}">✕</button>
       </div>`; }).join("") + withData.map((s) => {
@@ -1277,7 +1345,11 @@
   $("installBtn").onclick = async () => { if (deferredInstall) { deferredInstall.prompt(); deferredInstall = null; $("installBtn").hidden = true; } };
   window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferredInstall = e; if (!standalone) $("installBtn").hidden = false; });
   function checkForUpdate() { if (registration) registration.update().catch(() => {}); }
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) { checkPendingTab(); fetchRecent(); checkForUpdate(); } });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) return;
+    checkPendingTab(); fetchRecent(); checkForUpdate();
+    if (!$("board").hidden && stocks && stocks.stocks && !inSync(stocks)) refreshBoard(true).then(followChecker);   // back in the app while a new stock was on its way
+  });
   window.addEventListener("pageshow", () => { checkPendingTab(); checkForUpdate(); });
   setInterval(() => { if (!document.hidden) checkForUpdate(); }, 15 * 60000);
   setInterval(() => { if (!document.hidden) fetchRecent(); }, 60000);
