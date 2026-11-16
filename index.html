@@ -159,11 +159,11 @@
   .stat .d { font-size: 11px; color: var(--muted); margin-top: 1px; }
   .reason { background: var(--surface); border-radius: 14px; padding: 10px 12px; margin-bottom: 12px; font-size: 13px; }
   .periods { display: flex; gap: 6px; margin-bottom: 8px; }
-  .periods button { flex: 1; padding: 7px 0; font-size: 13px; background: var(--surface-2); color: var(--muted); border-radius: 10px; }
+  .periods button { flex: 1; min-width: 0; white-space: nowrap; padding: 7px 0; font-size: 13px; background: var(--surface-2); color: var(--muted); border-radius: 10px; }
   .periods button.active { background: var(--fg); color: var(--bg); }
   .chartwrap { background: var(--surface); border-radius: 16px; padding: 10px 8px 6px; }
   .chartwrap canvas { width: 100%; height: 240px; display: block; touch-action: pan-y; }
-  .scrub { display: flex; justify-content: space-between; font-size: 13px; padding: 6px 6px 2px; color: var(--muted); font-variant-numeric: tabular-nums; min-height: 24px; }
+  .scrub { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 6px 6px 2px; color: var(--muted); font-variant-numeric: tabular-nums; min-height: 24px; }
   .scrub b { color: var(--fg); }
   .toast { position: fixed; left: 50%; bottom: calc(100px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-weight: 600; font-size: 14px; max-width: calc(100% - 32px); z-index: 30; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
   @media (prefers-reduced-motion: no-preference) { .msg { animation: in .22s ease-out; } @keyframes in { from { opacity: 0; transform: translateY(4px);} } }
@@ -404,7 +404,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "2.1";
+  const APP_VERSION = "2.2";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -555,6 +555,31 @@
     if (newest > (seen[current] || 0)) { seen[current] = newest; ls.set("cn.seen", JSON.stringify(seen)); }
   }
   function selectTab(p) { current = p; ls.set("cn.tab", p); render(); window.scrollTo({ top: 0 }); }
+  // A tapped notification opens the app on the category its message belongs to.
+  function goToTab(p, fromMessage) {
+    if (!p) return;
+    if (!tabs.includes(p)) {
+      if (!fromMessage) return;                              // a link can't invent a category
+      tabs.push(p); ls.set("cn.tabs", JSON.stringify(tabs));
+    }
+    document.querySelectorAll(".screen").forEach((s) => { s.hidden = true; });
+    try { closeHold(); } catch {}
+    try { openSheet(false); } catch {}
+    selectTab(p);
+  }
+  // The background worker leaves a note when a notification is tapped; it is read once.
+  const OPEN_KEY = new URL("__open-tab", location.href.split(/[?#]/)[0]).href;
+  async function openPendingTab() {
+    try {
+      if (!("caches" in window)) return;
+      const r = await caches.match(OPEN_KEY);
+      if (!r) return;
+      const d = await r.json();
+      for (const k of await caches.keys()) await (await caches.open(k)).delete(OPEN_KEY);
+      if (d && d.project && Date.now() - d.time < 90000) goToTab(d.project, true);
+    } catch {}
+  }
+  function checkPendingTab() { openPendingTab(); setTimeout(openPendingTab, 700); setTimeout(openPendingTab, 1800); }
 
   async function fetchRecent() {
     if (!C.topic) return;
@@ -627,7 +652,13 @@
   // ---- stocks board -------------------------------------------------------
   // Data comes from data/stocks.json, written by the GitHub job after every check.
   let stocks = null, stocksAt = 0, dStock = null, dPeriod = 2;
-  const PERIODS = [["1M", 1 / 12], ["3M", 0.25], ["6M", 0.5], ["1Y", 1], ["2Y", 2]];
+  // "today" and "week" are intraday: their points are [minutes since 1970, price].
+  // The others are years of daily closes: [days since 1970, price].
+  const PERIODS = [["Today", "today"], ["5D", "week"], ["1M", 1 / 12], ["3M", 0.25], ["6M", 0.5], ["1Y", 1], ["2Y", 2]];
+  const minToDate = (m) => new Date(m * 60000);
+  const fmtClock = (m) => minToDate(m).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  const fmtDayShort = (m) => minToDate(m).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
+  const nyDay = (m) => { try { return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(minToDate(m)); } catch { return ""; } };
   const money = (v) => "$" + Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const pct = (v) => (v >= 0 ? "+" : "") + Number(v).toFixed(2) + "%";
   const dayToDate = (d) => new Date(d * 86400000);
@@ -661,34 +692,46 @@
     series.forEach((p, i) => { const x = 2 + i * (w - 4) / (series.length - 1), y = 3 + (hi - p[1]) / span * (h - 6); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
     ctx.strokeStyle = color; ctx.lineWidth = 1.6; ctx.lineJoin = "round"; ctx.stroke();
   }
-  function drawChart(c, series, scrubIndex) {
+  function drawChart(c, series, scrubIndex, opt) {
+    opt = opt || {};
     const { ctx, w, h } = setupCanvas(c);
     const css = getComputedStyle(document.documentElement);
     const muted = css.getPropertyValue("--muted").trim(), line = css.getPropertyValue("--line").trim(), fg = css.getPropertyValue("--fg").trim();
     ctx.clearRect(0, 0, w, h);
     if (series.length < 2) return;
     const padL = 8, padR = 54, padT = 22, padB = 22;
-    const ys = series.map((p) => p[1]), lo = Math.min(...ys), hi = Math.max(...ys), span = hi - lo || 1;
+    const ys = series.map((p) => p[1]), sLo = Math.min(...ys), sHi = Math.max(...ys);
+    const base = opt.base || 0;                              // e.g. the previous close on the Today chart
+    // show the previous close as a dashed line when it is near the day's range; after a big
+    // overnight jump it would squash the day's line flat, so then it is left out
+    const sSpan = sHi - sLo || 1, showBase = base > 0 && base >= sLo - 0.6 * sSpan && base <= sHi + 0.6 * sSpan;
+    const lo = showBase ? Math.min(sLo, base) : sLo, hi = showBase ? Math.max(sHi, base) : sHi, span = hi - lo || 1;
+    const dec = span >= 20 ? 0 : span >= 2 ? 1 : 2;          // small moves need cents on the price labels
+    const axis = opt.axis || ((p) => dayToDate(p[0]).toLocaleDateString([], { month: "short", year: "2-digit" }));
     const X = (i) => padL + i * (w - padL - padR) / (series.length - 1);
     const Y = (v) => padT + (hi - v) / span * (h - padT - padB);
-    const up = series[series.length - 1][1] >= series[0][1];
+    const up = series[series.length - 1][1] >= (base || series[0][1]);
     const color = up ? "#22c55e" : "#ef4444";
     // grid + right-side price labels
     ctx.font = "11px -apple-system, Segoe UI, Roboto, sans-serif"; ctx.fillStyle = muted; ctx.strokeStyle = line; ctx.lineWidth = 1;
-    for (let k = 0; k <= 4; k++) { const v = lo + span * k / 4, y = Y(v); ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke(); ctx.textAlign = "left"; ctx.fillText("$" + Math.round(v).toLocaleString(), w - padR + 6, y + 4); }
+    for (let k = 0; k <= 4; k++) { const v = lo + span * k / 4, y = Y(v); ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke(); ctx.textAlign = "left"; ctx.fillText("$" + v.toLocaleString(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec }), w - padR + 6, y + 4); }
     // date labels
     ctx.textAlign = "center";
-    [0, Math.floor((series.length - 1) / 2), series.length - 1].forEach((i) => ctx.fillText(dayToDate(series[i][0]).toLocaleDateString([], { month: "short", year: "2-digit" }), Math.min(Math.max(X(i), 28), w - padR - 28), h - 6));
+    [0, Math.floor((series.length - 1) / 2), series.length - 1].forEach((i) => ctx.fillText(axis(series[i]), Math.min(Math.max(X(i), 28), w - padR - 28), h - 6));
+    if (showBase) {                                          // dashed line at the previous close
+      const y = Y(base);
+      ctx.save(); ctx.strokeStyle = fg; ctx.globalAlpha = 0.55; ctx.setLineDash([2, 4]); ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke(); ctx.restore();
+    }
     // area + line
     ctx.beginPath(); series.forEach((p, i) => i ? ctx.lineTo(X(i), Y(p[1])) : ctx.moveTo(X(i), Y(p[1])));
     ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.stroke();
     ctx.lineTo(X(series.length - 1), Y(lo)); ctx.lineTo(X(0), Y(lo)); ctx.closePath();
     ctx.fillStyle = color + "22"; ctx.fill();
     // high / low markers
-    const iHi = ys.indexOf(hi), iLo = ys.indexOf(lo);
+    const iHi = ys.indexOf(sHi), iLo = ys.indexOf(sLo);
     ctx.fillStyle = fg; ctx.textAlign = "center"; ctx.font = "bold 11px -apple-system, Segoe UI, Roboto, sans-serif";
-    ctx.fillText(money(hi), Math.min(Math.max(X(iHi), 34), w - padR - 34), Y(hi) - 7);
-    ctx.fillText(money(lo), Math.min(Math.max(X(iLo), 34), w - padR - 34), Y(lo) + 14);
+    ctx.fillText(money(sHi), Math.min(Math.max(X(iHi), 34), w - padR - 34), Y(sHi) - 7);
+    ctx.fillText(money(sLo), Math.min(Math.max(X(iLo), 34), w - padR - 34), Y(sLo) + 14);
     [[iHi, "#22c55e"], [iLo, "#ef4444"]].forEach(([i, col]) => { ctx.beginPath(); ctx.arc(X(i), Y(series[i][1]), 3.5, 0, 7); ctx.fillStyle = col; ctx.fill(); });
     // scrub line
     if (scrubIndex != null) {
@@ -957,8 +1000,9 @@
     const flagged = s.sudden || s.dip, why = s.sudden ? s.sudden_reasons : s.reasons;
     $("dReason").hidden = !flagged;
     $("dReason").innerHTML = flagged ? `<b class="${s.sudden || s.big_dip ? "down" : ""}">${s.sudden ? "SUDDEN DIP" : s.big_dip ? "BIG DIP" : "DIP"}</b> · ${esc(why.join("; "))}` : "";
-    $("dPeriods").innerHTML = PERIODS.map(([l, y]) => `<button data-y="${y}" class="${y === dPeriod ? "active" : ""}">${l}</button>`).join("");
-    $("dPeriods").querySelectorAll("button").forEach((b) => b.onclick = () => { dPeriod = Number(b.dataset.y); $("dPeriods").querySelectorAll("button").forEach((x) => x.classList.toggle("active", x === b)); drawDetail(); });
+    const periods = PERIODS.filter(([, y]) => typeof y !== "string" || (Array.isArray(s[y]) && s[y].length > 1));
+    $("dPeriods").innerHTML = periods.map(([l, y], i) => `<button data-i="${i}" class="${y === dPeriod ? "active" : ""}">${l}</button>`).join("");
+    $("dPeriods").querySelectorAll("button").forEach((b) => b.onclick = () => { dPeriod = periods[Number(b.dataset.i)][1]; $("dPeriods").querySelectorAll("button").forEach((x) => x.classList.toggle("active", x === b)); drawDetail(); });
     openScreen("detail");
     renderDetailExtras(s);
     requestAnimationFrame(() => drawDetail());
@@ -966,12 +1010,24 @@
   let dGeom = null, dSeries = [];
   function drawDetail(scrub) {
     if (!dStock) return;
-    dSeries = sliceSeries(dStock.series, dPeriod);
-    dGeom = drawChart($("dChart"), dSeries, scrub);
+    const intra = typeof dPeriod === "string", today = dPeriod === "today";
+    dSeries = intra ? (dStock[dPeriod] || []) : sliceSeries(dStock.series, dPeriod);
+    if (dSeries.length < 2) { dGeom = null; return; }
     const first = dSeries[0], last = dSeries[dSeries.length - 1];
+    // Today is measured from the previous day's close, like the "today" figure at the top
+    const base = today ? ((nyDay(last[0]) === dStock.as_of ? dStock.prev : dStock.price) || first[1]) : first[1];
+    dGeom = drawChart($("dChart"), dSeries, scrub, !intra ? {} : today
+      ? { base, axis: (p) => fmtClock(p[0]) }
+      : { axis: (p) => minToDate(p[0]).toLocaleDateString([], { weekday: "short", day: "numeric" }) });
     const sc = $("dScrub");
-    if (scrub == null) sc.innerHTML = `<span>${fmtDate(first[0])} → ${fmtDate(last[0])}</span><span class="${last[1] >= first[1] ? "up" : "down"}"><b>${pct((last[1] / first[1] - 1) * 100)}</b> over this period</span>`;
-    else { const p = dSeries[scrub]; sc.innerHTML = `<span><b>${dayToDate(p[0]).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</b></span><span><b>${money(p[1])}</b> · ${pct((p[1] / first[1] - 1) * 100)}</span>`; }
+    const range = today ? fmtDayShort(first[0])
+                : intra ? `${fmtDayShort(first[0])} → ${fmtDayShort(last[0])}` : `${fmtDate(first[0])} → ${fmtDate(last[0])}`;
+    if (scrub == null) sc.innerHTML = `<span>${range}</span><span class="${last[1] >= base ? "up" : "down"}"><b>${pct((last[1] / base - 1) * 100)}</b> ${today ? "since previous close" : "over this period"}</span>`;
+    else {
+      const p = dSeries[scrub];
+      const when = intra ? `${fmtDayShort(p[0])}, ${fmtClock(p[0])}` : dayToDate(p[0]).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+      sc.innerHTML = `<span><b>${when}</b></span><span><b>${money(p[1])}</b> · ${pct((p[1] / base - 1) * 100)}</span>`;
+    }
   }
   function scrubAt(clientX) {
     if (!dGeom) return;
@@ -1145,8 +1201,8 @@
   $("installBtn").onclick = async () => { if (deferredInstall) { deferredInstall.prompt(); deferredInstall = null; $("installBtn").hidden = true; } };
   window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferredInstall = e; if (!standalone) $("installBtn").hidden = false; });
   function checkForUpdate() { if (registration) registration.update().catch(() => {}); }
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) { fetchRecent(); checkForUpdate(); } });
-  window.addEventListener("pageshow", checkForUpdate);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { checkPendingTab(); fetchRecent(); checkForUpdate(); } });
+  window.addEventListener("pageshow", () => { checkPendingTab(); checkForUpdate(); });
   setInterval(() => { if (!document.hidden) checkForUpdate(); }, 15 * 60000);
   setInterval(() => { if (!document.hidden) fetchRecent(); }, 60000);
   let reloading = false;
@@ -1156,6 +1212,7 @@
     navigator.serviceWorker.addEventListener("message", (e) => {
       if (!e.data) return;
       if (e.data.type === "new-message") { addMessages([e.data.message]); render(); }
+      if (e.data.type === "open-tab") { goToTab(e.data.project, true); openPendingTab(); }   // a notification was tapped
       if (e.data.type === "updated" && navigator.serviceWorker.controller) reloadOnce();   // a new version just took over
     });
   }
@@ -1168,6 +1225,9 @@
   (async () => {
     render();
     await loadLocal();
+    const urlTab = new URLSearchParams(location.search).get("tab");     // opened from a notification
+    if (urlTab) { try { history.replaceState(null, "", location.pathname); } catch {} goToTab(urlTab, false); }
+    checkPendingTab();
     fetchRecent();
     if ("serviceWorker" in navigator) {
       try {

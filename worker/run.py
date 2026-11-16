@@ -4,8 +4,9 @@ Stock checker that runs on GitHub (no PC needed).
 Every run:
   1. reads the stock list and the picked stocks chosen in the Claude News app
      (data/settings.json, updated from the app through the "<topic>-settings" channel)
-  2. downloads the price history of every stock on the list and writes
-     data/stocks.json for the app's charts board (only when something changed)
+  2. downloads the price history of every stock on the list (2 years of daily prices,
+     plus the last 5 trading days in 5-minute steps for the Today and 5-day charts) and
+     writes data/stocks.json for the app's charts board (only when something changed)
   3. SUDDEN DIP alert for a picked stock that fell `sudden_drop_day_pct` in a day
      or `sudden_drop_5day_pct` in 5 trading days: says its all-time high and its
      30-day high and low (one alert per stock per `cooldown_hours`, unless it
@@ -152,6 +153,55 @@ def fetch_closes(symbols):
     if closes.index.tz is not None:
         closes.index = closes.index.tz_localize(None)
     return closes
+
+
+def fetch_intraday(symbols):
+    """Prices of the last 5 trading days in 5-minute steps, for the app's Today and 5-day charts.
+
+    Returns {ticker: {"today": [[minute, price], ...], "week": [...]}}, minutes since 1970 (UTC).
+    "today" is the latest trading day in 5-minute steps; "week" is all 5 days in 15-minute steps.
+    Returns {} when the download fails: the charts then keep what they had."""
+    import pandas as pd
+    import yfinance as yf
+    symbols = list(symbols)
+    try:
+        data = yf.download(symbols, period="5d", interval="5m", auto_adjust=True, progress=False,
+                           threads=True, prepost=False)
+        closes = data["Close"]
+        if isinstance(closes, pd.Series):
+            closes = closes.to_frame(name=symbols[0])
+        idx = closes.index
+        if idx.tz is None:
+            idx = idx.tz_localize("America/New_York")
+        closes.index = idx.tz_convert("UTC")
+        out = {}
+        for t in closes.columns:
+            s = closes[t].dropna()
+            if len(s) < 2:
+                continue
+            days = list(s.index.tz_convert("America/New_York").strftime("%Y-%m-%d"))
+            pts = [[int(ts.value // 60_000_000_000), round(float(v), 2)] for ts, v in s.items()]
+            today = [p for p, d in zip(pts, days) if d == days[-1]]
+            week = [p for p in pts if p[0] % 15 == 0]
+            if not week or week[-1] != pts[-1]:
+                week.append(pts[-1])                      # always end on the newest price
+            out[str(t)] = {"today": today, "week": week}
+        return out
+    except Exception as e:
+        print("no intraday prices this time:", type(e).__name__, e)
+        return {}
+
+
+def add_intraday(results, old_board):
+    """Attach the Today and 5-day chart points to every stock. If Yahoo gives none this time,
+    keep the points the last check saved."""
+    fresh = fetch_intraday([r["ticker"] for r in results]) if results else {}
+    old = {s.get("ticker"): s for s in (old_board or {}).get("stocks", []) if isinstance(s, dict)}
+    for r in results:
+        src = fresh.get(r["ticker"]) or old.get(r["ticker"]) or {}
+        for key in ("today", "week"):
+            if src.get(key):
+                r[key] = src[key]
 
 
 def lookup_name(symbol):
@@ -330,7 +380,8 @@ def same_board(old, new, cents=0.011):
     differ by a cent. A real move always changes the current price, which is compared exactly."""
     def split(board):
         board = json.loads(json.dumps(board))
-        series = [s.pop("series", []) for s in board.get("stocks", []) if isinstance(s, dict)]
+        series = [s.pop(key, []) for s in board.get("stocks", []) if isinstance(s, dict)
+                  for key in ("series", "today", "week")]
         return board, series
     try:
         a, sa = split(old)
@@ -362,6 +413,7 @@ def main(argv):
 
     closes = fetch_closes(settings["tickers"]) if settings["tickers"] else None
     results, ch = build_results(settings, cfg, closes) if closes is not None else ([], False)
+    add_intraday(results, load_json(STOCKS_PATH, {}))
     settings_changed |= ch
     picked = settings["picked"]
     print("list:", ", ".join(settings["tickers"]) or "(empty)")

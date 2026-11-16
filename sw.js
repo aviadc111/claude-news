@@ -1,5 +1,5 @@
 /* Claude News service worker: offline shell + push notifications. */
-const CACHE = "claude-news-v13";
+const CACHE = "claude-news-v14";
 const SHELL = ["./", "./index.html", "./config.js", "./manifest.webmanifest",
                "./icons/icon-192.png", "./icons/icon-512.png", "./icons/logo.svg"];
 
@@ -74,10 +74,12 @@ self.addEventListener("fetch", (event) => {
               || (url.pathname.includes("/data/") && !url.pathname.endsWith("tickers.txt"));   // live data: network first; the big ticker list is fine from cache
   event.respondWith(
     caches.open(CACHE).then(async (cache) => {
-      const cached = await cache.match(event.request);
+      // the app page is one page whatever follows the "?" (a tapped notification adds ?tab=...)
+      const key = event.request.mode === "navigate" ? url.origin + url.pathname : event.request;
+      const cached = await cache.match(key);
       const req = isPage ? new Request(url.href, { cache: "no-cache", credentials: "same-origin" }) : event.request;
       const network = fetch(req).then((res) => {
-        if (res && res.ok) cache.put(event.request, res.clone());
+        if (res && res.ok) cache.put(key, res.clone());
         return res;
       }).catch(() => cached);
       return isPage ? network : (cached || network);
@@ -111,13 +113,32 @@ self.addEventListener("push", (event) => {
   })());
 });
 
+// A tapped notification opens the app on the category (tab) its message belongs to.
+// The category reaches the page three ways, because phones differ in which one arrives:
+// a note the page reads when it comes to the front, a direct message to an open page,
+// and ?tab=... on the address when the app has to be started.
+async function noteOpenTab(project) {
+  try {
+    const cache = await caches.open(CACHE);
+    await cache.put(new URL("__open-tab", self.registration.scope).href,
+      new Response(JSON.stringify({ project, time: Date.now() }), { headers: { "Content-Type": "application/json" } }));
+  } catch (e) { /* storage unavailable: the other two ways still work */ }
+}
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const target = (event.notification.data && event.notification.data.url) || self.registration.scope;
+  const d = event.notification.data || {};
+  const project = d.project || "";
+  const scope = self.registration.scope;
+  const target = d.url || (project ? scope + "?tab=" + encodeURIComponent(project) : scope);
   event.waitUntil((async () => {
+    if (project) await noteOpenTab(project);
     const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     for (const c of clients) {
-      if ("focus" in c) { await c.focus(); return; }
+      if ("focus" in c) {
+        if (project) c.postMessage({ type: "open-tab", project });
+        try { await c.focus(); } catch (e) { /* the phone brings the app forward itself */ }
+        return;
+      }
     }
     await self.clients.openWindow(target);
   })());
