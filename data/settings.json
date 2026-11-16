@@ -6,11 +6,10 @@
   "AMZN",
   "GOOGL",
   "META",
-  "TSLA",
-  "BIXI"
+  "TSLA"
  ],
- "since": "CwO2NduIwCJa",
- "updated": "2026-11-16T18:54:10+00:00",
+ "since": "gxyuIioqz9Ea",
+ "updated": "2026-11-16T19:08:13+00:00",
  "tickers": {
   "NVDA": "NVIDIA",
   "AAPL": "Apple",
@@ -18,8 +17,7 @@
   "AMZN": "Amazon",
   "GOOGL": "Alphabet (Google)",
   "META": "Meta",
-  "TSLA": "Tesla",
-  "BIXI": "Bitcoin Infrastructure Acquisition (Class A)"
+  "TSLA": "Tesla"
  },
  "known": [
   "NVDA",
