@@ -184,6 +184,15 @@
   .scrub b { color: var(--fg); }
   .toast { position: fixed; left: 50%; bottom: calc(100px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-weight: 600; font-size: 14px; max-width: calc(100% - 32px); z-index: 30; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
   @media (prefers-reduced-motion: no-preference) { .msg { animation: in .22s ease-out; } @keyframes in { from { opacity: 0; transform: translateY(4px);} } }
+  /* cards slide up, pages slide in from the right, the dimmed background fades in */
+  @media (prefers-reduced-motion: no-preference) {
+    .sheet { animation: sheetIn .36s cubic-bezier(.32, .72, 0, 1); }
+    .sheet-bg { animation: fadeIn .28s ease-out; }
+    .screen { animation: screenIn .34s cubic-bezier(.32, .72, 0, 1); }
+    @keyframes sheetIn { from { transform: translate3d(0, 100%, 0); } }
+    @keyframes fadeIn { from { opacity: 0; } }
+    @keyframes screenIn { from { transform: translate3d(100%, 0, 0); } }
+  }
 
   /* v1.6: content starts below the iPhone status bar so the sticky bar never covers it */
   body { padding-top: env(safe-area-inset-top, 0px); }
@@ -439,7 +448,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "3.1";
+  const APP_VERSION = "3.2";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -636,8 +645,7 @@
     fillMsgTimes(m);
     $("msgText").textContent = m.body || ""; $("msgText").hidden = !m.body;
     if (m.url) { $("msgLink").href = m.url; $("msgLink").hidden = false; } else { $("msgLink").removeAttribute("href"); $("msgLink").hidden = true; }
-    $("msgSheet").style.transform = ""; $("msgBg").style.opacity = "";
-    $("msgScroll").style.transition = ""; $("msgScroll").style.transform = "";
+    freshStart($("msgSheet"));
     $("msgSheet").hidden = false; $("msgBg").hidden = false;
     sizeMsg();
     $("msgScroll").scrollTop = 0;
@@ -926,7 +934,10 @@
       const y = Y(base);
       ctx.save(); ctx.strokeStyle = fg; ctx.globalAlpha = 0.55; ctx.setLineDash([2, 4]); ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke(); ctx.restore();
     }
-    // area + line
+    // area + line (while the chart draws itself in, only the part up to opt.reveal is shown)
+    const reveal = opt.reveal == null ? 1 : opt.reveal;
+    ctx.save();
+    if (reveal < 1) { ctx.beginPath(); ctx.rect(0, 0, padL + (w - padL - padR) * reveal + 1, h); ctx.clip(); }
     ctx.beginPath(); series.forEach((p, i) => i ? ctx.lineTo(X(i), Y(p[1])) : ctx.moveTo(X(i), Y(p[1])));
     ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.stroke();
     ctx.lineTo(X(series.length - 1), Y(lo)); ctx.lineTo(X(0), Y(lo)); ctx.closePath();
@@ -937,6 +948,7 @@
     ctx.fillText(money(sHi), Math.min(Math.max(X(iHi), 34), w - padR - 34), Y(sHi) - 7);
     ctx.fillText(money(sLo), Math.min(Math.max(X(iLo), 34), w - padR - 34), Y(sLo) + 14);
     [[iHi, "#22c55e"], [iLo, "#ef4444"]].forEach(([i, col]) => { ctx.beginPath(); ctx.arc(X(i), Y(series[i][1]), 3.5, 0, 7); ctx.fillStyle = col; ctx.fill(); });
+    ctx.restore();
     // scrub line
     if (scrubIndex != null) {
       const x = X(scrubIndex), y = Y(series[scrubIndex][1]);
@@ -946,7 +958,8 @@
     return { X, n: series.length, padL, padR, w };
   }
 
-  function openScreen(id) { $(id).hidden = false; $(id).scrollTop = 0; }
+  const freshStart = (el) => { if (el && el._resetSwipe) el._resetSwipe(); };   // stop a closing movement that is still running
+  function openScreen(id) { freshStart($(id)); $(id).hidden = false; $(id).scrollTop = 0; }
   function closeScreen(id) { $(id).hidden = true; }
   document.querySelectorAll("[data-close]").forEach((b) => b.onclick = () => closeScreen(b.dataset.close));
 
@@ -1174,6 +1187,7 @@
     holdTicker = t;
     $("hShares").value = ""; $("hPrice").value = ""; $("hDate").max = todayLocal(); $("hDate").value = todayLocal();
     renderHold();
+    freshStart($("hold"));
     $("hold").hidden = false; $("holdBg").hidden = false; $("hold").scrollTop = 0;
   }
   function closeHold() {
@@ -1254,12 +1268,27 @@
     $("dReason").innerHTML = flagged ? `<b class="${s.sudden || s.big_dip ? "down" : ""}">${s.sudden ? "SUDDEN DIP" : s.big_dip ? "BIG DIP" : "DIP"}</b> · ${esc(why.join("; "))}` : "";
     const periods = PERIODS.filter(([, y]) => typeof y !== "string" || (Array.isArray(s[y]) && s[y].length > 1));
     $("dPeriods").innerHTML = periods.map(([l, y], i) => `<button data-i="${i}" class="${y === dPeriod ? "active" : ""}">${l}</button>`).join("");
-    $("dPeriods").querySelectorAll("button").forEach((b) => b.onclick = () => { dPeriod = periods[Number(b.dataset.i)][1]; $("dPeriods").querySelectorAll("button").forEach((x) => x.classList.toggle("active", x === b)); drawDetail(); });
+    $("dPeriods").querySelectorAll("button").forEach((b) => b.onclick = () => { dPeriod = periods[Number(b.dataset.i)][1]; $("dPeriods").querySelectorAll("button").forEach((x) => x.classList.toggle("active", x === b)); animateChart(); });
     openScreen("detail");
     renderDetailExtras(s);
-    requestAnimationFrame(() => drawDetail());
+    requestAnimationFrame(animateChart);
   }
-  let dGeom = null, dSeries = [];
+  let dGeom = null, dSeries = [], dReveal = 1, chartAnim = 0;
+  const calmMotion = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  // A chart that just opened, or changed its period, draws its line in from left to right.
+  function animateChart() {
+    cancelAnimationFrame(chartAnim);
+    if (calmMotion) { dReveal = 1; drawDetail(); return; }
+    const began = performance.now(), ms = 460;
+    const frame = (now) => {
+      const t = Math.min(1, (now - began) / ms);
+      dReveal = 1 - Math.pow(1 - t, 3);                      // quick at first, then easing to a stop
+      drawDetail();
+      if (t < 1) chartAnim = requestAnimationFrame(frame); else dReveal = 1;
+    };
+    dReveal = 0; drawDetail();
+    chartAnim = requestAnimationFrame(frame);
+  }
   function drawDetail(scrub) {
     if (!dStock) return;
     const intra = typeof dPeriod === "string", today = dPeriod === "today";
@@ -1268,9 +1297,9 @@
     const first = dSeries[0], last = dSeries[dSeries.length - 1];
     // Today is measured from the previous day's close, like the "today" figure at the top
     const base = today ? ((nyDay(last[0]) === dStock.as_of ? dStock.prev : dStock.price) || first[1]) : first[1];
-    dGeom = drawChart($("dChart"), dSeries, scrub, !intra ? {} : today
+    dGeom = drawChart($("dChart"), dSeries, scrub, Object.assign({ reveal: dReveal }, !intra ? {} : today
       ? { base, axis: (p) => fmtClock(p[0]) }
-      : { axis: (p) => minToDate(p[0]).toLocaleDateString([], { weekday: "short", day: "numeric" }) });
+      : { axis: (p) => minToDate(p[0]).toLocaleDateString([], { weekday: "short", day: "numeric" }) }));
     const sc = $("dScrub");
     const range = today ? fmtDayShort(first[0])
                 : intra ? `${fmtDayShort(first[0])} → ${fmtDayShort(last[0])}` : `${fmtDate(first[0])} → ${fmtDate(last[0])}`;
@@ -1289,11 +1318,20 @@
     drawDetail(Math.min(Math.max(i, 0), dGeom.n - 1));
   }
   const chart = $("dChart");
-  chart.addEventListener("touchstart", (e) => scrubAt(e.touches[0].clientX), { passive: true });
-  chart.addEventListener("touchmove", (e) => scrubAt(e.touches[0].clientX), { passive: true });
-  chart.addEventListener("touchend", () => drawDetail(), { passive: true });
-  chart.addEventListener("mousemove", (e) => scrubAt(e.clientX));
-  chart.addEventListener("mouseleave", () => drawDetail());
+  // The chart is redrawn at most once per screen frame, however fast the finger moves.
+  let scrubX = null, scrubFrame = 0;
+  const scrubSoon = (x) => {
+    cancelAnimationFrame(chartAnim); dReveal = 1;
+    scrubX = x;
+    if (!scrubFrame) scrubFrame = requestAnimationFrame(() => { scrubFrame = 0; if (scrubX !== null) scrubAt(scrubX); });
+  };
+  const scrubEnd = () => { scrubX = null; cancelAnimationFrame(scrubFrame); scrubFrame = 0; drawDetail(); };
+  chart.addEventListener("touchstart", (e) => scrubSoon(e.touches[0].clientX), { passive: true });
+  chart.addEventListener("touchmove", (e) => scrubSoon(e.touches[0].clientX), { passive: true });
+  chart.addEventListener("touchend", scrubEnd, { passive: true });
+  chart.addEventListener("touchcancel", scrubEnd, { passive: true });
+  chart.addEventListener("mousemove", (e) => scrubSoon(e.clientX));
+  chart.addEventListener("mouseleave", scrubEnd);
   window.addEventListener("resize", () => { if (!$("detail").hidden) drawDetail(); if (!$("board").hidden && stocks) renderBoard(stocks); });
   $("boardBtn").onclick = openBoard;
 
@@ -1441,7 +1479,7 @@
   $("igBtn").onclick = () => { $("igError").hidden = true; renderIg(); openScreen("ig"); askPc(); };
 
   // ---- settings sheet -----------------------------------------------------
-  function openSheet(open) { $("sheet").hidden = !open; $("sheetBg").hidden = !open; }
+  function openSheet(open) { if (open) freshStart($("sheet")); $("sheet").hidden = !open; $("sheetBg").hidden = !open; }
   $("settingsBtn").onclick = () => openSheet(true);
   $("sheetBg").onclick = () => openSheet(false);
 
@@ -1453,39 +1491,52 @@
   // finger more and more slowly, leaving empty space under it, and springs back when let go,
   // the way the message list itself does on the phone. While any sheet is open, the page
   // behind it does not scroll.
-  function swipeToClose(el, dir, close, bg, free, band) {
-    // free: the sheet stays where the finger leaves it, and closes only when it is dragged most of the way down
+  // For smoothness: a drag starts from exactly where the thing is, the finger's speed decides how
+  // long the last glide takes, and the Close and Back buttons use the same glide.
+  const EASE_SETTLE = "cubic-bezier(.22, 1, .36, 1)";         // comes to rest gently
+  const EASE_LEAVE = "cubic-bezier(.32, .72, 0, 1)";          // the way the phone's own cards move
+  function swipeToClose(el, dir, close, bg, band) {
     // band: the part inside the sheet that stretches like a rubber band when it is pushed up past its end
-    let sx = 0, sy = 0, d = 0, mode = "", t0 = 0, rest = 0, lastY = 0, lastT = 0, speed = 0;
+    let sx = 0, sy = 0, d = 0, grab = 0, mode = "", dim = 300, speed = 0, lastP = 0, lastT = 0, timer = 0, busy = false;
     let prevY = 0, bandFrom = null;                            // where the finger was when the stretch began
+    const size = () => (dir === "down" ? el.offsetHeight : el.offsetWidth) || 300;
+    const at = (v) => (dir === "down" ? `translate3d(0, ${v}px, 0)` : `translate3d(${v}px, 0, 0)`);
+    const place = (v) => {
+      el.style.transform = v ? at(v) : "";
+      if (bg) bg.style.opacity = v ? String(Math.max(0, 1 - v / dim)) : "";
+    };
+    const clean = () => {
+      el.style.transition = ""; el.style.transform = ""; el.style.willChange = "";
+      if (bg) { bg.style.transition = ""; bg.style.opacity = ""; }
+    };
+    // Glide the rest of the way: out (then close) or back to its place. A faster finger gives a shorter glide.
+    const settle = (out, v) => {
+      clearTimeout(timer);
+      const left = out ? dim - d : d;
+      const ms = calmMotion ? 0 : out ? Math.round(Math.min(340, Math.max(180, left / Math.max(v || 0, 1.15)))) : 420;
+      busy = true;
+      el.style.willChange = "transform";
+      el.style.transition = `transform ${ms}ms ${out ? EASE_LEAVE : EASE_SETTLE}`;
+      if (bg) bg.style.transition = `opacity ${ms}ms ease-out`;
+      void el.offsetWidth;                                     // start the glide from where it is now
+      el.style.transform = at(out ? dim : 0);
+      if (bg) bg.style.opacity = out ? "0" : "1";
+      timer = setTimeout(() => { busy = false; if (out) close(); clean(); }, ms + 30);
+    };
     const atEnd = (n) => n.scrollTop + n.clientHeight >= n.scrollHeight - 1;
     const stretch = (over) => {                                // the further the finger goes, the less the text follows
       const h = Math.max(220, band.clientHeight * 0.8);        // how far it can give: a short text never leaves its card
       const off = over > 0 ? (1 - 1 / (over * 0.55 / h + 1)) * h : 0;
       band.style.transition = "";
-      band.style.transform = off ? `translateY(${-off.toFixed(1)}px)` : "";
+      band.style.willChange = off ? "transform" : "";
+      band.style.transform = off ? `translate3d(0, ${-off.toFixed(1)}px, 0)` : "";
     };
     const release = () => {
       bandFrom = null;
       if (!band || !band.style.transform) return;
-      band.style.transition = "transform .38s cubic-bezier(.2, .8, .2, 1)";
+      band.style.transition = calmMotion ? "" : `transform 520ms ${EASE_SETTLE}`;
       band.style.transform = "";
-      setTimeout(() => { band.style.transition = ""; }, 400);
-    };
-    const size = () => (dir === "down" ? el.offsetHeight : el.offsetWidth) || 300;
-    const place = (v) => {
-      el.style.transform = v ? (dir === "down" ? `translateY(${v}px)` : `translateX(${v}px)`) : "";
-      if (bg) bg.style.opacity = v ? String(Math.max(0, 1 - v / size())) : "";
-    };
-    const settle = (to, out) => {
-      el.style.transition = "transform .2s ease-out";
-      if (bg) bg.style.transition = "opacity .2s ease-out";
-      place(out ? size() : (to || 0.01));
-      setTimeout(() => {
-        el.style.transition = ""; if (bg) bg.style.transition = "";
-        if (out) { close(); place(0); rest = 0; }
-        else if (!to) place(0);
-      }, 210);
+      setTimeout(() => { band.style.transition = ""; band.style.willChange = ""; }, 550);
     };
     const scrollable = (n) => n.scrollHeight > n.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(n).overflowY);
     // Something inside that still has its own scrolling to do in that direction keeps the finger.
@@ -1505,11 +1556,10 @@
     };
     el.addEventListener("touchstart", (e) => {
       const t = e.target;
-      if (!el.style.transform) rest = 0;                       // it was put back to its top position
-      const blocked = e.touches.length !== 1 || (t.closest && t.closest("input, textarea, select, [data-noswipe]"));
-      mode = blocked || (!rest && busyInside(t)) ? "no" : "";
-      sx = e.touches[0].clientX; sy = lastY = prevY = e.touches[0].clientY; d = rest; t0 = lastT = Date.now(); speed = 0;
-      bandFrom = null;
+      const blocked = busy || e.touches.length !== 1 || (t.closest && t.closest("input, textarea, select, [data-noswipe]"));
+      mode = blocked || busyInside(t) ? "no" : "";
+      sx = e.touches[0].clientX; sy = prevY = e.touches[0].clientY;
+      d = 0; speed = 0; bandFrom = null; dim = size();
     }, { passive: true });
     el.addEventListener("touchmove", (e) => {
       if (e.touches.length !== 1) return;
@@ -1521,16 +1571,18 @@
           if (dir === "down" && e.cancelable && dy && !canScroll(e.target, dy)) e.preventDefault();
           return;
         }
-        const mine = dir === "down"
-          ? (Math.abs(dy) > Math.abs(dx) * 1.2 && (dy > 0 || rest > 0))        // down from the top, or back up from where it rests
-          : (dx > 0 && dx > Math.abs(dy) * 1.5);
+        const mine = dir === "down" ? (dy > 0 && dy > Math.abs(dx) * 1.2) : (dx > 0 && dx > Math.abs(dy) * 1.5);
         mode = mine && e.cancelable ? "drag" : "no";
+        if (mode === "drag") {                                 // it starts moving from exactly where it is: no little jump
+          grab = dir === "down" ? dy : dx; lastP = 0; lastT = e.timeStamp || Date.now();
+          el.style.transition = ""; el.style.willChange = "transform";
+        }
       }
       if (mode === "drag") {
         if (e.cancelable) e.preventDefault();
-        const now = Date.now(), y = e.touches[0].clientY;
-        if (now > lastT) { speed = (y - lastY) / (now - lastT); lastY = y; lastT = now; }
-        d = Math.min(size(), Math.max(0, rest + (dir === "down" ? dy : dx)));
+        const now = e.timeStamp || Date.now();
+        d = Math.min(dim, Math.max(0, (dir === "down" ? dy : dx) - grab));
+        if (now > lastT) { speed = speed * 0.35 + ((d - lastP) / (now - lastT)) * 0.65; lastP = d; lastT = now; }
         place(d);
         return;
       }
@@ -1550,25 +1602,27 @@
       release();                                               // a stretched text springs back
       if (mode !== "drag") { mode = ""; return; }
       mode = "";
-      const moved = d - rest;
-      if (free) {
-        const flick = !cancelled && moved > 40 && speed > 0.6;                 // a quick throw downwards
-        if (!cancelled && (d > size() * 0.55 || flick)) settle(0, true);
-        else { rest = d < 6 ? 0 : d; place(rest); }                           // it stays where it was left
-        return;
-      }
-      const fast = moved > 40 && moved / Math.max(1, Date.now() - t0) > 0.5;   // a quick flick
-      settle(0, !cancelled && (moved > Math.min(110, size() * 0.3) || fast));
+      const far = d > Math.min(110, dim * 0.3), flick = d > 40 && speed > 0.6;    // far enough, or a quick flick
+      settle(!cancelled && (far || flick), speed);
     };
     el.addEventListener("touchend", () => end(false));
     el.addEventListener("touchcancel", () => end(true));
     // A finger on the dimmed background never scrolls the page behind it.
     if (bg) bg.addEventListener("touchmove", (e) => { if (e.cancelable) e.preventDefault(); }, { passive: false });
+    el._resetSwipe = () => { clearTimeout(timer); busy = false; mode = ""; clean(); if (band) { band.style.transition = ""; band.style.transform = ""; band.style.willChange = ""; } };
+    // Close with the same glide, for the Close and Back buttons and a tap beside a card.
+    return { out: () => { if (el.hidden || busy) return; dim = size(); d = 0; settle(true, 0); } };
   }
-  swipeToClose($("msgSheet"), "down", closeMsg, $("msgBg"), false, $("msgScroll"));
-  swipeToClose($("sheet"), "down", () => openSheet(false), $("sheetBg"));
-  swipeToClose($("hold"), "down", closeHold, $("holdBg"));
-  document.querySelectorAll(".screen").forEach((s) => swipeToClose(s, "right", () => closeScreen(s.id)));
+  const msgSwipe = swipeToClose($("msgSheet"), "down", closeMsg, $("msgBg"), $("msgScroll"));
+  const settingsSwipe = swipeToClose($("sheet"), "down", () => openSheet(false), $("sheetBg"));
+  const holdSwipe = swipeToClose($("hold"), "down", closeHold, $("holdBg"));
+  $("msgBg").onclick = $("msgClose").onclick = msgSwipe.out;
+  $("sheetBg").onclick = settingsSwipe.out;
+  $("holdBg").onclick = $("holdClose").onclick = holdSwipe.out;
+  document.querySelectorAll(".screen").forEach((scr) => {
+    const sw = swipeToClose(scr, "right", () => closeScreen(scr.id));
+    document.querySelectorAll(`[data-close="${scr.id}"]`).forEach((b) => { b.onclick = sw.out; });
+  });
 
   // ---- boot ---------------------------------------------------------------
   $("enableBtn").onclick = enable;
