@@ -1,5 +1,6 @@
 /* Claude News service worker: offline shell + push notifications. */
-const CACHE = "claude-news-v14";
+const CACHE = "claude-news-v15";
+const STATE = "claude-news-state";          // small notes shared with the page; kept across updates
 const SHELL = ["./", "./index.html", "./config.js", "./manifest.webmanifest",
                "./icons/icon-192.png", "./icons/icon-512.png", "./icons/logo.svg"];
 
@@ -58,7 +59,7 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
+    await Promise.all(keys.filter((k) => k !== CACHE && k !== STATE).map((k) => caches.delete(k)));
     await self.clients.claim();
     const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     clients.forEach((c) => c.postMessage({ type: "updated", cache: CACHE }));
@@ -95,7 +96,7 @@ self.addEventListener("push", (event) => {
   const time = data.time ? new Date(data.time).getTime() : Date.now();
   const msg = {
     id: "push-" + time + "-" + Math.random().toString(36).slice(2, 8),
-    time, title: data.title || "Claude News", body: data.body || "",
+    time, received: Date.now(), title: data.title || "Claude News", body: data.body || "",
     project: data.project || "General", url: data.url || "",
   };
   event.waitUntil((async () => {
@@ -110,36 +111,57 @@ self.addEventListener("push", (event) => {
     await pruneOld();
     const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     clients.forEach((c) => c.postMessage({ type: "new-message", message: msg }));
+    await tapLog(`a message from ${msg.project} arrived, ${clients.length} app window(s)`);
   })());
 });
 
 // A tapped notification opens the app on the category (tab) its message belongs to.
-// The category reaches the page three ways, because phones differ in which one arrives:
-// a note the page reads when it comes to the front, a direct message to an open page,
-// and ?tab=... on the address when the app has to be started.
-async function noteOpenTab(project) {
+// iPhones are unreliable here (the tap event may not arrive, messages to the page get lost,
+// the address given to openWindow is ignored), so the category travels several ways: a note
+// the page reads when it comes to the front, a direct message to an open page, and ?tab=...
+// on the address. The page also works it out by itself when none of these arrive.
+const stateUrl = (name) => new URL(name, self.registration.scope).href;
+const asJson = (value) => new Response(JSON.stringify(value), { headers: { "Content-Type": "application/json" } });
+async function tapLog(text) {
   try {
-    const cache = await caches.open(CACHE);
-    await cache.put(new URL("__open-tab", self.registration.scope).href,
-      new Response(JSON.stringify({ project, time: Date.now() }), { headers: { "Content-Type": "application/json" } }));
-  } catch (e) { /* storage unavailable: the other two ways still work */ }
+    const cache = await caches.open(STATE);
+    const r = await cache.match(stateUrl("__taplog"));
+    const log = r ? await r.json() : [];
+    log.push({ t: Date.now(), who: "worker " + CACHE.replace("claude-news-", ""), text });
+    await cache.put(stateUrl("__taplog"), asJson(log.slice(-40)));
+  } catch (e) { /* the log is only a diary */ }
+}
+async function getMessage(id) {
+  try {
+    const db = await openDB();
+    return await new Promise((resolve) => {
+      const req = db.transaction("messages").objectStore("messages").get(id);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    });
+  } catch (e) { return null; }
 }
 self.addEventListener("notificationclick", (event) => {
-  event.notification.close();
-  const d = event.notification.data || {};
-  const project = d.project || "";
+  const n = event.notification;
+  n.close();
+  const d = n.data || {};
   const scope = self.registration.scope;
-  const target = d.url || (project ? scope + "?tab=" + encodeURIComponent(project) : scope);
   event.waitUntil((async () => {
-    if (project) await noteOpenTab(project);
+    let project = d.project || "";
+    if (!project && n.tag) { const m = await getMessage(n.tag); project = (m && m.project) || ""; }
+    if (project) {
+      try { await (await caches.open(STATE)).put(stateUrl("__open-tab"), asJson({ project, id: n.tag || "", time: Date.now() })); } catch (e) { /* other ways remain */ }
+    }
     const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    await tapLog(`the phone reported a tap on a message from ${project || "?"}, ${clients.length} app window(s)`);
     for (const c of clients) {
       if ("focus" in c) {
-        if (project) c.postMessage({ type: "open-tab", project });
+        if (project) c.postMessage({ type: "open-tab", project, id: n.tag || "" });
         try { await c.focus(); } catch (e) { /* the phone brings the app forward itself */ }
         return;
       }
     }
-    await self.clients.openWindow(target);
+    try { await self.clients.openWindow(d.url || (project ? scope + "?tab=" + encodeURIComponent(project) : scope)); }
+    catch (e) { await tapLog("could not open the app window: " + (e && e.message || e)); }
   })());
 });

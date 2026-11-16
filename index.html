@@ -391,6 +391,10 @@
   <div class="kv"><label for="deviceName">This phone's name</label><input id="deviceName" maxlength="40"></div>
   <div class="kv"><span class="k">Channel</span><code id="topicCode"></code></div>
   <div class="row"><span class="k" style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700;">Version <span id="version"></span></span><button id="updateBtn" class="ghost small">Check for updates</button></div>
+  <details class="howto" id="tapLogBox"><summary>Notification tap log</summary>
+    <div id="tapLogList" style="font-size:12px;color:var(--muted);white-space:pre-wrap;margin:8px 0;line-height:1.5;"></div>
+    <button id="tapLogSend" class="ghost small">Send this log to Claude</button>
+  </details>
   <p style="margin:0;color:var(--muted);font-size:13px;">Each project that sends a message gets its own tab at the bottom. Every message deletes itself 48 hours after it was sent.</p>
 </section>
 
@@ -404,7 +408,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "2.2";
+  const APP_VERSION = "2.3";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -567,19 +571,91 @@
     try { openSheet(false); } catch {}
     selectTab(p);
   }
-  // The background worker leaves a note when a notification is tapped; it is read once.
-  const OPEN_KEY = new URL("__open-tab", location.href.split(/[?#]/)[0]).href;
-  async function openPendingTab() {
-    try {
-      if (!("caches" in window)) return;
-      const r = await caches.match(OPEN_KEY);
-      if (!r) return;
-      const d = await r.json();
-      for (const k of await caches.keys()) await (await caches.open(k)).delete(OPEN_KEY);
-      if (d && d.project && Date.now() - d.time < 90000) goToTab(d.project, true);
-    } catch {}
+  // ---- which category to open after a notification is tapped ------------------
+  // Small shared notes between the background worker and the page live in their own cache.
+  const STATE = "claude-news-state";
+  const stateUrl = (name) => new URL(name, location.href.split(/[?#]/)[0]).href;
+  async function stateGet(name) { try { const r = await (await caches.open(STATE)).match(stateUrl(name)); return r ? await r.json() : null; } catch { return null; } }
+  async function statePut(name, value) { try { await (await caches.open(STATE)).put(stateUrl(name), new Response(JSON.stringify(value), { headers: { "Content-Type": "application/json" } })); } catch {} }
+  async function stateDel(name) { try { await (await caches.open(STATE)).delete(stateUrl(name)); } catch {} }
+  let logChain = Promise.resolve();
+  function tapLog(text) {                  // a short diary of what happens around notification taps (shown in Settings)
+    const t = Date.now();
+    logChain = logChain.then(async () => {  // one line at a time, so none is lost
+      const log = (await stateGet("__taplog")) || [];
+      log.push({ t, who: "app " + APP_VERSION, text });
+      await statePut("__taplog", log.slice(-40));
+    }).catch(() => {});
+    return logChain;
   }
-  function checkPendingTab() { openPendingTab(); setTimeout(openPendingTab, 700); setTimeout(openPendingTab, 1800); }
+  // Messages whose notification the app already knows was opened (so one tap moves the tab once).
+  let tapDone = [];
+  try { tapDone = JSON.parse(ls.get("cn.tapDone", "[]")) || []; } catch { tapDone = []; }
+  function markOpened(ids) {
+    ids = ids.filter((id) => id && !tapDone.includes(id));
+    if (!ids.length) return;
+    tapDone = tapDone.concat(ids).slice(-300); ls.set("cn.tapDone", JSON.stringify(tapDone));
+  }
+  // 1) The worker leaves a note when the phone tells it about a tap. It is read once.
+  async function openPendingTab() {
+    const d = await stateGet("__open-tab");
+    if (!d) return false;
+    await stateDel("__open-tab");
+    if (!d.project || Date.now() - d.time > 90000) return false;
+    markOpened([d.id]);
+    tapLog("opened " + d.project + " (the worker saw the tap)");
+    goToTab(d.project, true);
+    return true;
+  }
+  // 2) iPhones often do not report the tap at all. So the app also works it out itself: a pushed
+  //    message whose notification is no longer on the phone's notification list was opened.
+  async function shownTags() {
+    try {
+      const reg = registration || await Promise.race([navigator.serviceWorker.ready, new Promise((r) => setTimeout(() => r(null), 1500))]);
+      if (reg && reg.getNotifications) return new Set((await reg.getNotifications()).map((n) => n.tag));
+    } catch {}
+    return null;                                             // this phone can't list its notifications
+  }
+  async function openedNotification(lastTry) {
+    const fresh = (await dbAll()).filter((m) => String(m.id).startsWith("push-") && !expired(m)
+      && !tapDone.includes(m.id) && Date.now() - (m.received || m.time) > 1500);
+    if (!fresh.length) return null;
+    const shown = await shownTags();
+    if (!shown && !lastTry) return null;                     // the list may not be ready yet: try again shortly
+    const gone = shown ? fresh.filter((m) => !shown.has(m.id)) : fresh;
+    if (!gone.length) return null;
+    markOpened(gone.map((m) => m.id));
+    const m = gone.sort((a, b) => (b.received || b.time) - (a.received || a.time))[0];
+    tapLog(`opened ${m.project} (worked out by the app: ${fresh.length} new, ${shown ? shown.size + " still listed" : "list not available"})`);
+    return m;
+  }
+  let resumeRun = 0;
+  async function checkPendingTab() {                         // runs when the app starts or comes to the front
+    const run = ++resumeRun;
+    let waited = 0;
+    for (const at of [0, 400, 1000, 2000, 3500]) {
+      if (at) { await new Promise((r) => setTimeout(r, at - waited)); waited = at; }
+      if (run !== resumeRun || document.hidden) return;
+      const noted = await openPendingTab();
+      const m = await openedNotification(at === 3500);       // also keeps the "already opened" list current
+      if (noted) return;
+      if (m) { addMessages([m]); goToTab(m.project, true); return; }
+    }
+  }
+  // 3) The app is open and a notification banner slides in: if it leaves the list while the
+  //    app stays in front, the banner was tapped.
+  async function watchBanner(m) {
+    if (!m || !String(m.id).startsWith("push-")) return;
+    let listed = false;
+    for (let i = 0; i < 14; i++) {
+      await new Promise((r) => setTimeout(r, 700));
+      if (document.hidden || tapDone.includes(m.id)) return; // leaving the app: the check above takes over
+      const shown = await shownTags();
+      if (!shown) return;
+      if (shown.has(m.id)) listed = true;
+      else if (listed) { markOpened([m.id]); tapLog("opened " + m.project + " (banner tapped while the app was open)"); goToTab(m.project, true); return; }
+    }
+  }
 
   async function fetchRecent() {
     if (!C.topic) return;
@@ -1211,11 +1287,34 @@
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.addEventListener("message", (e) => {
       if (!e.data) return;
-      if (e.data.type === "new-message") { addMessages([e.data.message]); render(); }
-      if (e.data.type === "open-tab") { goToTab(e.data.project, true); openPendingTab(); }   // a notification was tapped
+      if (e.data.type === "new-message") { addMessages([e.data.message]); render(); if (!document.hidden) watchBanner(e.data.message); }
+      if (e.data.type === "open-tab") {                      // the worker saw a notification tap
+        markOpened([e.data.id]); stateDel("__open-tab");
+        tapLog("opened " + e.data.project + " (the worker told the open app)");
+        goToTab(e.data.project, true);
+      }
       if (e.data.type === "updated" && navigator.serviceWorker.controller) reloadOnce();   // a new version just took over
     });
   }
+  // the tap log: what the phone reported around notification taps, to find out why a tap misbehaves
+  async function renderTapLog() {
+    const log = (await stateGet("__taplog")) || [];
+    $("tapLogList").textContent = log.length
+      ? log.slice().reverse().map((l) => `${new Date(l.t).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" })}  ${l.who}: ${l.text}`).join("\n")
+      : "Nothing yet. It fills in when a message arrives and when you tap one.";
+  }
+  $("tapLogBox").addEventListener("toggle", renderTapLog);
+  $("tapLogSend").onclick = async () => {
+    const log = (await stateGet("__taplog")) || [];
+    const ios = (ua.match(/OS (\d+[_.]\d+(?:[_.]\d+)?)/) || [])[1] || "";
+    let n = 30, body = "";
+    do { body = JSON.stringify({ type: "taplog", version: APP_VERSION, ios, standalone, time: Date.now(), lines: log.slice(-n).map((l) => [l.t, l.who, l.text]) }); n -= 3; } while (body.length > 3800 && n > 0);
+    try {
+      const r = await fetch(`${C.ntfy}/${C.topic}-status`, { method: "POST", headers: { "Title": "taplog" }, body });
+      if (!r.ok) throw new Error(r.status);
+      toast("Log sent");
+    } catch { toast("Could not send. Check your connection."); }
+  };
   $("updateBtn").onclick = async () => {
     toast("Checking…");
     try { if (registration) await registration.update(); } catch {}
