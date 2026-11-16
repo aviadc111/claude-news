@@ -1,0 +1,39 @@
+name: Instagram spare-account test
+
+# Started by hand only. One small test of whether the spare Instagram account can be used
+# from here (worker/instagram_probe.py). It opens Instagram once in an ordinary browser,
+# makes a handful of requests, tells the phone the result, and stops at once if Instagram
+# asks for a login or a verification. No account names are printed.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: instagram
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -q playwright requests pywebpush "cryptography>=42"
+
+      - run: python -m playwright install --with-deps chromium
+
+      - name: Try the spare account once
+        env:
+          IG_SPARE_STATE: ${{ secrets.IG_SPARE_STATE }}
+          IG_TARGET: ${{ secrets.IG_TARGET }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          DEVICES_KEY: ${{ secrets.DEVICES_KEY }}
+          PYTHONUNBUFFERED: "1"
+        run: xvfb-run -a python worker/instagram_probe.py
