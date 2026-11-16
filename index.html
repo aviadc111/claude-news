@@ -408,7 +408,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "2.4";
+  const APP_VERSION = "2.5";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -978,7 +978,7 @@
     const synced = inSync(data), soon = checkerOnDuty();
     const when = (data.weekly && data.weekly.time) || "08:30";
     $("boardHint").innerHTML = `Stocks with a <b class="glowtxt">green glow</b> are in your Sunday ${when} report (<b>${mine.length} of ${tickers.length}</b>). Tap the circle to put one in or take it out.`
-      + (synced ? "" : `<br><span class="pending">Saved on this phone. ${soon ? "The checker follows in about a minute." : "The market is closed, so the checker follows at its next round, within about 2 hours."}</span>`);
+      + (synced ? "" : `<br><span class="pending">Saved on this phone. ${soon ? "The checker follows in about a minute." : "The market is closed: the checker follows in a few minutes if your PC is on, otherwise within about 2 hours."}</span>`);
     const withData = tickers.map((t) => data.stocks.find((s) => s.ticker === t)).filter(Boolean).sort((a, b) => a.from_lt_high_pct - b.from_lt_high_pct);
     const waiting = tickers.filter((t) => !data.stocks.some((s) => s.ticker === t));
     list.innerHTML = waiting.map((t) => {
@@ -987,7 +987,7 @@
       <div class="srow wait">
         <span></span>
         <div class="info"><div class="nm">${esc(myNames[t] || t)}${myNames[t] ? ` <span class="tk">${esc(t)}</span>` : ""} <span class="tag${bad ? " big" : ""}">${bad ? "NOT FOUND" : "WAITING"}</span></div>
-          <div class="sub">${bad ? "No stock has this ticker. Check the symbol." : (soon ? "Getting its prices now. This takes about a minute." : "The market is closed. Its prices arrive at the checker's next round, within about 2 hours.")}</div></div>
+          <div class="sub">${bad ? "No stock has this ticker. Check the symbol." : (soon ? "Getting its prices now. This takes about a minute." : "The market is closed. Its prices arrive in a few minutes if your PC is on, otherwise within about 2 hours.")}</div></div>
         <span></span>
         <button class="pick" data-remove="${esc(t)}" aria-label="Remove ${esc(t)}">✕</button>
       </div>`; }).join("") + withData.map((s) => {
