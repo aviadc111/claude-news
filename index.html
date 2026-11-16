@@ -338,7 +338,7 @@
   <div class="reason" id="dReason" hidden></div>
   <div class="periods" id="dPeriods"></div>
   <div class="chartwrap">
-    <canvas id="dChart"></canvas>
+    <canvas id="dChart" data-noswipe></canvas>
     <div class="scrub" id="dScrub"><span>Touch the chart for a date</span><span></span></div>
   </div>
   <div id="dHold" class="holdcard"></div>
@@ -431,7 +431,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "2.6";
+  const APP_VERSION = "2.7";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -496,6 +496,10 @@
     "Stocks": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>',
     "Claude News": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="14" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/></svg>',
   };
+  // The name a category is shown under. Messages keep their own project name ("Instagram"),
+  // so nothing that sends messages has to change.
+  const LABELS = { "Instagram": "Instagram Follow" };
+  const label = (p) => LABELS[p] || p;
   function tabIcon(p) { return ICONS[p] || `<span class="letter">${esc(p.trim()[0] || "?").toUpperCase()}</span>`; }
   // How long ago a message was sent: right now, 1 to 59 minutes, 1 to 23 hours, then 1 day
   // (a message deletes itself when it is 48 hours old).
@@ -569,21 +573,24 @@
     $("tabs").innerHTML = tabs.map((p) => {
       const n = unread(all, p);
       return `<button class="tab${p === current ? " active" : ""}" data-p="${esc(p)}" style="--tc:${projectColor(p)}">
-        <span class="ico">${tabIcon(p)}</span><span>${esc(p)}</span>${n && p !== current ? `<span class="badge">${n}</span>` : ""}</button>`;
+        <span class="ico">${tabIcon(p)}</span><span>${esc(label(p))}</span>${n && p !== current ? `<span class="badge">${n}</span>` : ""}</button>`;
     }).join("");
     $("tabs").querySelectorAll(".tab").forEach((b) => b.onclick = () => selectTab(b.dataset.p));
     // feed for the current tab
     const shown = all.filter((m) => m.project === current);
-    $("tabTitle").textContent = current;
+    $("tabTitle").textContent = label(current);
     $("boardBtn").hidden = current !== "Stocks";
     $("igBtn").hidden = current !== "Instagram";
+    const head = $("tabTitle");                              // a long name gets smaller letters instead of being cut
+    head.style.fontSize = "";
+    for (let f = 23; head.scrollWidth > head.clientWidth && f >= 15; f--) head.style.fontSize = f + "px";
     $("tabCount").textContent = shown.length ? `${shown.length} message${shown.length === 1 ? "" : "s"}` : "";
     let html = "", lastDay = "";
     for (const m of shown) {
       const day = dayLabel(m.time);
       if (day !== lastDay) { html += `<li class="day">${day}</li>`; lastDay = day; }
       html += `<li class="msg" data-id="${esc(m.id)}" tabindex="0" role="button" aria-label="Open the message: ${esc(m.title)}">
-        <div class="meta"><span><span class="dot" style="--pc:${projectColor(m.project)}"></span>${esc(m.project)}</span><span data-ago="${m.time}">${fmtAgo(m.time)}</span></div>
+        <div class="meta"><span><span class="dot" style="--pc:${projectColor(m.project)}"></span>${esc(label(m.project))}</span><span data-ago="${m.time}">${fmtAgo(m.time)}</span></div>
         <div class="title">${esc(m.title)}</div>
         ${m.body ? `<div class="body">${esc(m.body)}</div>` : ""}
         ${m.url ? `<a href="${esc(m.url)}" target="_blank" rel="noopener">Open link</a>` : ""}
@@ -600,7 +607,7 @@
       li.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(e); } };
     });
     $("empty").hidden = shown.length > 0;
-    $("empty").innerHTML = `<strong>Nothing from ${esc(current)} right now</strong>New messages show up here. Each one deletes itself 48 hours after it was sent.`;
+    $("empty").innerHTML = `<strong>Nothing from ${esc(label(current))} right now</strong>New messages show up here. Each one deletes itself 48 hours after it was sent.`;
     // mark the current tab as seen
     const newest = shown.length ? shown[0].time : 0;
     if (newest > (seen[current] || 0)) { seen[current] = newest; ls.set("cn.seen", JSON.stringify(seen)); }
@@ -616,7 +623,7 @@
     const m = messages.get(id);
     if (!m) return;
     openMsgId = id;
-    $("msgFrom").innerHTML = `<span class="dot" style="--pc:${projectColor(m.project)}"></span>${esc(m.project)}`;
+    $("msgFrom").innerHTML = `<span class="dot" style="--pc:${projectColor(m.project)}"></span>${esc(label(m.project))}`;
     $("msgTitle").textContent = m.title || "";
     fillMsgTimes(m);
     $("msgText").textContent = m.body || ""; $("msgText").hidden = !m.body;
@@ -1412,6 +1419,66 @@
   function openSheet(open) { $("sheet").hidden = !open; $("sheetBg").hidden = !open; }
   $("settingsBtn").onclick = () => openSheet(true);
   $("sheetBg").onclick = () => openSheet(false);
+
+  // ---- closing by a swipe ---------------------------------------------------
+  // A sheet (an opened message, Settings, My shares) closes when it is pulled down past
+  // its top. A full screen (the charts, one stock, the Instagram check) closes when it is
+  // swiped to the right. The thing follows the finger; let go early and it springs back.
+  function swipeToClose(el, dir, close, bg) {
+    let sx = 0, sy = 0, d = 0, mode = "", t0 = 0;
+    const size = () => (dir === "down" ? el.offsetHeight : el.offsetWidth) || 300;
+    const place = (v) => {
+      el.style.transform = v ? (dir === "down" ? `translateY(${v}px)` : `translateX(${v}px)`) : "";
+      if (bg) bg.style.opacity = v ? String(Math.max(0, 1 - v / size())) : "";
+    };
+    const settle = (out) => {
+      el.style.transition = "transform .2s ease-out";
+      if (bg) bg.style.transition = "opacity .2s ease-out";
+      place(out ? size() : 0.01);
+      setTimeout(() => {
+        el.style.transition = ""; if (bg) bg.style.transition = "";
+        if (out) close();
+        place(0);
+      }, 210);
+    };
+    // Something inside that still has its own scrolling to do in that direction keeps the finger.
+    const busyInside = (t) => {
+      for (let n = t; n && n !== el; n = n.parentElement) {
+        if (dir === "down" ? n.scrollTop > 0 : (n.scrollWidth > n.clientWidth + 1 && /auto|scroll/.test(getComputedStyle(n).overflowX))) return true;
+      }
+      return dir === "down" && el.scrollTop > 0;
+    };
+    el.addEventListener("touchstart", (e) => {
+      const t = e.target;
+      mode = e.touches.length !== 1 || (t.closest && t.closest("input, textarea, select, [data-noswipe]")) || busyInside(t) ? "no" : "";
+      sx = e.touches[0].clientX; sy = e.touches[0].clientY; d = 0; t0 = Date.now();
+    }, { passive: true });
+    el.addEventListener("touchmove", (e) => {
+      if (mode === "no" || e.touches.length !== 1) return;
+      const dx = e.touches[0].clientX - sx, dy = e.touches[0].clientY - sy;
+      if (!mode) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        const mine = dir === "down" ? (dy > 0 && dy > Math.abs(dx) * 1.2) : (dx > 0 && dx > Math.abs(dy) * 1.5);
+        if (!mine || !e.cancelable) { mode = "no"; return; }
+        mode = "drag";
+      }
+      if (e.cancelable) e.preventDefault();
+      d = Math.max(0, dir === "down" ? dy : dx);
+      place(d);
+    }, { passive: false });
+    const end = (cancelled) => {
+      if (mode !== "drag") { mode = ""; return; }
+      mode = "";
+      const fast = d > 40 && d / Math.max(1, Date.now() - t0) > 0.5;           // a quick flick
+      settle(!cancelled && (d > Math.min(110, size() * 0.3) || fast));
+    };
+    el.addEventListener("touchend", () => end(false));
+    el.addEventListener("touchcancel", () => end(true));
+  }
+  swipeToClose($("msgSheet"), "down", closeMsg, $("msgBg"));
+  swipeToClose($("sheet"), "down", () => openSheet(false), $("sheetBg"));
+  swipeToClose($("hold"), "down", closeHold, $("holdBg"));
+  document.querySelectorAll(".screen").forEach((s) => swipeToClose(s, "right", () => closeScreen(s.id)));
 
   // ---- boot ---------------------------------------------------------------
   $("enableBtn").onclick = enable;
