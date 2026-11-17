@@ -21,6 +21,7 @@ hour while the US market is open and around the weekly message time.
     python worker/run.py            normal run
     python worker/run.py --dry      compute and write stocks.json only, send nothing
     python worker/run.py --weekly   also send the weekly message right now
+    python worker/run.py --demo     also send the daily demo message right now
 """
 
 import datetime as dt
@@ -76,6 +77,7 @@ def load_settings(cfg):
     s.setdefault("rejected", {})
     s.setdefault("name_tried", [])
     s.setdefault("since", None)
+    s.setdefault("demo", False)                             # the app has a demo account: send the daily demo message
     s.setdefault("updated", None)
     return s
 
@@ -136,6 +138,8 @@ def sync_settings(app_cfg, cfg, settings=None):
                 settings["rejected"].pop(t, None)
         if isinstance(data.get("picked"), list):
             settings["picked"] = clean_tickers(data["picked"])
+        if isinstance(data.get("demo"), bool):
+            settings["demo"] = data["demo"]
         settings["updated"] = dt.datetime.fromtimestamp(m.get("time", 0), dt.timezone.utc).isoformat(timespec="seconds")
     settings["picked"] = [t for t in settings["tickers"] if t in settings["picked"]]
     return settings, json.dumps(settings, sort_keys=True) != before
@@ -359,6 +363,30 @@ def weekly_due(state, cfg, now, spec=None, key="_weekly"):
     return state.get(key, {}).get("date") != now.date().isoformat()
 
 
+def daily_due(state, spec, now, key="_demo"):
+    """True once per day, from `time` until `late_minutes` after it (a late message is no use)."""
+    hh, mm = (int(x) for x in spec["time"].split(":"))
+    target = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+    if not target <= now <= target + dt.timedelta(minutes=int(spec.get("late_minutes", 120))):
+        return False
+    return state.get(key, {}).get("date") != now.date().isoformat()
+
+
+def demo_message(results, now):
+    """The daily demo message. The demo account itself lives on the phone, so this only invites
+    to open it; the link makes a tap open the demo screen."""
+    ny_today = now.astimezone(ZoneInfo("America/New_York")).date().isoformat()
+    traded = any(r.get("as_of") == ny_today for r in results)
+    body = ("See how your demo stocks are doing today." if traded
+            else "The US market is closed today, so prices have not moved since the last trading day.")
+    return "Your demo account", body + "\nTap to open it."
+
+
+def demo_url(cfg):
+    base = str(cfg.get("app_url") or "").strip()
+    return (base.rstrip("/") + "/?tab=Stocks&open=demo") if base else None
+
+
 INSTAGRAM_REMINDER = ("Weekly Instagram check",
                       "It's time to see who doesn't follow you back.\n"
                       "1. In Instagram, request your export: Followers and following, format JSON.\n"
@@ -467,6 +495,17 @@ def main(argv):
         devices_changed |= ch
         if res["feed"] or res["pushed"]:
             state["_weekly"] = {"date": now.date().isoformat()}
+
+    # The daily demo message, only while the app says a demo account exists.
+    dd = cfg.get("demo_daily")
+    if dd and (settings.get("demo") or "--demo" in argv):
+        now_d = dt.datetime.now(ZoneInfo(dd.get("timezone", "Asia/Jerusalem")))
+        if "--demo" in argv or daily_due(state, dd, now_d):
+            title, body = demo_message(results, now_d)
+            res, ch = cn.notify(title, body, project="Stocks", url=demo_url(cfg), cfg=app_cfg, state=devices)
+            devices_changed |= ch
+            if res["feed"] or res["pushed"]:
+                state["_demo"] = {"date": now_d.date().isoformat()}
 
     # Instagram: the follow-back check needs a fresh export from the user, so this is a reminder.
     # (Instagram offers no approved way for a program to read follower lists by itself.)

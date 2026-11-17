@@ -9,6 +9,8 @@
     "TSLA": "Tesla"
   },
   "weekly": { "weekday": 6, "time": "08:30", "timezone": "Asia/Jerusalem" },
+  "demo_daily": { "time": "20:00", "timezone": "Asia/Jerusalem", "late_minutes": 120 },
+  "app_url": "https://aviadc111.github.io/claude-news/",
   "sudden_drop_day_pct": 5.0,
   "sudden_drop_5day_pct": 10.0,
   "cooldown_hours": 24,

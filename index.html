@@ -284,6 +284,31 @@
   #tradeAfter { min-height: 16px; }
   #tradeAfter.bad { color: var(--danger); font-weight: 700; }
 
+  /* v3.4: demo: one chart with every stock, adding a stock, opening a stock's chart */
+  :root { --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #0ca30c; --s7: #9085e9; --s8: #e66767; }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) { --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #6250d6; --s8: #e34948; }
+  }
+  :root[data-theme="light"] { --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #6250d6; --s8: #e34948; }
+  #demoCard { display: flex; flex-wrap: wrap; gap: 0 20px; align-items: flex-start; }
+  #demoSum { flex: 1 1 210px; min-width: 0; }
+  #demoChartBox { flex: 3 1 290px; min-width: 0; margin-top: 14px; }
+  #demoChart { width: 100%; height: 190px; display: block; touch-action: pan-y; }
+  #demoChartBox .scrub { padding: 4px 0 6px; font-size: 12px; }
+  #demoLegend { display: grid; gap: 2px; }
+  .leg { width: 100%; display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 400; text-align: left; background: none; color: var(--fg); padding: 6px 0; border-radius: 8px; }
+  .leg i { width: 12px; height: 12px; border-radius: 4px; flex: 0 0 auto; }
+  .leg .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .leg .n span { color: var(--muted); font-weight: 400; }
+  .leg b { font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+  .legnote { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .drow { cursor: pointer; }
+  .drow .mid { flex: 1; min-width: 0; }
+  .drow .chartbtn { flex: 0 0 auto; width: 34px; height: 34px; padding: 0; border-radius: 50%; background: var(--surface-2); color: var(--fg); display: grid; place-items: center; }
+  .drow .chartbtn svg { width: 17px; height: 17px; }
+  .drow.flat { cursor: default; }
+  #dDemo .row { margin-top: 2px; }
+
   /* v2.0: Instagram follow-back check */
   .chartsbtn.ig { background: #e1306c; color: #fff; box-shadow: 0 4px 14px rgba(225, 48, 108, .3); }
   .igsum { background: var(--surface); border-radius: 16px; padding: 16px; margin: 4px 0 12px; }
@@ -366,6 +391,37 @@
   <p id="boardEmpty" class="empty" hidden></p>
 </section>
 
+<section id="demo" class="screen" hidden aria-label="Demo account">
+  <div class="bar">
+    <button class="iconbtn" data-close="demo" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <h2>Demo account</h2>
+    <span id="demoUpdated" class="sub"></span>
+  </div>
+  <div id="demoCard" class="igsum">
+    <div id="demoSum"></div>
+    <div id="demoChartBox" hidden>
+      <div class="periods" id="demoPeriods"></div>
+      <canvas id="demoChart" data-noswipe role="img" aria-label="How each stock moved over the chosen period, in percent"></canvas>
+      <div class="scrub" id="demoScrub"></div>
+      <div id="demoLegend"></div>
+    </div>
+  </div>
+  <div id="demoPos"></div>
+  <div id="demoBuyHead" class="ighead" hidden>Buy a stock</div>
+  <div id="demoAddBox" hidden>
+    <form id="demoAddForm" class="addform">
+      <input id="demoAddTicker" placeholder="Add a stock: type its name or ticker" aria-label="Name or ticker of the stock to add" maxlength="30" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false">
+      <button type="submit">Add</button>
+    </form>
+    <p id="demoAddError" class="adderror" role="alert" hidden></p>
+    <div id="demoAddSuggest" class="suggest" hidden></div>
+  </div>
+  <div id="demoBuy"></div>
+  <div id="demoHist"></div>
+  <button id="demoReset" class="ghost" hidden>Start over</button>
+  <p class="note">Practice only: pretend money, real prices. A trade uses the latest price the app has, which can be some minutes old, and the real market has fees and price gaps that this demo leaves out. While you have a demo account, a message at 20:00 every day opens it. Saved on this phone only. This is not advice.</p>
+</section>
+
 <section id="detail" class="screen" hidden aria-label="Stock detail">
   <div class="bar">
     <button class="iconbtn" data-close="detail" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -381,6 +437,7 @@
     <div class="scrub" id="dScrub"><span>Touch the chart for a date</span><span></span></div>
   </div>
   <div id="dHold" class="holdcard"></div>
+  <div id="dDemo" class="holdcard" hidden></div>
   <button id="dRemove" class="ghost">Remove from my list</button>
 </section>
 
@@ -410,21 +467,6 @@
   </details>
   <div id="igList"></div>
   <p class="note" style="margin-top:14px;">Your lists are read on this phone only. They are not sent anywhere.</p>
-</section>
-
-<section id="demo" class="screen" hidden aria-label="Demo account">
-  <div class="bar">
-    <button class="iconbtn" data-close="demo" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
-    <h2>Demo account</h2>
-    <span id="demoUpdated" class="sub"></span>
-  </div>
-  <div id="demoSum" class="igsum"></div>
-  <div id="demoPos"></div>
-  <div id="demoBuyHead" class="ighead" hidden>Buy a stock</div>
-  <div id="demoBuy"></div>
-  <div id="demoHist"></div>
-  <button id="demoReset" class="ghost" hidden>Start over</button>
-  <p class="note">Practice only: pretend money, real prices. A trade uses the latest price the app has, which can be some minutes old, and the real market has fees and price gaps that this demo leaves out. Saved on this phone only. This is not advice.</p>
 </section>
 
 <div id="tradeBg" class="sheet-bg" hidden></div>
@@ -506,7 +548,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "3.3";
+  const APP_VERSION = "3.4";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -704,6 +746,8 @@
     fillMsgTimes(m);
     $("msgText").textContent = m.body || ""; $("msgText").hidden = !m.body;
     if (m.url) { $("msgLink").href = m.url; $("msgLink").hidden = false; } else { $("msgLink").removeAttribute("href"); $("msgLink").hidden = true; }
+    $("msgLink").textContent = isDemoMsg(m) ? "Open the demo account" : "Open link";
+    $("msgLink").onclick = isDemoMsg(m) ? (e) => { e.preventDefault(); closeMsg(); openDemo(); } : null;
     freshStart($("msgSheet"));
     $("msgSheet").hidden = false; $("msgBg").hidden = false;
     sizeMsg();
@@ -744,7 +788,16 @@
     try { closeHold(); } catch {}
     try { openSheet(false); } catch {}
     try { closeMsg(); } catch {}
+    try { closeTrade(); } catch {}
     selectTab(p);
+  }
+  // The daily demo message carries "open=demo" in its link: tapping it opens the demo account.
+  const isDemoMsg = (m) => !!m && /[?&]open=demo\b/.test(m.url || "");
+  async function afterTap(id, m) {
+    try {
+      if (!m && id) m = messages.get(id) || (await dbAll()).find((x) => x.id === id);
+      if (isDemoMsg(m)) openDemo();
+    } catch {}
   }
   // ---- which category to open after a notification is tapped ------------------
   // Small shared notes between the background worker and the page live in their own cache.
@@ -779,7 +832,7 @@
     if (!d.project || Date.now() - d.time > 90000) return false;
     markOpened([d.id]);
     tapLog("opened " + d.project + " (the worker saw the tap)");
-    goToTab(d.project, true);
+    goToTab(d.project, true); afterTap(d.id);
     return true;
   }
   // 2) iPhones often do not report the tap at all. So the app also works it out itself: a pushed
@@ -814,7 +867,7 @@
       const noted = await openPendingTab();
       const m = await openedNotification(at === 3500);       // also keeps the "already opened" list current
       if (noted) return;
-      if (m) { addMessages([m]); goToTab(m.project, true); return; }
+      if (m) { addMessages([m]); goToTab(m.project, true); afterTap(m.id, m); return; }
     }
   }
   // 3) The app is open and a notification banner slides in: if it leaves the list while the
@@ -828,7 +881,7 @@
       const shown = await shownTags();
       if (!shown) return;
       if (shown.has(m.id)) listed = true;
-      else if (listed) { markOpened([m.id]); tapLog("opened " + m.project + " (banner tapped while the app was open)"); goToTab(m.project, true); return; }
+      else if (listed) { markOpened([m.id]); tapLog("opened " + m.project + " (banner tapped while the app was open)"); goToTab(m.project, true); afterTap(m.id, m); return; }
     }
   }
 
@@ -1052,6 +1105,7 @@
   function saveLocal(data) {
     ls.set("cn.picked", JSON.stringify(picked)); ls.set("cn.tickers", JSON.stringify(myTickers));
     renderBoard(data);
+    if (!$("demo").hidden) renderDemo();
     clearTimeout(pickTimer);
     pickTimer = setTimeout(saveStockSettings, 1200);
   }
@@ -1117,6 +1171,7 @@
     if (!data || !data.stocks) return;
     if (data.updated !== before) {
       if (!$("board").hidden) renderBoard(data);
+      if (!$("demo").hidden) renderDemo();
       if (inSync(data)) toast("Your list is up to date");
     }
     if (inSync(data)) stopFollow();
@@ -1210,33 +1265,41 @@
     out.sort((a, b) => a[0] - b[0] || a[1].s.length - b[1].s.length || a[1].s.localeCompare(b[1].s));
     return out.slice(0, 8).map((a) => a[1]);
   }
-  function showAddError(text) {
-    const e = $("addError"); e.hidden = true; e.textContent = text; void e.offsetWidth; e.hidden = false;
-    clearTimeout(addErrTimer); addErrTimer = setTimeout(() => { e.hidden = true; }, 6000);
+  // One "add a stock" box: the field, its suggestions and its red message. There are two of
+  // them, in Charts and in the Demo; both add to the same list.
+  function addBox(inputId, boxId, errId, formId) {
+    const input = $(inputId), box = $(boxId), err = $(errId);
+    let timer = null;
+    const hideError = () => { clearTimeout(timer); err.hidden = true; };
+    const showError = (text) => {
+      err.hidden = true; err.textContent = text; void err.offsetWidth; err.hidden = false;
+      clearTimeout(timer); timer = setTimeout(() => { err.hidden = true; }, 6000);
+    };
+    function suggest() {
+      const hits = searchTickers(input.value);
+      if (!hits.length) { box.hidden = true; box.innerHTML = ""; return; }
+      const have = stocks ? listTickers(stocks) : [];
+      box.innerHTML = hits.map((x) => { const on = have.includes(x.s);
+        return `<button type="button" data-s="${esc(x.s)}"${on ? " disabled" : ""}><b>${esc(x.s)}</b><span>${esc(x.n)}</span><em>${on ? "On your list" : "Add"}</em></button>`; }).join("");
+      box.hidden = false;
+      box.querySelectorAll("button").forEach((b) => b.onclick = () => tryAdd(b.dataset.s));
+    }
+    async function tryAdd(raw) {
+      const text = String(raw || "").trim();
+      if (!text || !stocks) return;
+      const t = text.toUpperCase();
+      await loadTickers();
+      const haveList = tickerDB && tickerDB.length > 0;
+      if (haveList ? !tickerMap.has(t) : !TICKER_RE.test(t)) { showError("No Stock Ticker as: " + t.slice(0, 20)); return; }
+      hideError();
+      if (addTicker(t, stocks, tickerMap.get(t))) { input.value = ""; input.blur(); suggest(); }
+    }
+    input.addEventListener("input", () => { hideError(); suggest(); loadTickers().then(suggest); });
+    input.addEventListener("focus", () => { loadTickers().then(suggest); });
+    $(formId).addEventListener("submit", (e) => { e.preventDefault(); tryAdd(input.value); });
   }
-  function hideAddError() { clearTimeout(addErrTimer); $("addError").hidden = true; }
-  function renderSuggest() {
-    const box = $("addSuggest"), hits = searchTickers($("addTicker").value);
-    if (!hits.length) { box.hidden = true; box.innerHTML = ""; return; }
-    const have = stocks ? listTickers(stocks) : [];
-    box.innerHTML = hits.map((x) => { const on = have.includes(x.s);
-      return `<button type="button" data-s="${esc(x.s)}"${on ? " disabled" : ""}><b>${esc(x.s)}</b><span>${esc(x.n)}</span><em>${on ? "On your list" : "Add"}</em></button>`; }).join("");
-    box.hidden = false;
-    box.querySelectorAll("button").forEach((b) => b.onclick = () => tryAdd(b.dataset.s));
-  }
-  async function tryAdd(raw) {
-    const text = String(raw || "").trim();
-    if (!text || !stocks) return;
-    const t = text.toUpperCase();
-    await loadTickers();
-    const haveList = tickerDB && tickerDB.length > 0;
-    if (haveList ? !tickerMap.has(t) : !TICKER_RE.test(t)) { showAddError("No Stock Ticker as: " + t.slice(0, 20)); return; }
-    hideAddError();
-    if (addTicker(t, stocks, tickerMap.get(t))) { $("addTicker").value = ""; $("addTicker").blur(); renderSuggest(); }
-  }
-  $("addTicker").addEventListener("input", () => { hideAddError(); renderSuggest(); loadTickers().then(renderSuggest); });
-  $("addTicker").addEventListener("focus", () => { loadTickers().then(renderSuggest); });
-  $("addForm").addEventListener("submit", (e) => { e.preventDefault(); tryAdd($("addTicker").value); });
+  addBox("addTicker", "addSuggest", "addError", "addForm");
+  addBox("demoAddTicker", "demoAddSuggest", "demoAddError", "demoAddForm");
 
   // ---- my shares: how many, when bought, at what price (kept on this phone) --
   let holdTicker = null;
@@ -1305,6 +1368,7 @@
       : `<div class="k">My shares</div><div class="d">Do you own this stock? Record how many and when you bought.</div>
          <button class="small" id="dHoldEdit">+ I own this</button>`;
     $("dHoldEdit").onclick = () => openHold(s.ticker);
+    renderDetailDemo(s);
     removeArmed = false; $("dRemove").textContent = "Remove from my list";
     $("dRemove").onclick = () => {
       if (!removeArmed) { removeArmed = true; $("dRemove").textContent = "Tap again to remove " + s.name; return; }
@@ -1546,7 +1610,9 @@
   const saveDemo = () => ls.set("cn.demo", JSON.stringify(demo));
   const cents = (v) => Math.round(v * 100) / 100;
   const floor4 = (v) => Math.floor(v * 10000 + 1e-6) / 10000;
-  const signed = (v) => (v >= 0 ? "+" : "−") + money(Math.abs(v));
+  const signed = (v) => { v = cents(v) || 0; return (v >= 0 ? "+" : "−") + money(Math.abs(v)); };   // a hair under zero is zero
+  const pctz = (v) => pct(Math.abs(v) < 0.005 ? 0 : v);
+  const upDown = (v) => (cents(v) >= 0 ? "up" : "down");
   const fmtWhen = (ms) => { const d = new Date(ms); return d.toLocaleDateString([], { day: "numeric", month: "short" }) + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }); };
   const priceTime = (data) => { const at = new Date(data.updated); return at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + (at.toDateString() === new Date().toDateString() ? "" : " " + at.toLocaleDateString([], { day: "numeric", month: "short" })); };
   function marketOpen() {                                  // New York, Mon to Fri 09:30 to 16:00 (holidays are not known here)
@@ -1567,16 +1633,46 @@
     const value = demo.cash + inStocks, gain = value - demo.start;
     return { inStocks, value, gain, pct: gain / demo.start * 100 };
   }
+  // The checker sends the daily 20:00 message only while a demo account exists, so the app
+  // tells it when one is opened or erased. Only that yes or no leaves the phone.
+  async function tellDemo() {
+    const want = demo ? "1" : "0";
+    if (ls.get("cn.demoTold", "0") === want || !C.topic) return;
+    try {
+      const r = await fetch(`${C.ntfy}/${C.topic}-settings`, { method: "POST", headers: { "Title": "stocks" },
+        body: JSON.stringify({ type: "stocks", demo: !!demo, time: Date.now() }) });
+      if (r.ok) ls.set("cn.demoTold", want);
+    } catch {}
+  }
   function startDemo(amount) {
     amount = cents(Number(amount));
     if (!(amount >= 100 && amount <= 10000000)) { toast("Choose an amount between $100 and $10,000,000"); return; }
     demo = { start: amount, cash: amount, startedAt: Date.now(), pos: {}, trades: [] };
-    saveDemo(); renderDemo(); toast("Demo account opened with " + money(amount));
+    saveDemo(); renderDemo(); animateDemoChart(); tellDemo(); toast("Demo account opened with " + money(amount));
   }
+  // How much the account moved in the latest trading day. Shares bought or sold during that
+  // day count from the price they were traded at, not from the day before's close.
+  function demoToday() {
+    let change = 0, any = false, day = "";
+    for (const t of Object.keys(demo.pos)) {
+      const s = stockOf(t);
+      if (s && s.prev > 0) { change += demo.pos[t].shares * (s.price - s.prev); any = true; day = s.as_of; }
+    }
+    for (const x of demo.trades) {
+      const s = stockOf(x.t);
+      if (!s || !(s.prev > 0) || nyDay(x.time / 60000) < s.as_of) continue;
+      change += x.side === "buy" ? x.shares * (s.prev - x.price) : x.shares * (x.price - s.prev); any = true; day = s.as_of;
+    }
+    return any ? { change, live: day === nyDay(Date.now() / 60000) } : null;
+  }
+  const CHART_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>';
+  const chartBtn = (t, name) => `<button type="button" class="chartbtn" data-chart="${esc(t)}" aria-label="Open the chart of ${esc(name)}">${CHART_ICON}</button>`;
+  function openChartOf(t) { const s = stockOf(t); if (s) openDetail(s, stocks.rules); else toast("No chart for " + t + " right now"); }
   function renderDemo() {
     const data = stocks, have = !!(data && data.stocks);
     $("demoUpdated").textContent = have ? "prices " + priceTime(data) : "";
     resetArmed = false; $("demoReset").textContent = "Start over"; $("demoReset").hidden = !demo;
+    $("demoAddBox").hidden = !demo || !have;
     if (!demo) {
       $("demoSum").innerHTML = `<div class="lbl">Practice with pretend money</div>
         <div class="d">Buy and sell the stocks on your list at their real prices and see how you would have done. No real money is involved.</div>
@@ -1586,42 +1682,241 @@
       $("demoSum").querySelectorAll("[data-start]").forEach((b) => b.onclick = () => startDemo(b.dataset.start));
       $("demoOther").addEventListener("submit", (e) => { e.preventDefault(); startDemo($("demoAmount").value); });
       $("demoPos").innerHTML = ""; $("demoBuy").innerHTML = ""; $("demoHist").innerHTML = ""; $("demoBuyHead").hidden = true;
+      $("demoChartBox").hidden = true;
       return;
     }
-    const tot = demoTotals();
+    const tot = demoTotals(), day = demoToday();
     $("demoSum").innerHTML = `<div class="num">${money(tot.value)}</div>
-      <div class="lbl ${tot.gain >= 0 ? "up" : "down"}">${signed(tot.gain)} (${pct(tot.pct)}) since you started</div>
-      <div class="d">Cash ${money(demo.cash)} · In stocks ${money(tot.inStocks)}</div>
+      <div class="lbl ${upDown(tot.gain)}">${signed(tot.gain)} (${pctz(tot.pct)}) since you started</div>`
+      + (day ? `<div class="d">${day.live ? "Today" : "Last trading day"}: <b class="${upDown(day.change)}">${signed(day.change)}${tot.value - day.change > 0 ? ` (${pctz(day.change / (tot.value - day.change) * 100)})` : ""}</b></div>` : "")
+      + `<div class="d">Cash ${money(demo.cash)} · In stocks ${money(tot.inStocks)}</div>
       <div class="d">Started ${new Date(demo.startedAt).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" })} with ${money(demo.start)}</div>`;
     const worthOf = (t) => demo.pos[t].shares * (demoPrice(t).price || 0);
     const held = Object.keys(demo.pos).sort((a, b) => worthOf(b) - worthOf(a));
     $("demoPos").innerHTML = held.length ? `<div class="ighead">Your demo stocks</div>` + held.map((t) => {
       const p = demo.pos[t], q = demoPrice(t), worth = worthOf(t), gain = worth - p.cost;
-      return `<button type="button" class="drow" data-trade="${esc(t)}" data-side="sell"><div><div class="nm">${esc(q.name)} <span class="tk">${esc(t)}</span></div>
+      return `<div class="drow" role="button" tabindex="0" data-trade="${esc(t)}" data-side="sell">${q.live ? chartBtn(t, q.name) : ""}<div class="mid"><div class="nm">${esc(q.name)} <span class="tk">${esc(t)}</span></div>
         <div class="sub">${fmtShares(p.shares)} shares · bought for ${money(p.cost)}${q.live ? "" : " · off your list, last known price"}</div></div>
-        <div class="px"><b>${money(worth)}</b><span class="${gain >= 0 ? "up" : "down"}">${signed(gain)} (${pct1(p.cost > 0 ? gain / p.cost * 100 : 0)})</span></div></button>`; }).join("") : "";
-    const list = have ? listTickers(data).map((t) => data.stocks.find((s) => s.ticker === t)).filter(Boolean) : [];
+        <div class="px"><b>${money(worth)}</b><span class="${upDown(gain)}">${signed(gain)} (${pct1(p.cost > 0 && Math.abs(gain) >= 0.005 ? gain / p.cost * 100 : 0)})</span></div></div>`; }).join("") : "";
+    const tickers = have ? listTickers(data) : [], rejected = (have && data.rejected) || {};
+    const list = tickers.map((t) => data.stocks.find((s) => s.ticker === t)).filter(Boolean);
+    const waiting = tickers.filter((t) => !data.stocks.some((s) => s.ticker === t));
     $("demoBuyHead").hidden = false;
-    $("demoBuy").innerHTML = list.length ? list.map((s) => `<button type="button" class="drow" data-trade="${esc(s.ticker)}" data-side="buy"><div><div class="nm">${esc(s.name)} <span class="tk">${esc(s.ticker)}</span></div>
+    $("demoBuy").innerHTML = waiting.map((t) => `<div class="drow flat"><div class="mid"><div class="nm">${esc(myNames[t] || t)}${myNames[t] ? ` <span class="tk">${esc(t)}</span>` : ""} <span class="tag${rejected[t] ? " big" : ""}">${rejected[t] ? "NOT FOUND" : "WAITING"}</span></div>
+        <div class="sub">${rejected[t] ? "No stock has this ticker. Remove it in Charts." : (checkerOnDuty() ? "Getting its prices now. This takes about a minute." : "The market is closed. Its prices arrive in a few minutes if your PC is on, otherwise within about 2 hours.")}</div></div></div>`).join("")
+      + (list.length ? list.map((s) => `<div class="drow" role="button" tabindex="0" data-trade="${esc(s.ticker)}" data-side="buy">${chartBtn(s.ticker, s.name)}<div class="mid"><div class="nm">${esc(s.name)} <span class="tk">${esc(s.ticker)}</span></div>
         <div class="sub">${demo.pos[s.ticker] ? "You have " + fmtShares(demo.pos[s.ticker].shares) + " shares" : "Tap to buy"}</div></div>
-        <div class="px"><b>${money(s.price)}</b><span class="${s.day_pct >= 0 ? "up" : "down"}">${pct(s.day_pct)}</span></div></button>`).join("")
-      : `<div class="empty"><strong>${have ? "No stocks on your list yet" : "No prices right now"}</strong>${have ? "Add stocks in Charts, then come back here to practise with them." : "Check your connection and open the demo again."}</div>`;
+        <div class="px"><b>${money(s.price)}</b><span class="${s.day_pct >= 0 ? "up" : "down"}">${pct(s.day_pct)}</span></div></div>`).join("")
+      : waiting.length ? "" : `<div class="empty"><strong>${have ? "No stocks on your list yet" : "No prices right now"}</strong>${have ? "Add a stock in the box above to practise with it." : "Check your connection and open the demo again."}</div>`);
     $("demoHist").innerHTML = demo.trades.length ? `<div class="ighead">What you did (${demo.trades.length})</div>` + demo.trades.slice(-40).reverse().map((x) => `
-      <div class="drow"><div><div class="nm">${x.side === "buy" ? "Bought" : "Sold"} ${fmtShares(x.shares)} ${esc(x.t)}</div><div class="sub">at ${money(x.price)} · ${fmtWhen(x.time)}</div></div>
-        <div class="px"><b>${money(x.total)}</b>${x.side === "sell" ? `<span class="${x.gain >= 0 ? "up" : "down"}">${signed(x.gain)}</span>` : ""}</div></div>`).join("") : "";
-    $("demo").querySelectorAll("[data-trade]").forEach((b) => b.onclick = () => openTrade(b.dataset.trade, b.dataset.side));
+      <div class="drow flat"><div class="mid"><div class="nm">${x.side === "buy" ? "Bought" : "Sold"} ${fmtShares(x.shares)} ${esc(x.t)}</div><div class="sub">at ${money(x.price)} · ${fmtWhen(x.time)}</div></div>
+        <div class="px"><b>${money(x.total)}</b>${x.side === "sell" ? `<span class="${upDown(x.gain)}">${signed(x.gain)}</span>` : ""}</div></div>`).join("") : "";
+    $("demo").querySelectorAll(".drow[data-trade]").forEach((b) => {
+      b.onclick = () => openTrade(b.dataset.trade, b.dataset.side);
+      b.onkeydown = (e) => { if (e.key === "Enter" && e.target === b) b.click(); };
+    });
+    $("demo").querySelectorAll(".drow [data-chart]").forEach((b) => b.onclick = (e) => { e.stopPropagation(); openChartOf(b.dataset.chart); });
+    renderDemoChart();
     saveDemo();
   }
+
+  // ---- demo: one chart with every stock side by side, as % change -------------
+  // The stocks you hold (before the first purchase: the stocks on your list), one coloured
+  // line each. The list under the chart says which colour is which stock and how many shares
+  // of it you have. Touch the chart to read every stock at one moment.
+  const SERIES_SLOTS = 8;
+  let dmPeriod = 1 / 12, dmLines = [], dmMore = 0, dmGeom = null, dmReveal = 1, dmAnim = 0;
+  try { const p = JSON.parse(ls.get("cn.demoPeriod", "null")); if (PERIODS.some(([, y]) => y === p)) dmPeriod = p; } catch {}
+  function demoChartStocks() {
+    const held = Object.keys(demo.pos).map(stockOf).filter(Boolean)
+      .sort((a, b) => demo.pos[b.ticker].shares * b.price - demo.pos[a.ticker].shares * a.price);
+    const list = held.length ? held : (stocks ? listTickers(stocks).map(stockOf).filter(Boolean) : []);
+    return { list: list.slice(0, SERIES_SLOTS), more: Math.max(0, list.length - SERIES_SLOTS) };
+  }
+  function slotsFor(list) {                                // a stock keeps its colour for as long as it is on the chart
+    const colors = demo.colors && typeof demo.colors === "object" ? demo.colors : (demo.colors = {});
+    const shown = list.map((s) => s.ticker), used = new Set();
+    for (const t of Object.keys(colors)) if (!shown.includes(t)) delete colors[t];
+    for (const t of shown) { const c = colors[t]; if (Number.isInteger(c) && c >= 0 && c < SERIES_SLOTS && !used.has(c)) used.add(c); else delete colors[t]; }
+    for (const t of shown) if (colors[t] == null) { let c = 0; while (used.has(c)) c++; colors[t] = c; used.add(c); }
+    return colors;
+  }
+  function buildDemoLines() {
+    const pick = demoChartStocks(), colors = slotsFor(pick.list);
+    const intra = typeof dmPeriod === "string", today = dmPeriod === "today";
+    dmMore = pick.more;
+    dmLines = pick.list.map((s) => {
+      const pts = intra ? (s[dmPeriod] || []) : sliceSeries(s.series, dmPeriod);
+      if (pts.length < 2) return { s, slot: colors[s.ticker], pts: [], vals: [] };
+      const last = pts[pts.length - 1];
+      const base = today ? ((nyDay(last[0]) === s.as_of ? s.prev : s.price) || pts[0][1]) : pts[0][1];
+      return { s, slot: colors[s.ticker], pts, vals: pts.map((p) => (p[1] / base - 1) * 100) };
+    });
+  }
+  const niceStep = (raw) => { const pow = Math.pow(10, Math.floor(Math.log10(raw))), n = raw / pow; return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * pow; };
+  const pointAt = (l, f, g) => {                           // which of a line's points is at this place across the chart
+    if (g.intra) return Math.round(f * (l.pts.length - 1));
+    let k = 0; while (k + 1 < l.pts.length && g.frac(l, k + 1) <= f + 1e-9) k++;
+    return k;
+  };
+  function drawDemoChart(scrub) {
+    const c = $("demoChart");
+    if ($("demoChartBox").hidden || $("demo").hidden) return;
+    const { ctx, w, h } = setupCanvas(c);
+    const css = getComputedStyle(document.documentElement);
+    const muted = css.getPropertyValue("--muted").trim(), grid = css.getPropertyValue("--line").trim(), fg = css.getPropertyValue("--fg").trim(), surface = css.getPropertyValue("--surface").trim();
+    ctx.clearRect(0, 0, w, h);
+    ctx.font = "11px -apple-system, Segoe UI, Roboto, sans-serif";
+    const lines = dmLines.filter((l) => l.pts.length > 1);
+    dmGeom = null;
+    if (!lines.length) { ctx.fillStyle = muted; ctx.textAlign = "center"; ctx.fillText("No prices for this period yet", w / 2, h / 2); return; }
+    const intra = typeof dmPeriod === "string", today = dmPeriod === "today";
+    const ref = lines.reduce((a, b) => (b.pts.length > a.pts.length ? b : a));
+    const t0 = Math.min(...lines.map((l) => l.pts[0][0])), t1 = Math.max(...lines.map((l) => l.pts[l.pts.length - 1][0]));
+    const frac = (l, k) => intra ? k / (l.pts.length - 1) : (t1 > t0 ? (l.pts[k][0] - t0) / (t1 - t0) : 0);
+    let lo = 0, hi = 0;
+    lines.forEach((l) => l.vals.forEach((v) => { if (v < lo) lo = v; if (v > hi) hi = v; }));
+    if (hi - lo < 0.4) { hi += 0.2; lo -= 0.2; }
+    const step = niceStep((hi - lo) / 4), dec = step >= 1 ? 0 : step >= 0.1 ? 1 : 2;
+    lo = Math.floor(lo / step - 1e-9) * step; hi = Math.ceil(hi / step + 1e-9) * step;
+    const padL = 4, padR = 44, padT = 8, padB = 20;
+    const X = (f) => padL + f * (w - padL - padR), Y = (v) => padT + (hi - v) / (hi - lo) * (h - padT - padB);
+    // grid, with the 0% line a little stronger, and the % labels on the right
+    for (let k = 0, v = lo; v <= hi + step / 2; k++, v = lo + k * step) {
+      const y = Y(v), zero = Math.abs(v) < step / 1000;
+      ctx.strokeStyle = zero ? muted : grid; ctx.lineWidth = 1; ctx.globalAlpha = zero ? 0.75 : 1;
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke(); ctx.globalAlpha = 1;
+      ctx.fillStyle = muted; ctx.textAlign = "left"; ctx.fillText((v > step / 1000 ? "+" : "") + (zero ? 0 : v).toFixed(dec) + "%", w - padR + 6, y + 4);
+    }
+    const label = (p) => today ? fmtClock(p[0]) : intra ? minToDate(p[0]).toLocaleDateString([], { weekday: "short", day: "numeric" })
+      : dayToDate(p[0]).toLocaleDateString([], dmPeriod <= 0.5 ? { day: "numeric", month: "short" } : { month: "short", year: "2-digit" });
+    ctx.fillStyle = muted;
+    ctx.textAlign = "left"; ctx.fillText(label(ref.pts[0]), padL, h - 5);
+    ctx.textAlign = "right"; ctx.fillText(label(ref.pts[ref.pts.length - 1]), w - padR, h - 5);
+    // the lines: while the chart draws itself in, only the part up to dmReveal is shown
+    ctx.save();
+    if (dmReveal < 1) { ctx.beginPath(); ctx.rect(0, 0, padL + (w - padL - padR) * dmReveal + 1, h); ctx.clip(); }
+    ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.lineCap = "round";
+    lines.slice().reverse().forEach((l) => {
+      const col = css.getPropertyValue("--s" + (l.slot + 1)).trim();
+      ctx.beginPath(); l.vals.forEach((v, k) => k ? ctx.lineTo(X(frac(l, k)), Y(v)) : ctx.moveTo(X(frac(l, k)), Y(v)));
+      ctx.strokeStyle = col; ctx.stroke();
+      if (scrub == null) {                                   // a dot where each line ends, ringed so crossing lines stay apart
+        const k = l.vals.length - 1, x = X(frac(l, k)), y = Y(l.vals[k]);
+        ctx.beginPath(); ctx.arc(x, y, 5, 0, 7); ctx.fillStyle = surface; ctx.fill();
+        ctx.beginPath(); ctx.arc(x, y, 3, 0, 7); ctx.fillStyle = col; ctx.fill();
+      }
+    });
+    ctx.restore();
+    dmGeom = { padL, padR, w, intra, frac, ref };
+    if (scrub != null) {
+      const x = X(scrub);
+      ctx.strokeStyle = muted; ctx.lineWidth = 1; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(x, padT - 4); ctx.lineTo(x, h - padB); ctx.stroke(); ctx.setLineDash([]);
+      lines.forEach((l) => {
+        const k = pointAt(l, scrub, dmGeom), px = X(frac(l, k)), py = Y(l.vals[k]);
+        ctx.beginPath(); ctx.arc(px, py, 5.5, 0, 7); ctx.fillStyle = surface; ctx.fill();
+        ctx.beginPath(); ctx.arc(px, py, 3.5, 0, 7); ctx.fillStyle = css.getPropertyValue("--s" + (l.slot + 1)).trim(); ctx.fill();
+      });
+    }
+    void fg;
+  }
+  const legShares = (n) => Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
+  function demoLegend(scrub) {
+    const g = dmGeom, today = dmPeriod === "today", intra = typeof dmPeriod === "string";
+    $("demoLegend").innerHTML = dmLines.map((l) => {
+      const p = demo.pos[l.s.ticker];
+      const v = l.pts.length > 1 ? l.vals[scrub != null && g ? pointAt(l, scrub, g) : l.vals.length - 1] : null;
+      return `<button type="button" class="leg" data-chart="${esc(l.s.ticker)}" aria-label="Open the chart of ${esc(l.s.name)}"><i style="background:var(--s${l.slot + 1})"></i>
+        <span class="n">${esc(l.s.name)}${p ? ` <span>(${legShares(p.shares)})</span>` : ""}</span><b class="${v == null ? "" : v >= 0 ? "up" : "down"}">${v == null ? "no data" : pct(v)}</b></button>`; }).join("")
+      + (dmMore ? `<div class="legnote">The chart shows your ${SERIES_SLOTS} largest. ${dmMore} more ${dmMore === 1 ? "is" : "are"} in the list below.</div>` : "");
+    $("demoLegend").querySelectorAll("[data-chart]").forEach((b) => b.onclick = () => openChartOf(b.dataset.chart));
+    const sc = $("demoScrub");
+    if (!g) { sc.innerHTML = ""; return; }
+    const first = g.ref.pts[0], last = g.ref.pts[g.ref.pts.length - 1];
+    if (scrub == null) {
+      const range = today ? fmtDayShort(first[0]) : intra ? `${fmtDayShort(first[0])} → ${fmtDayShort(last[0])}` : `${fmtDate(first[0])} → ${fmtDate(last[0])}`;
+      sc.innerHTML = `<span>${range}</span><span>${today ? "change since previous close" : "change over this period"}</span>`;
+    } else {
+      const p = g.ref.pts[pointAt(g.ref, scrub, g)];
+      const when = intra ? `${fmtDayShort(p[0])}, ${fmtClock(p[0])}` : dayToDate(p[0]).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+      sc.innerHTML = `<span><b>${when}</b></span><span>change up to here</span>`;
+    }
+  }
+  function renderDemoChart() {
+    const box = $("demoChartBox");
+    const any = !!(demo && stocks && stocks.stocks && demoChartStocks().list.length);
+    box.hidden = !any;
+    if (!any) return;
+    const all = demoChartStocks().list;
+    const periods = PERIODS.filter(([, y]) => typeof y !== "string" || all.some((s) => Array.isArray(s[y]) && s[y].length > 1));
+    if (!periods.some(([, y]) => y === dmPeriod)) dmPeriod = 1 / 12;
+    $("demoPeriods").innerHTML = periods.map(([l, y], i) => `<button type="button" data-i="${i}" class="${y === dmPeriod ? "active" : ""}">${l}</button>`).join("");
+    $("demoPeriods").querySelectorAll("button").forEach((b) => b.onclick = () => {
+      dmPeriod = periods[Number(b.dataset.i)][1]; ls.set("cn.demoPeriod", JSON.stringify(dmPeriod));
+      $("demoPeriods").querySelectorAll("button").forEach((x) => x.classList.toggle("active", x === b));
+      buildDemoLines(); animateDemoChart();
+    });
+    buildDemoLines(); drawDemoChart(); demoLegend();
+  }
+  function animateDemoChart() {                            // the lines draw themselves in from left to right
+    cancelAnimationFrame(dmAnim);
+    if ($("demoChartBox").hidden) return;
+    if (calmMotion) { dmReveal = 1; drawDemoChart(); demoLegend(); return; }
+    const began = performance.now(), ms = 460;
+    const frame = (now) => {
+      const t = Math.min(1, (now - began) / ms);
+      dmReveal = 1 - Math.pow(1 - t, 3);
+      drawDemoChart();
+      if (t < 1) dmAnim = requestAnimationFrame(frame); else dmReveal = 1;
+    };
+    dmReveal = 0; drawDemoChart(); demoLegend();
+    dmAnim = requestAnimationFrame(frame);
+  }
+  {
+    const c = $("demoChart");
+    let x = null, raf = 0;
+    const show = () => {
+      raf = 0;
+      if (x === null || !dmGeom) return;
+      const r = c.getBoundingClientRect();
+      const f = Math.min(1, Math.max(0, (x - r.left - dmGeom.padL) / (dmGeom.w - dmGeom.padL - dmGeom.padR)));
+      drawDemoChart(f); demoLegend(f);
+    };
+    const soon = (cx) => { cancelAnimationFrame(dmAnim); dmReveal = 1; x = cx; if (!raf) raf = requestAnimationFrame(show); };
+    const end = () => { x = null; cancelAnimationFrame(raf); raf = 0; drawDemoChart(); demoLegend(); };
+    c.addEventListener("touchstart", (e) => soon(e.touches[0].clientX), { passive: true });
+    c.addEventListener("touchmove", (e) => soon(e.touches[0].clientX), { passive: true });
+    c.addEventListener("touchend", end, { passive: true });
+    c.addEventListener("touchcancel", end, { passive: true });
+    c.addEventListener("mousemove", (e) => soon(e.clientX));
+    c.addEventListener("mouseleave", end);
+    window.addEventListener("resize", () => { if (!$("demo").hidden) { drawDemoChart(); } });
+  }
+  // The stock's own screen (its chart) shows what you have of it in the demo, with Buy and Sell.
+  function renderDetailDemo(s) {
+    const el = $("dDemo");
+    el.hidden = !demo;
+    if (!demo) return;
+    const p = demo.pos[s.ticker], worth = p ? p.shares * s.price : 0, gain = p ? worth - p.cost : 0;
+    el.innerHTML = `<div class="k">Demo account</div>`
+      + (p ? `<div class="v">${fmtShares(p.shares)} shares · worth ${money(worth)}</div>
+              <div class="d ${upDown(gain)}">${signed(gain)} (${pct1(p.cost > 0 && Math.abs(gain) >= 0.005 ? gain / p.cost * 100 : 0)}) since you bought · paid ${money(p.cost)}</div>`
+           : `<div class="d">You have ${money(demo.cash)} of pretend money to practise with.</div>`)
+      + `<div class="row"><button class="small" id="dDemoBuy">Buy in the demo</button>${p ? `<button class="ghost small" id="dDemoSell">Sell</button>` : ""}</div>`;
+    $("dDemoBuy").onclick = () => openTrade(s.ticker, "buy");
+    if (p) $("dDemoSell").onclick = () => openTrade(s.ticker, "sell");
+  }
   async function openDemo() {
-    openScreen("demo"); renderDemo();
+    openScreen("demo"); loadTickers(); renderDemo(); animateDemoChart();
     const before = stocks && stocks.updated;
     await loadStocks(true);
-    if (!$("demo").hidden && (stocks && stocks.updated) !== before) renderDemo();
+    if (!$("demo").hidden && (stocks && stocks.updated) !== before) { renderDemo(); animateDemoChart(); }
+    followChecker(); tellDemo();
   }
   $("demoBtn").onclick = openDemo;
   $("demoReset").onclick = () => {
     if (!resetArmed) { resetArmed = true; $("demoReset").textContent = "Tap again to erase the demo account"; return; }
-    demo = null; ls.set("cn.demo", "null"); renderDemo(); toast("Demo account erased");
+    demo = null; ls.set("cn.demo", "null"); renderDemo(); tellDemo(); toast("Demo account erased");
   };
 
   function openTrade(t, side) {
@@ -1661,11 +1956,11 @@
     let shares = parseFloat($("tShares").value);
     if (!s || !(shares > 0)) return { empty: !$("tShares").value && !$("tAmount").value, error: "Enter an amount or a number of shares" };
     if (tradeSide === "sell" && Math.abs(shares - own) < 1e-6) shares = own;
-    const total = cents(shares * s.price);
+    const total = shares * s.price;
     if (total < 0.01) return { error: "That is less than one cent" };
     if (tradeSide === "buy" && total > demo.cash + 0.005) return { error: `You only have ${money(demo.cash)} in cash` };
     if (tradeSide === "sell" && shares > own) return { error: `You only have ${fmtShares(own)} shares` };
-    return { s, shares, total, part: tradeSide === "sell" ? cents(p.cost * shares / own) : 0 };
+    return { s, shares, total, part: tradeSide === "sell" ? p.cost * shares / own : 0 };
   }
   function renderAfter() {
     const r = readTrade(), el = $("tradeAfter");
@@ -1684,15 +1979,16 @@
     const t = tradeT, p = demo.pos[t] || (demo.pos[t] = { shares: 0, cost: 0, name: r.s.name, last: r.s.price });
     let gain = null;
     if (tradeSide === "buy") {
-      p.shares = Math.round((p.shares + r.shares) * 1e6) / 1e6; p.cost = cents(p.cost + r.total); demo.cash = Math.max(0, cents(demo.cash - r.total));
+      p.shares = Math.round((p.shares + r.shares) * 1e6) / 1e6; p.cost = p.cost + r.total; demo.cash = Math.max(0, demo.cash - r.total);
     } else {
-      gain = cents(r.total - r.part);
-      p.shares = Math.round((p.shares - r.shares) * 1e6) / 1e6; p.cost = Math.max(0, cents(p.cost - r.part)); demo.cash = cents(demo.cash + r.total);
+      gain = r.total - r.part;
+      p.shares = Math.round((p.shares - r.shares) * 1e6) / 1e6; p.cost = Math.max(0, p.cost - r.part); demo.cash = demo.cash + r.total;
       if (p.shares < 1e-6) delete demo.pos[t];
     }
     demo.trades.push({ t, side: tradeSide, shares: r.shares, price: r.s.price, total: r.total, gain, time: Date.now() });
     if (demo.trades.length > 500) demo.trades = demo.trades.slice(-500);
     saveDemo(); renderDemo();
+    if (!$("detail").hidden && dStock) renderDetailExtras(dStock);
     toast(`${tradeSide === "buy" ? "Bought" : "Sold"} ${fmtShares(r.shares)} ${t} for ${money(r.total)}`);
     tradeSwipe.out();
   });
@@ -1871,7 +2167,7 @@
       if (e.data.type === "open-tab") {                      // the worker saw a notification tap
         markOpened([e.data.id]); stateDel("__open-tab");
         tapLog("opened " + e.data.project + " (the worker told the open app)");
-        goToTab(e.data.project, true);
+        goToTab(e.data.project, true); afterTap(e.data.id);
       }
       if (e.data.type === "updated" && navigator.serviceWorker.controller) reloadOnce();   // a new version just took over
     });
@@ -1905,7 +2201,11 @@
     render();
     await loadLocal();
     const urlTab = new URLSearchParams(location.search).get("tab");     // opened from a notification
-    if (urlTab) { try { history.replaceState(null, "", location.pathname); } catch {} goToTab(urlTab, false); }
+    const urlOpen = new URLSearchParams(location.search).get("open");
+    if (urlTab || urlOpen) { try { history.replaceState(null, "", location.pathname); } catch {} }
+    if (urlTab) goToTab(urlTab, false);
+    if (urlOpen === "demo") { goToTab("Stocks", false); openDemo(); }
+    tellDemo();
     checkPendingTab();
     fetchRecent();
     if ("serviceWorker" in navigator) {

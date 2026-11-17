@@ -8,6 +8,8 @@ itself on every quarter hour:
     the early start makes sure a run is already alive when it opens.
   - the weekly-message day, from 3.5 hours before the message time until 10 minutes after
     it, so the Sunday 08:30 message leaves at 08:30.
+  - every day, the same 3.5 hours before the daily demo message (20:00 Israel time), while
+    the app has a demo account. On working days the market hours already cover it.
 Outside busy hours a run checks once and ends, as before.
 
 Between two checks the run does not sleep: it listens on the app's settings channel. When a
@@ -59,8 +61,17 @@ def utc_now():
     return dt.datetime.now(dt.timezone.utc)
 
 
-def busy(now, cfg):
-    """Why this moment is inside busy hours ("market" / "weekly"), or "" when it is not."""
+def demo_on():
+    """True while the app has a demo account (it tells the checker; kept in data/settings.json)."""
+    try:
+        with open(os.path.join(ROOT, "data", "settings.json"), encoding="utf-8") as f:
+            return json.load(f).get("demo") is True
+    except (OSError, ValueError):
+        return False
+
+
+def busy(now, cfg, demo=None):
+    """Why this moment is inside busy hours ("market" / "weekly" / "demo"), or "" when it is not."""
     ny = now.astimezone(ZoneInfo(MARKET_TZ))
     if ny.weekday() < 5 and MARKET_FROM <= ny.time() < MARKET_UNTIL:
         return "market"
@@ -72,6 +83,13 @@ def busy(now, cfg):
             target = local.replace(hour=hh, minute=mm, second=0, microsecond=0)
             if target - WEEKLY_LEAD <= local <= target + WEEKLY_TAIL:
                 return "weekly"
+    d = cfg.get("demo_daily") or {}
+    if d.get("time") and (demo_on() if demo is None else demo):
+        local = now.astimezone(ZoneInfo(d.get("timezone", "Asia/Jerusalem")))
+        hh, mm = (int(x) for x in d["time"].split(":"))
+        target = local.replace(hour=hh, minute=mm, second=0, microsecond=0)
+        if target - WEEKLY_LEAD <= local <= target + WEEKLY_TAIL:
+            return "demo"
     return ""
 
 
