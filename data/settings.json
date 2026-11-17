@@ -1,6 +1,5 @@
 {
  "picked": [
-  "NVDA",
   "AAPL",
   "MSFT",
   "AMZN",
@@ -8,10 +7,9 @@
   "META",
   "TSLA"
  ],
- "since": "DffO1p6PbGTD",
- "updated": "2026-11-16T19:29:11+00:00",
+ "since": "JHYePG503xv1",
+ "updated": "2026-11-17T17:04:23+00:00",
  "tickers": {
-  "NVDA": "NVIDIA",
   "AAPL": "Apple",
   "MSFT": "Microsoft",
   "AMZN": "Amazon",
