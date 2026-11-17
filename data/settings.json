@@ -8,8 +8,8 @@
   "TSLA",
   "NVDA"
  ],
- "since": "9e55XC4mioEW",
- "updated": "2026-11-17T17:04:29+00:00",
+ "since": "gwQGrDTSNH61",
+ "updated": "2026-11-17T19:49:27+00:00",
  "tickers": {
   "AAPL": "Apple",
   "MSFT": "Microsoft",
@@ -32,5 +32,6 @@
   "E"
  ],
  "rejected": {},
- "name_tried": []
+ "name_tried": [],
+ "demo": true
 }
