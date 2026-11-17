@@ -1,0 +1,66 @@
+name: Instagram follow-back check
+
+# Once a week, and by hand. A spare Instagram account that the owner opened follows the
+# owner's private account; this job reads the owner's followers and following lists through
+# the spare account and sends the comparison to the phone (worker/instagram.py).
+# The owner's own Instagram login is never here. No account names are printed, and the lists
+# are saved encrypted (data/instagram.enc). If Instagram refuses, the job stops and stays
+# away for at least a day.
+on:
+  schedule:
+    # Friday 09:00 UTC = 11:00 in Israel in winter, 12:00 in summer. GitHub often starts
+    # scheduled jobs an hour or two late, so the report arrives around midday.
+    - cron: "0 9 * * 5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: instagram
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -q playwright requests pywebpush "cryptography>=42"
+
+      - run: python -m playwright install --with-deps chromium
+
+      - name: Read the lists and send the report
+        env:
+          IG_SPARE_STATE: ${{ secrets.IG_SPARE_STATE }}
+          IG_TARGET: ${{ secrets.IG_TARGET }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          DEVICES_KEY: ${{ secrets.DEVICES_KEY }}
+          PYTHONUNBUFFERED: "1"
+        # exit codes 2 to 6 are answers the phone was already told about, not failures of the job
+        run: |
+          set +e
+          xvfb-run -a python worker/instagram.py
+          code=$?
+          echo "ended with code $code"
+          if [ "$code" -ge 2 ] && [ "$code" -le 6 ]; then exit 0; fi
+          exit $code
+
+      - name: Save the encrypted lists
+        if: always()
+        run: |
+          git config user.name "instagram-check[bot]"
+          git config user.email "instagram-check@users.noreply.github.com"
+          git add data/
+          if git diff --cached --quiet; then echo "nothing to save"; exit 0; fi
+          git commit -q -m "data: instagram $(date -u +%F)"
+          for i in 1 2 3 4; do
+            if git pull -q --rebase --autostash && git push -q; then echo "saved"; exit 0; fi
+            sleep 6
+          done
+          echo "could not save"; exit 1
