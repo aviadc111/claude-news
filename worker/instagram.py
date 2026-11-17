@@ -15,6 +15,12 @@ Rules it keeps:
   * no account names are printed (this log is public). The lists are kept in
     data/instagram.enc, encrypted with a key that only the repository's secrets hold.
 
+Found on 17 Nov 2026: Instagram lets the spare account in, but shows another account only
+part of each list (about a quarter of the names in every page). A comparison made from that
+would be wrong. So the check looks at the first page only; while the page is thinned like
+that it stops there, quietly, and tries again at the next weekly run. If Instagram ever
+shows the spare account full pages, the report starts by itself.
+
 Environment:
   IG_SPARE_STATE  the spare account's saved login (browser cookies, JSON)
   IG_TARGET       the name of the account to check (the owner's own account)
@@ -64,6 +70,10 @@ class Blocked(Exception):
 
 class NotFollowing(Exception):
     """The spare account does not (or no longer) follow the watched account."""
+
+
+class Thinned(Exception):
+    """Instagram shows the spare account only part of the list."""
 
 
 def now():
@@ -154,8 +164,9 @@ def parse_count(text):
     return int(float(t)), True
 
 
-def read_list(page, uid, kind):
-    """All names in the followers or following list, page by page."""
+def read_list(page, uid, kind, expected=None):
+    """All names in the followers or following list, page by page.
+    Raises Thinned after the first page when it holds far fewer names than were asked for."""
     names, max_id, pages = [], "", 0
     per_page = 25 if kind == "followers" else 50
     while True:
@@ -165,6 +176,10 @@ def read_list(page, uid, kind):
         users = res["json"].get("users") or []
         names += [u["username"].lower() for u in users if u.get("username")]
         pages += 1
+        if pages == 1:
+            full = min(per_page, expected) if expected else per_page
+            if len(users) < 0.6 * full and (expected or res["json"].get("next_max_id")):
+                raise Thinned(f"{len(users)} of {full} names in the first page")
         if pages % 5 == 0:
             print(f"  {kind}: {pages} pages so far", flush=True)
         max_id = res["json"].get("next_max_id")
@@ -209,9 +224,9 @@ def collect(state, target, channel=None):
                 raise NotFollowing("the follow request is still waiting to be accepted" if fr.get("outgoing_request")
                                    else "the spare account does not follow the account")
             time.sleep(PAUSE)
-            following = read_list(page, uid, "following")
+            following = read_list(page, uid, "following", counts["following"])
             time.sleep(PAUSE)
-            followers = read_list(page, uid, "followers")
+            followers = read_list(page, uid, "followers", counts["followers"])
             return {"counts": counts, "followers": followers, "following": following}
         finally:
             browser.close()
@@ -332,6 +347,11 @@ def run(dry=False, channel=None, collect_fn=None):
                        f"The check could not read your lists: {e}.\n\n"
                        "From the spare account, follow your account again, and accept the request.")
             return 4
+        except Thinned:
+            # Not a refusal and nothing to act on: no message, no break. The next weekly run looks again.
+            print("stopped quietly: Instagram shows the spare account only part of the lists", flush=True)
+            state["thinned"] = now().isoformat(timespec="minutes")
+            return 7
         except Blocked as e:
             print("stopped by Instagram", flush=True)
             until = None if dry else start_break(state, str(e))
@@ -365,7 +385,7 @@ def run(dry=False, channel=None, collect_fn=None):
             lists[target] = {"checked": now().isoformat(timespec="seconds"), "followers": data["followers"],
                              "following": data["following"], "not_back": not_back}
             save_lists(lists)
-            state.update(last_ok=now().isoformat(timespec="minutes"), hits=0, break_until=None, reason=None)
+            state.update(last_ok=now().isoformat(timespec="minutes"), hits=0, break_until=None, reason=None, thinned=None)
         return 0
     finally:
         phone.close()

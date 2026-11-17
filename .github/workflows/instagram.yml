@@ -42,13 +42,14 @@ jobs:
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
           DEVICES_KEY: ${{ secrets.DEVICES_KEY }}
           PYTHONUNBUFFERED: "1"
-        # exit codes 2 to 6 are answers the phone was already told about, not failures of the job
+        # exit codes 2 to 7 are answers that were already handled (the phone was told, or the
+        # check stopped quietly because Instagram shows only part of the lists), not failures
         run: |
           set +e
           xvfb-run -a python worker/instagram.py
           code=$?
           echo "ended with code $code"
-          if [ "$code" -ge 2 ] && [ "$code" -le 6 ]; then exit 0; fi
+          if [ "$code" -ge 2 ] && [ "$code" -le 7 ]; then exit 0; fi
           exit $code
 
       - name: Save the encrypted lists
