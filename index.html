@@ -260,6 +260,30 @@
               background: color-mix(in srgb, var(--danger) 20%, transparent); color: var(--danger); }
   @media (prefers-reduced-motion: no-preference) { .adderror { animation: pop .18s ease-out; } @keyframes pop { from { transform: scale(.9); opacity: 0; } } }
 
+  /* v3.3: demo account (practice trading with pretend money) */
+  .chartsbtn.demo { background: #6366f1; color: #fff; box-shadow: 0 4px 14px rgba(99, 102, 241, .3); }
+  header.three .chartsbtn { padding: 8px 11px; font-size: 13px; }
+  #demoSum .num { font-size: 38px; }
+  .drow { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; font-weight: 400;
+          background: var(--surface); color: var(--fg); border-radius: 14px; padding: 12px 14px; margin-bottom: 8px; }
+  .drow > div:first-child { min-width: 0; }
+  .drow .nm { font-weight: 700; font-size: 15px; }
+  .drow .tk { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .drow .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .drow .px { text-align: right; font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+  .drow .px b { display: block; font-size: 15px; }
+  .drow .px span { font-size: 12px; font-weight: 700; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { padding: 7px 13px; font-size: 13px; border-radius: 999px; background: var(--surface-2); color: var(--fg); }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: var(--bg); border-radius: 12px; padding: 4px; }
+  .seg button { background: none; color: var(--muted); padding: 9px; border-radius: 9px; }
+  .seg button.on { background: var(--accent); color: var(--accent-ink); }
+  .demoform { display: flex; gap: 8px; margin-top: 10px; }
+  .demoform input { flex: 1; min-width: 0; font: inherit; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); }
+  #demoReset { width: 100%; margin: 14px 0; color: var(--danger); }
+  #tradeAfter { min-height: 16px; }
+  #tradeAfter.bad { color: var(--danger); font-weight: 700; }
+
   /* v2.0: Instagram follow-back check */
   .chartsbtn.ig { background: #e1306c; color: #fff; box-shadow: 0 4px 14px rgba(225, 48, 108, .3); }
   .igsum { background: var(--surface); border-radius: 16px; padding: 16px; margin: 4px 0 12px; }
@@ -293,6 +317,7 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>
     Charts
   </button>
+  <button id="demoBtn" class="chartsbtn demo" aria-label="Open the demo account" hidden>Demo</button>
   <button id="igBtn" class="chartsbtn ig" aria-label="Open the follow-back check" hidden>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="17.5" cy="9" r="2.5"/><path d="M17 14.2c2.6.2 4.5 2 4.5 4.8"/></svg>
     Check
@@ -387,6 +412,39 @@
   <p class="note" style="margin-top:14px;">Your lists are read on this phone only. They are not sent anywhere.</p>
 </section>
 
+<section id="demo" class="screen" hidden aria-label="Demo account">
+  <div class="bar">
+    <button class="iconbtn" data-close="demo" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <h2>Demo account</h2>
+    <span id="demoUpdated" class="sub"></span>
+  </div>
+  <div id="demoSum" class="igsum"></div>
+  <div id="demoPos"></div>
+  <div id="demoBuyHead" class="ighead" hidden>Buy a stock</div>
+  <div id="demoBuy"></div>
+  <div id="demoHist"></div>
+  <button id="demoReset" class="ghost" hidden>Start over</button>
+  <p class="note">Practice only: pretend money, real prices. A trade uses the latest price the app has, which can be some minutes old, and the real market has fees and price gaps that this demo leaves out. Saved on this phone only. This is not advice.</p>
+</section>
+
+<div id="tradeBg" class="sheet-bg" hidden></div>
+<section id="trade" class="sheet" hidden aria-label="Demo trade">
+  <div class="grab"></div>
+  <h2 id="tradeTitle"></h2>
+  <div id="tradeInfo" class="holdsum"></div>
+  <div class="seg" id="tradeSide"><button type="button" data-side="buy">Buy</button><button type="button" data-side="sell">Sell</button></div>
+  <form id="tradeForm" class="holdform">
+    <div class="two">
+      <div class="kv"><label for="tAmount">Amount ($)</label><input id="tAmount" type="number" inputmode="decimal" min="0" step="any"></div>
+      <div class="kv"><label for="tShares">Shares</label><input id="tShares" type="number" inputmode="decimal" min="0" step="any"></div>
+    </div>
+    <div class="chips" id="tradeQuick"></div>
+    <p id="tradeAfter" class="note"></p>
+    <div class="row"><button type="submit" id="tradeGo">Buy</button><button type="button" id="tradeClose" class="ghost">Cancel</button></div>
+  </form>
+  <p class="note">Pretend money. Nothing is bought or sold for real.</p>
+</section>
+
 <div id="holdBg" class="sheet-bg" hidden></div>
 <section id="hold" class="sheet" hidden aria-label="My shares">
   <div class="grab"></div>
@@ -448,7 +506,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "3.2";
+  const APP_VERSION = "3.3";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -596,7 +654,8 @@
     // feed for the current tab
     const shown = all.filter((m) => m.project === current);
     $("tabTitle").textContent = label(current);
-    $("boardBtn").hidden = current !== "Stocks";
+    $("boardBtn").hidden = $("demoBtn").hidden = current !== "Stocks";
+    document.querySelector("header").classList.toggle("three", current === "Stocks");
     $("igBtn").hidden = current !== "Instagram";
     const head = $("tabTitle");                              // a long name gets smaller letters instead of being cut
     head.style.fontSize = "";
@@ -1478,6 +1537,166 @@
   }
   $("igBtn").onclick = () => { $("igError").hidden = true; renderIg(); openScreen("ig"); askPc(); };
 
+  // ---- demo account: practice trading with pretend money ---------------------
+  // Real prices (the latest the checker has), pretend dollars. Everything is kept on this
+  // phone only (cn.demo). Nothing is bought, sold or sent anywhere.
+  let demo = null, tradeT = null, tradeSide = "buy", resetArmed = false;
+  try { demo = JSON.parse(ls.get("cn.demo", "null")); } catch { demo = null; }
+  if (demo && !(demo.start > 0 && demo.cash >= 0 && demo.pos && typeof demo.pos === "object" && Array.isArray(demo.trades))) demo = null;
+  const saveDemo = () => ls.set("cn.demo", JSON.stringify(demo));
+  const cents = (v) => Math.round(v * 100) / 100;
+  const floor4 = (v) => Math.floor(v * 10000 + 1e-6) / 10000;
+  const signed = (v) => (v >= 0 ? "+" : "−") + money(Math.abs(v));
+  const fmtWhen = (ms) => { const d = new Date(ms); return d.toLocaleDateString([], { day: "numeric", month: "short" }) + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }); };
+  const priceTime = (data) => { const at = new Date(data.updated); return at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + (at.toDateString() === new Date().toDateString() ? "" : " " + at.toLocaleDateString([], { day: "numeric", month: "short" })); };
+  function marketOpen() {                                  // New York, Mon to Fri 09:30 to 16:00 (holidays are not known here)
+    try {
+      const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date()).map((x) => [x.type, x.value]));
+      const mins = Number(p.hour) * 60 + Number(p.minute);
+      return !["Sat", "Sun"].includes(p.weekday) && mins >= 9 * 60 + 30 && mins < 16 * 60;
+    } catch { return true; }
+  }
+  function demoPrice(t) {                                  // the latest price; a stock taken off the list keeps its last known one
+    const s = stockOf(t), p = demo && demo.pos[t];
+    if (s) { if (p) { p.last = s.price; p.name = s.name; } return { price: s.price, live: true, name: s.name }; }
+    return { price: p ? p.last : null, live: false, name: (p && p.name) || t };
+  }
+  function demoTotals() {
+    let inStocks = 0;
+    for (const t of Object.keys(demo.pos)) inStocks += demo.pos[t].shares * (demoPrice(t).price || 0);
+    const value = demo.cash + inStocks, gain = value - demo.start;
+    return { inStocks, value, gain, pct: gain / demo.start * 100 };
+  }
+  function startDemo(amount) {
+    amount = cents(Number(amount));
+    if (!(amount >= 100 && amount <= 10000000)) { toast("Choose an amount between $100 and $10,000,000"); return; }
+    demo = { start: amount, cash: amount, startedAt: Date.now(), pos: {}, trades: [] };
+    saveDemo(); renderDemo(); toast("Demo account opened with " + money(amount));
+  }
+  function renderDemo() {
+    const data = stocks, have = !!(data && data.stocks);
+    $("demoUpdated").textContent = have ? "prices " + priceTime(data) : "";
+    resetArmed = false; $("demoReset").textContent = "Start over"; $("demoReset").hidden = !demo;
+    if (!demo) {
+      $("demoSum").innerHTML = `<div class="lbl">Practice with pretend money</div>
+        <div class="d">Buy and sell the stocks on your list at their real prices and see how you would have done. No real money is involved.</div>
+        <div class="ighead" style="margin-left:0">How much pretend money to start with?</div>
+        <div class="chips">${[1000, 10000, 100000].map((a) => `<button type="button" class="chip" data-start="${a}">$${a.toLocaleString()}</button>`).join("")}</div>
+        <form id="demoOther" class="demoform"><input id="demoAmount" type="number" inputmode="decimal" min="100" step="any" placeholder="Another amount ($)" aria-label="Another starting amount in dollars"><button type="submit">Start</button></form>`;
+      $("demoSum").querySelectorAll("[data-start]").forEach((b) => b.onclick = () => startDemo(b.dataset.start));
+      $("demoOther").addEventListener("submit", (e) => { e.preventDefault(); startDemo($("demoAmount").value); });
+      $("demoPos").innerHTML = ""; $("demoBuy").innerHTML = ""; $("demoHist").innerHTML = ""; $("demoBuyHead").hidden = true;
+      return;
+    }
+    const tot = demoTotals();
+    $("demoSum").innerHTML = `<div class="num">${money(tot.value)}</div>
+      <div class="lbl ${tot.gain >= 0 ? "up" : "down"}">${signed(tot.gain)} (${pct(tot.pct)}) since you started</div>
+      <div class="d">Cash ${money(demo.cash)} · In stocks ${money(tot.inStocks)}</div>
+      <div class="d">Started ${new Date(demo.startedAt).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" })} with ${money(demo.start)}</div>`;
+    const worthOf = (t) => demo.pos[t].shares * (demoPrice(t).price || 0);
+    const held = Object.keys(demo.pos).sort((a, b) => worthOf(b) - worthOf(a));
+    $("demoPos").innerHTML = held.length ? `<div class="ighead">Your demo stocks</div>` + held.map((t) => {
+      const p = demo.pos[t], q = demoPrice(t), worth = worthOf(t), gain = worth - p.cost;
+      return `<button type="button" class="drow" data-trade="${esc(t)}" data-side="sell"><div><div class="nm">${esc(q.name)} <span class="tk">${esc(t)}</span></div>
+        <div class="sub">${fmtShares(p.shares)} shares · bought for ${money(p.cost)}${q.live ? "" : " · off your list, last known price"}</div></div>
+        <div class="px"><b>${money(worth)}</b><span class="${gain >= 0 ? "up" : "down"}">${signed(gain)} (${pct1(p.cost > 0 ? gain / p.cost * 100 : 0)})</span></div></button>`; }).join("") : "";
+    const list = have ? listTickers(data).map((t) => data.stocks.find((s) => s.ticker === t)).filter(Boolean) : [];
+    $("demoBuyHead").hidden = false;
+    $("demoBuy").innerHTML = list.length ? list.map((s) => `<button type="button" class="drow" data-trade="${esc(s.ticker)}" data-side="buy"><div><div class="nm">${esc(s.name)} <span class="tk">${esc(s.ticker)}</span></div>
+        <div class="sub">${demo.pos[s.ticker] ? "You have " + fmtShares(demo.pos[s.ticker].shares) + " shares" : "Tap to buy"}</div></div>
+        <div class="px"><b>${money(s.price)}</b><span class="${s.day_pct >= 0 ? "up" : "down"}">${pct(s.day_pct)}</span></div></button>`).join("")
+      : `<div class="empty"><strong>${have ? "No stocks on your list yet" : "No prices right now"}</strong>${have ? "Add stocks in Charts, then come back here to practise with them." : "Check your connection and open the demo again."}</div>`;
+    $("demoHist").innerHTML = demo.trades.length ? `<div class="ighead">What you did (${demo.trades.length})</div>` + demo.trades.slice(-40).reverse().map((x) => `
+      <div class="drow"><div><div class="nm">${x.side === "buy" ? "Bought" : "Sold"} ${fmtShares(x.shares)} ${esc(x.t)}</div><div class="sub">at ${money(x.price)} · ${fmtWhen(x.time)}</div></div>
+        <div class="px"><b>${money(x.total)}</b>${x.side === "sell" ? `<span class="${x.gain >= 0 ? "up" : "down"}">${signed(x.gain)}</span>` : ""}</div></div>`).join("") : "";
+    $("demo").querySelectorAll("[data-trade]").forEach((b) => b.onclick = () => openTrade(b.dataset.trade, b.dataset.side));
+    saveDemo();
+  }
+  async function openDemo() {
+    openScreen("demo"); renderDemo();
+    const before = stocks && stocks.updated;
+    await loadStocks(true);
+    if (!$("demo").hidden && (stocks && stocks.updated) !== before) renderDemo();
+  }
+  $("demoBtn").onclick = openDemo;
+  $("demoReset").onclick = () => {
+    if (!resetArmed) { resetArmed = true; $("demoReset").textContent = "Tap again to erase the demo account"; return; }
+    demo = null; ls.set("cn.demo", "null"); renderDemo(); toast("Demo account erased");
+  };
+
+  function openTrade(t, side) {
+    if (!demo) return;
+    if (!demoPrice(t).live) { toast("No current price. Add " + t + " back to your list in Charts to sell it."); return; }
+    tradeT = t; tradeSide = side || "buy";
+    $("tAmount").value = ""; $("tShares").value = "";
+    renderTrade();
+    freshStart($("trade"));
+    $("trade").hidden = false; $("tradeBg").hidden = false; $("trade").scrollTop = 0;
+  }
+  function closeTrade() { $("tAmount").blur(); $("tShares").blur(); $("trade").hidden = true; $("tradeBg").hidden = true; }
+  function renderTrade() {
+    const s = stockOf(tradeT);
+    if (!s) return;
+    const p = demo.pos[tradeT], own = p ? p.shares : 0;
+    if (tradeSide === "sell" && !(own > 0)) tradeSide = "buy";
+    $("tradeTitle").textContent = `${s.name} (${s.ticker})`;
+    $("tradeInfo").innerHTML = `<b>${money(s.price)}</b> per share · price from ${esc(priceTime(stocks))}`
+      + (marketOpen() ? "" : `<br>The market is closed now, so this is its last price.`)
+      + `<br>You have ${money(demo.cash)} in cash` + (own > 0 ? ` and ${fmtShares(own)} shares, worth ${money(own * s.price)}` : "") + ".";
+    $("tradeSide").querySelectorAll("button").forEach((b) => { b.classList.toggle("on", b.dataset.side === tradeSide); b.disabled = b.dataset.side === "sell" && !(own > 0); });
+    $("tradeQuick").innerHTML = [25, 50, 100].map((n) => `<button type="button" class="chip" data-part="${n}">${n === 100 ? (tradeSide === "buy" ? "All my cash" : "All my shares") : n + "%"}</button>`).join("");
+    $("tradeQuick").querySelectorAll("button").forEach((b) => b.onclick = () => fillPart(Number(b.dataset.part)));
+    $("tradeGo").textContent = tradeSide === "buy" ? "Buy" : "Sell";
+    renderAfter();
+  }
+  function fillPart(n) {
+    const s = stockOf(tradeT), p = demo.pos[tradeT], own = p ? p.shares : 0;
+    if (!s) return;
+    const shares = tradeSide === "buy" ? floor4(demo.cash * n / 100 / s.price) : (n === 100 ? own : floor4(own * n / 100));
+    $("tShares").value = shares > 0 ? shares : ""; $("tAmount").value = shares > 0 ? cents(shares * s.price).toFixed(2) : "";
+    renderAfter();
+  }
+  function readTrade() {
+    const s = stockOf(tradeT), p = demo.pos[tradeT], own = p ? p.shares : 0;
+    let shares = parseFloat($("tShares").value);
+    if (!s || !(shares > 0)) return { empty: !$("tShares").value && !$("tAmount").value, error: "Enter an amount or a number of shares" };
+    if (tradeSide === "sell" && Math.abs(shares - own) < 1e-6) shares = own;
+    const total = cents(shares * s.price);
+    if (total < 0.01) return { error: "That is less than one cent" };
+    if (tradeSide === "buy" && total > demo.cash + 0.005) return { error: `You only have ${money(demo.cash)} in cash` };
+    if (tradeSide === "sell" && shares > own) return { error: `You only have ${fmtShares(own)} shares` };
+    return { s, shares, total, part: tradeSide === "sell" ? cents(p.cost * shares / own) : 0 };
+  }
+  function renderAfter() {
+    const r = readTrade(), el = $("tradeAfter");
+    el.classList.toggle("bad", !!r.error && !r.empty);
+    el.textContent = r.error ? (r.empty ? "" : r.error)
+      : tradeSide === "buy" ? `Cash left after buying: ${money(Math.max(0, demo.cash - r.total))}`
+      : `Cash after selling: ${money(demo.cash + r.total)} · ${r.total - r.part >= 0 ? "gain" : "loss"} on these shares: ${signed(r.total - r.part)}`;
+  }
+  $("tAmount").addEventListener("input", () => { const s = stockOf(tradeT), a = parseFloat($("tAmount").value); $("tShares").value = s && a > 0 ? floor4(a / s.price) : ""; renderAfter(); });
+  $("tShares").addEventListener("input", () => { const s = stockOf(tradeT), n = parseFloat($("tShares").value); $("tAmount").value = s && n > 0 ? cents(n * s.price).toFixed(2) : ""; renderAfter(); });
+  $("tradeSide").querySelectorAll("button").forEach((b) => b.onclick = () => { tradeSide = b.dataset.side; $("tAmount").value = ""; $("tShares").value = ""; renderTrade(); });
+  $("tradeForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const r = readTrade();
+    if (r.error) { toast(r.error); return; }
+    const t = tradeT, p = demo.pos[t] || (demo.pos[t] = { shares: 0, cost: 0, name: r.s.name, last: r.s.price });
+    let gain = null;
+    if (tradeSide === "buy") {
+      p.shares = Math.round((p.shares + r.shares) * 1e6) / 1e6; p.cost = cents(p.cost + r.total); demo.cash = Math.max(0, cents(demo.cash - r.total));
+    } else {
+      gain = cents(r.total - r.part);
+      p.shares = Math.round((p.shares - r.shares) * 1e6) / 1e6; p.cost = Math.max(0, cents(p.cost - r.part)); demo.cash = cents(demo.cash + r.total);
+      if (p.shares < 1e-6) delete demo.pos[t];
+    }
+    demo.trades.push({ t, side: tradeSide, shares: r.shares, price: r.s.price, total: r.total, gain, time: Date.now() });
+    if (demo.trades.length > 500) demo.trades = demo.trades.slice(-500);
+    saveDemo(); renderDemo();
+    toast(`${tradeSide === "buy" ? "Bought" : "Sold"} ${fmtShares(r.shares)} ${t} for ${money(r.total)}`);
+    tradeSwipe.out();
+  });
+
   // ---- settings sheet -----------------------------------------------------
   function openSheet(open) { if (open) freshStart($("sheet")); $("sheet").hidden = !open; $("sheetBg").hidden = !open; }
   $("settingsBtn").onclick = () => openSheet(true);
@@ -1619,6 +1838,8 @@
   $("msgBg").onclick = $("msgClose").onclick = msgSwipe.out;
   $("sheetBg").onclick = settingsSwipe.out;
   $("holdBg").onclick = $("holdClose").onclick = holdSwipe.out;
+  const tradeSwipe = swipeToClose($("trade"), "down", closeTrade, $("tradeBg"));
+  $("tradeBg").onclick = $("tradeClose").onclick = tradeSwipe.out;
   document.querySelectorAll(".screen").forEach((scr) => {
     const sw = swipeToClose(scr, "right", () => closeScreen(scr.id));
     document.querySelectorAll(`[data-close="${scr.id}"]`).forEach((b) => { b.onclick = sw.out; });
