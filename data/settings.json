@@ -5,17 +5,19 @@
   "AMZN",
   "GOOGL",
   "META",
-  "TSLA"
+  "TSLA",
+  "NVDA"
  ],
- "since": "JHYePG503xv1",
- "updated": "2026-11-17T17:04:23+00:00",
+ "since": "9e55XC4mioEW",
+ "updated": "2026-11-17T17:04:29+00:00",
  "tickers": {
   "AAPL": "Apple",
   "MSFT": "Microsoft",
   "AMZN": "Amazon",
   "GOOGL": "Alphabet (Google)",
   "META": "Meta",
-  "TSLA": "Tesla"
+  "TSLA": "Tesla",
+  "NVDA": "NVIDIA"
  },
  "known": [
   "NVDA",
