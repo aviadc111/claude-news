@@ -309,6 +309,11 @@
   .drow.flat { cursor: default; }
   #dDemo .row { margin-top: 2px; }
 
+  /* v3.5: a ring on the chart where the stock was bought */
+  .marknote { display: flex; flex-wrap: wrap; gap: 3px 14px; font-size: 12px; color: var(--muted); padding: 2px 6px 6px; }
+  .marknote i { display: inline-block; width: 11px; height: 11px; border-radius: 50%; border: 3px solid; box-sizing: border-box; vertical-align: -1px; margin-right: 5px; }
+  .marknote b { color: var(--fg); }
+
   /* v2.0: Instagram follow-back check */
   .chartsbtn.ig { background: #e1306c; color: #fff; box-shadow: 0 4px 14px rgba(225, 48, 108, .3); }
   .igsum { background: var(--surface); border-radius: 16px; padding: 16px; margin: 4px 0 12px; }
@@ -435,6 +440,7 @@
   <div class="chartwrap">
     <canvas id="dChart" data-noswipe></canvas>
     <div class="scrub" id="dScrub"><span>Touch the chart for a date</span><span></span></div>
+    <div class="marknote" id="dMarks" hidden></div>
   </div>
   <div id="dHold" class="holdcard"></div>
   <div id="dDemo" class="holdcard" hidden></div>
@@ -548,7 +554,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "3.4";
+  const APP_VERSION = "3.5";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -1061,6 +1067,14 @@
     ctx.fillText(money(sLo), Math.min(Math.max(X(iLo), 34), w - padR - 34), Y(sLo) + 14);
     [[iHi, "#22c55e"], [iLo, "#ef4444"]].forEach(([i, col]) => { ctx.beginPath(); ctx.arc(X(i), Y(series[i][1]), 3.5, 0, 7); ctx.fillStyle = col; ctx.fill(); });
     ctx.restore();
+    // a ring where the stock was bought (one colour per kind of purchase, the bigger ring behind)
+    (opt.marks || []).forEach((m) => {
+      if (m.i < 0 || m.i >= series.length || !m.colors.length) return;
+      const x = X(m.i), y = Y(series[m.i][1]);
+      if (reveal < 1 && x > padL + (w - padL - padR) * reveal) return;
+      (m.colors.length > 1 ? [7.5, 5] : [6.5]).forEach((r, j) => { ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = m.colors[j]; ctx.fill(); });
+      ctx.beginPath(); ctx.arc(x, y, 2.7, 0, 7); ctx.fillStyle = css.getPropertyValue("--surface").trim(); ctx.fill();
+    });
     // scrub line
     if (scrubIndex != null) {
       const x = X(scrubIndex), y = Y(series[scrubIndex][1]);
@@ -1315,7 +1329,7 @@
   function closeHold() {
     $("hold").hidden = true; $("holdBg").hidden = true;
     if (stocks && !$("board").hidden) renderBoard(stocks);
-    if (!$("detail").hidden && dStock) renderDetailExtras(dStock);
+    if (!$("detail").hidden && dStock) { renderDetailExtras(dStock); drawDetail(); }
   }
   function renderHold() {
     const s = stockOf(holdTicker), h = holdingOf(holdTicker, s ? s.price : null);
@@ -1397,6 +1411,56 @@
     requestAnimationFrame(animateChart);
   }
   let dGeom = null, dSeries = [], dReveal = 1, chartAnim = 0;
+  // Which of a chart's points a purchase belongs to, or -1 when it was before the chart begins.
+  // `when` is { day: "YYYY-MM-DD" } (My shares keeps the date only) or { time: milliseconds }.
+  // A purchase on a day without trading sits on the next trading day's point.
+  function markIndex(pts, intra, when) {
+    const n = pts.length;
+    if (n < 2) return -1;
+    if (intra && when.time != null) {
+      const m = when.time / 60000;
+      if (m < pts[0][0]) return -1;
+      let k = 0; while (k + 1 < n && pts[k + 1][0] <= m) k++;
+      return k;
+    }
+    const day = when.day != null ? when.day : nyDay(when.time / 60000);
+    if (!day) return -1;
+    if (intra) {
+      if (day < nyDay(pts[0][0])) return -1;
+      const k = pts.findIndex((p) => nyDay(p[0]) >= day);
+      return k < 0 ? n - 1 : k;
+    }
+    const d = Math.floor(Date.parse(day + "T00:00:00Z") / 86400000);
+    if (!(d >= pts[0][0])) return -1;
+    const k = pts.findIndex((p) => p[0] >= d);
+    return k < 0 ? n - 1 : k;
+  }
+  const DEMO_COLOR = "#6366f1";
+  // The purchases of one stock that fall inside a chart: point index -> what was bought there.
+  function detailMarks(s, pts, intra) {
+    const at = new Map();
+    const put = (i, kind, text) => { if (i < 0) return; if (!at.has(i)) at.set(i, { real: [], demo: [] }); at.get(i)[kind].push(text); };
+    (holdings[s.ticker] || []).forEach((l) => put(markIndex(pts, intra, { day: l.date }), "real", `${fmtShares(l.shares)} at ${money(l.price)}`));
+    if (demo) demo.trades.forEach((x) => { if (x.t === s.ticker && x.side === "buy") put(markIndex(pts, intra, { time: x.time }), "demo", `${fmtShares(x.shares)} at ${money(x.price)}`); });
+    return at;
+  }
+  function renderMarkNote(marks, scrub) {
+    const note = $("dMarks");
+    note.hidden = !marks.size;
+    if (!marks.size) return;
+    let near = null;
+    if (scrub != null && dGeom) {                             // the ring nearest to the finger, if it is close
+      let best = 12;
+      for (const [i, m] of marks) { const dx = Math.abs(dGeom.X(i) - dGeom.X(scrub)); if (dx < best) { best = dx; near = m; } }
+    }
+    const all = [...marks.values()], real = all.some((m) => m.real.length), dm = all.some((m) => m.demo.length);
+    const ring = (col) => `<i style="border-color:${col}"></i>`;
+    note.innerHTML = near
+      ? (near.real.length ? `<span>${ring("var(--accent)")}<b>You bought ${esc(near.real.join(", "))}</b></span>` : "")
+        + (near.demo.length ? `<span>${ring(DEMO_COLOR)}<b>Demo: bought ${esc(near.demo.join(", "))}</b></span>` : "")
+      : (real ? `<span>${ring("var(--accent)")}you bought (My shares)</span>` : "") + (dm ? `<span>${ring(DEMO_COLOR)}bought in the demo</span>` : "")
+        + `<span>Touch a ring for the details</span>`;
+  }
   const calmMotion = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   // A chart that just opened, or changed its period, draws its line in from left to right.
   function animateChart() {
@@ -1416,11 +1480,13 @@
     if (!dStock) return;
     const intra = typeof dPeriod === "string", today = dPeriod === "today";
     dSeries = intra ? (dStock[dPeriod] || []) : sliceSeries(dStock.series, dPeriod);
-    if (dSeries.length < 2) { dGeom = null; return; }
+    if (dSeries.length < 2) { dGeom = null; $("dMarks").hidden = true; return; }
+    const marks = detailMarks(dStock, dSeries, intra), accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+    const markList = [...marks].map(([i, m]) => ({ i, colors: [m.real.length ? accent : "", m.demo.length ? DEMO_COLOR : ""].filter(Boolean) }));
     const first = dSeries[0], last = dSeries[dSeries.length - 1];
     // Today is measured from the previous day's close, like the "today" figure at the top
     const base = today ? ((nyDay(last[0]) === dStock.as_of ? dStock.prev : dStock.price) || first[1]) : first[1];
-    dGeom = drawChart($("dChart"), dSeries, scrub, Object.assign({ reveal: dReveal }, !intra ? {} : today
+    dGeom = drawChart($("dChart"), dSeries, scrub, Object.assign({ reveal: dReveal, marks: markList }, !intra ? {} : today
       ? { base, axis: (p) => fmtClock(p[0]) }
       : { axis: (p) => minToDate(p[0]).toLocaleDateString([], { weekday: "short", day: "numeric" }) }));
     const sc = $("dScrub");
@@ -1432,6 +1498,7 @@
       const when = intra ? `${fmtDayShort(p[0])}, ${fmtClock(p[0])}` : dayToDate(p[0]).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short", year: "numeric" });
       sc.innerHTML = `<span><b>${when}</b></span><span><b>${money(p[1])}</b> · ${pct((p[1] / base - 1) * 100)}</span>`;
     }
+    renderMarkNote(marks, scrub);
   }
   function scrubAt(clientX) {
     if (!dGeom) return;
@@ -1747,10 +1814,16 @@
     dmMore = pick.more;
     dmLines = pick.list.map((s) => {
       const pts = intra ? (s[dmPeriod] || []) : sliceSeries(s.series, dmPeriod);
-      if (pts.length < 2) return { s, slot: colors[s.ticker], pts: [], vals: [] };
+      if (pts.length < 2) return { s, slot: colors[s.ticker], pts: [], vals: [], marks: [] };
       const last = pts[pts.length - 1];
       const base = today ? ((nyDay(last[0]) === s.as_of ? s.prev : s.price) || pts[0][1]) : pts[0][1];
-      return { s, slot: colors[s.ticker], pts, vals: pts.map((p) => (p[1] / base - 1) * 100) };
+      const at = new Map();                                    // where on this line the stock was bought in the demo
+      demo.trades.forEach((x) => {
+        if (x.t !== s.ticker || x.side !== "buy") return;
+        const k = markIndex(pts, intra, { time: x.time });
+        if (k >= 0) at.set(k, (at.get(k) || []).concat(`${fmtShares(x.shares)} at ${money(x.price)}`));
+      });
+      return { s, slot: colors[s.ticker], pts, vals: pts.map((p) => (p[1] / base - 1) * 100), marks: [...at].map(([k, texts]) => ({ k, texts })) };
     });
   }
   const niceStep = (raw) => { const pow = Math.pow(10, Math.floor(Math.log10(raw))), n = raw / pow; return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * pow; };
@@ -1801,6 +1874,11 @@
       const col = css.getPropertyValue("--s" + (l.slot + 1)).trim();
       ctx.beginPath(); l.vals.forEach((v, k) => k ? ctx.lineTo(X(frac(l, k)), Y(v)) : ctx.moveTo(X(frac(l, k)), Y(v)));
       ctx.strokeStyle = col; ctx.stroke();
+      l.marks.forEach((m) => {                               // a ring where it was bought
+        const x = X(frac(l, m.k)), y = Y(l.vals[m.k]);
+        ctx.beginPath(); ctx.arc(x, y, 6.5, 0, 7); ctx.fillStyle = col; ctx.fill();
+        ctx.beginPath(); ctx.arc(x, y, 2.7, 0, 7); ctx.fillStyle = surface; ctx.fill();
+      });
       if (scrub == null) {                                   // a dot where each line ends, ringed so crossing lines stay apart
         const k = l.vals.length - 1, x = X(frac(l, k)), y = Y(l.vals[k]);
         ctx.beginPath(); ctx.arc(x, y, 5, 0, 7); ctx.fillStyle = surface; ctx.fill();
@@ -1828,6 +1906,7 @@
       const v = l.pts.length > 1 ? l.vals[scrub != null && g ? pointAt(l, scrub, g) : l.vals.length - 1] : null;
       return `<button type="button" class="leg" data-chart="${esc(l.s.ticker)}" aria-label="Open the chart of ${esc(l.s.name)}"><i style="background:var(--s${l.slot + 1})"></i>
         <span class="n">${esc(l.s.name)}${p ? ` <span>(${legShares(p.shares)})</span>` : ""}</span><b class="${v == null ? "" : v >= 0 ? "up" : "down"}">${v == null ? "no data" : pct(v)}</b></button>`; }).join("")
+      + (dmLines.some((l) => l.marks.length) ? `<div class="legnote">A ring on a line is where you bought that stock. Touch it for the details.</div>` : "")
       + (dmMore ? `<div class="legnote">The chart shows your ${SERIES_SLOTS} largest. ${dmMore} more ${dmMore === 1 ? "is" : "are"} in the list below.</div>` : "");
     $("demoLegend").querySelectorAll("[data-chart]").forEach((b) => b.onclick = () => openChartOf(b.dataset.chart));
     const sc = $("demoScrub");
@@ -1839,7 +1918,9 @@
     } else {
       const p = g.ref.pts[pointAt(g.ref, scrub, g)];
       const when = intra ? `${fmtDayShort(p[0])}, ${fmtClock(p[0])}` : dayToDate(p[0]).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short", year: "numeric" });
-      sc.innerHTML = `<span><b>${when}</b></span><span>change up to here</span>`;
+      let near = null, best = 0.04;                           // the ring nearest to the finger, if it is close
+      dmLines.forEach((l) => l.marks.forEach((m) => { const dx = Math.abs(g.frac(l, m.k) - scrub); if (dx < best) { best = dx; near = { l, m }; } }));
+      sc.innerHTML = `<span><b>${when}</b></span>` + (near ? `<span><b>Bought ${esc(near.m.texts.join(", "))}</b> · ${esc(near.l.s.name)}</span>` : `<span>change up to here</span>`);
     }
   }
   function renderDemoChart() {
@@ -1988,7 +2069,7 @@
     demo.trades.push({ t, side: tradeSide, shares: r.shares, price: r.s.price, total: r.total, gain, time: Date.now() });
     if (demo.trades.length > 500) demo.trades = demo.trades.slice(-500);
     saveDemo(); renderDemo();
-    if (!$("detail").hidden && dStock) renderDetailExtras(dStock);
+    if (!$("detail").hidden && dStock) { renderDetailExtras(dStock); drawDetail(); }
     toast(`${tradeSide === "buy" ? "Bought" : "Sold"} ${fmtShares(r.shares)} ${t} for ${money(r.total)}`);
     tradeSwipe.out();
   });
