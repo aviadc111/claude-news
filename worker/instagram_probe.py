@@ -4,9 +4,10 @@ One small test: can the spare Instagram account be used from this server?
 Background: the follow-back check normally runs on the owner's PC. This tries the idea of a
 spare account that follows the owner's account, so the check could run here while the PC is off.
 
-What it does: opens Instagram once in an ordinary, visible browser with the spare account's
-saved login, asks for the watched account's profile, and (only if that works) asks for the
-first page of its followers list. Then it tells the phone what happened. Nothing else.
+What it does: opens the watched account's profile page once, in an ordinary, visible browser
+with the spare account's saved login, asks whether the spare account follows it, and (only
+if it does) asks for the first page of its followers list. Then it tells the phone what
+happened. Nothing else.
 
 Rules it keeps:
   * no disguise of any kind: a normal browser, slow, a handful of requests;
@@ -24,6 +25,7 @@ Environment:
 
 import json
 import os
+import re
 import sys
 import time
 
@@ -71,37 +73,50 @@ def probe(state, target, channel=None):
         try:
             ctx = browser.new_context(storage_state=state, locale="en-US", viewport={"width": 1100, "height": 900})
             page = ctx.new_page()
-            page.goto(IG, wait_until="domcontentloaded", timeout=60000)
-            page.wait_for_timeout(4000)
-            cookies = {c["name"] for c in ctx.cookies(IG)}
+            # 1) the watched account's profile page, opened the way a person would
+            page.goto(IG + target + "/", wait_until="domcontentloaded", timeout=60000)
+            page.wait_for_timeout(5000)
+            cookies = {c["name"]: c["value"] for c in ctx.cookies(IG)}
             why = refused(page)
-            if not why and not {"sessionid", "ds_user_id"} <= cookies:
+            if not why and not (cookies.get("sessionid") and cookies.get("ds_user_id")):
                 why = "the spare account's login was not kept"
             if why:
                 out["why"] = why
                 return out
-            print("home page: logged in", flush=True)
+            print("profile page: opened, logged in", flush=True)
 
             out["step"] = "profile"
-            time.sleep(PAUSE)
-            res = page.evaluate(ASK, {"path": "/api/v1/users/web_profile_info/?username=" + target, "appId": APP_ID})
-            why = refused(page, res)
-            user = ((res.get("json") or {}).get("data") or {}).get("user") if not why else None
-            if why or not user:
-                out["why"] = why or f"the profile could not be read (answer {res['status']})"
+            html = page.content()
+            ids = [i for i in re.findall(r'"profile_id":"(\d+)"', html) + re.findall(r"profilePage_(\d+)", html)
+                   if i != cookies.get("ds_user_id")]
+            if not ids:
+                out["why"] = "the account's page did not show which account it is (the page may have changed)"
                 return out
-            out["private"] = bool(user.get("is_private"))
-            out["follows"] = bool(user.get("followed_by_viewer"))
-            out["followers"] = (user.get("edge_followed_by") or {}).get("count")
-            out["following"] = (user.get("edge_follow") or {}).get("count")
+            uid = max(set(ids), key=ids.count)
+            desc = page.evaluate("""() => { const m = document.querySelector('meta[property="og:description"], meta[name="description"]'); return m ? m.content : ""; }""")
+            m = re.search(r"([\d.,]+\s?[KkMm]?)\s+Followers?,\s*([\d.,]+\s?[KkMm]?)\s+Following", desc or "")
+            if m:
+                out["followers"], out["following"] = m.group(1), m.group(2)
+
+            # 2) does the spare account follow it?
+            time.sleep(PAUSE)
+            res = page.evaluate(ASK, {"path": f"/api/v1/friendships/show/{uid}/", "appId": APP_ID})
+            why = refused(page, res)
+            fr = res.get("json") if not why else None
+            if why or res["status"] != 200 or not isinstance(fr, dict):
+                out["why"] = why or f"the follow state could not be read (answer {res['status']})"
+                return out
+            out["private"], out["follows"] = bool(fr.get("is_private")), bool(fr.get("following"))
             print(f"profile: readable, private: {out['private']}, the spare account follows it: {out['follows']}", flush=True)
             if out["private"] and not out["follows"]:
-                out["why"] = "the spare account does not follow the account yet (or the request is not accepted yet)"
+                out["why"] = ("the follow request is still waiting to be accepted" if fr.get("outgoing_request")
+                              else "the spare account does not follow the account yet")
                 return out
 
+            # 3) the first page of the followers list
             out["step"] = "list"
             time.sleep(PAUSE)
-            res = page.evaluate(ASK, {"path": f"/api/v1/friendships/{user['id']}/followers/?count=12", "appId": APP_ID})
+            res = page.evaluate(ASK, {"path": f"/api/v1/friendships/{uid}/followers/?count=12", "appId": APP_ID})
             why = refused(page, res)
             users = (res.get("json") or {}).get("users") if not why else None
             if why or res["status"] != 200 or users is None:
@@ -123,7 +138,7 @@ def message(out):
                 f"Your profile shows {out['followers']} followers and {out['following']} following; "
                 f"the first page of the followers list came back with {out['list_page']} names.\n\n"
                 "Next: the weekly check can be built to run on the server.")
-    where = {"open": "when opening Instagram", "profile": "when looking at your profile",
+    where = {"open": "when opening your profile", "profile": "when looking at your profile",
              "list": "when reading the followers list"}.get(out["step"], "")
     return ("Server test: not yet",
             f"The test stopped {where}: {out['why']}.\n\n"
