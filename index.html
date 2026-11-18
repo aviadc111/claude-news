@@ -321,7 +321,7 @@
   .scrub { flex-wrap: wrap; }
 
   /* v3.7: the demo's two accounts, "My demo" and "Claude's" */
-  .acctabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 2px 0 10px; }
+  .acctabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 2px 0 10px; }
   .acctabs button { display: grid; gap: 1px; justify-items: start; text-align: left; padding: 9px 9px; border-radius: 14px; background: var(--surface); color: var(--fg); font-weight: 400; border: 2px solid transparent; min-width: 0; }
   .acctabs button.on { border-color: #6366f1; }
   .acctabs .t { font-size: 10.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; white-space: nowrap; }
@@ -422,7 +422,8 @@
   <div class="acctabs" id="demoTabs" role="group" aria-label="Which demo account" hidden>
     <button type="button" data-view="mine"><span class="t">My demo</span><b id="tabMineVal"></b><span class="g" id="tabMineGain"></span></button>
     <button type="button" data-view="claude"><span class="t">Claude: copy</span><b id="tabClaudeVal"></b><span class="g" id="tabClaudeGain"></span></button>
-    <button type="button" data-view="charts"><span class="t">Claude: charts</span><b id="tabChartsVal"></b><span class="g" id="tabChartsGain"></span></button>
+    <button type="button" data-view="charts"><span class="t">Claude: box, strict</span><b id="tabChartsVal"></b><span class="g" id="tabChartsGain"></span></button>
+    <button type="button" data-view="charts2"><span class="t">Claude: box, loose</span><b id="tabCharts2Val"></b><span class="g" id="tabCharts2Gain"></span></button>
   </div>
   <div id="demoCard" class="igsum">
     <div id="demoSum"></div>
@@ -579,7 +580,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "4.0";
+  const APP_VERSION = "4.1";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -1428,7 +1429,7 @@
     };
   }
   function openDetail(s, rules, from) {
-    dStock = s; dPeriod = rules.longterm_years; dFrom = ["demo", "claude", "charts"].includes(from) ? from : "board";
+    dStock = s; dPeriod = rules.longterm_years; dFrom = ["demo", "claude", "charts", "charts2"].includes(from) ? from : "board";
     $("dName").textContent = s.name; $("dTicker").textContent = s.ticker + " · as of " + s.as_of;
     $("dPrice").textContent = money(s.price);
     $("dChange").textContent = pct(s.day_pct) + " today"; $("dChange").className = "chg " + (s.day_pct >= 0 ? "up" : "down");
@@ -1569,7 +1570,7 @@
     const put = (i, kind, text) => { if (i < 0) return; if (!at.has(i)) at.set(i, { real: [], demo: [] }); at.get(i)[kind].push(text); };
     // opened from Charts: the purchases in My shares. Opened from the Demo: the demo's purchases. Never both.
     if (dFrom !== "demo") (holdings[s.ticker] || []).forEach((l) => put(markIndex(pts, intra, { day: l.date }), "real", `${fmtShares(l.shares)} at ${money(l.price)}`));
-    const acct = dFrom === "board" || !demo ? null : dFrom === "claude" ? demo.claude : dFrom === "charts" ? demo.charts : demo;
+    const acct = dFrom === "board" || !demo ? null : dFrom === "demo" ? demo : demo[dFrom];
     if (acct) acct.trades.forEach((x) => { if (x.t === s.ticker && x.side === "buy") put(markIndex(pts, intra, { time: x.time }), "demo", `${fmtShares(x.shares)} at ${money(x.price)}`); });
     return at;
   }
@@ -1845,7 +1846,7 @@
   let demoView = "mine", claudeData = null, claudeAt = 0;
   const claudeStock = (t) => (claudeData && claudeData.stocks.find((x) => x.ticker === t)) || undefined;
   const claudeOn = () => demoView === "claude" && !!(demo && demo.claude);
-  const acctOf = (v) => (!demo ? null : v === "claude" ? demo.claude : v === "charts" ? demo.charts : demo);
+  const acctOf = (v) => (!demo ? null : v === "mine" ? demo : demo[v]);        // "claude", "charts", "charts2" are saved inside the demo
   const cur = () => acctOf(demoView) || demo;
   function demoPrice(t) {                                  // the latest price; a stock taken off the list keeps its last known one
     const s = stockOf(t), p = demo && cur().pos[t];
@@ -1974,7 +1975,12 @@
   // can be sold from tomorrow. Money rules: a fifth of the account per stock, 10% always kept in
   // cash. The volume part of the method is left out (there is no volume data here). Each
   // stock's state is saved with the account, so what was traded never changes afterwards.
-  const BOX = { days: 3, look: 252, size: 0.20, cash: 0.10 };
+  const BOX = { days: 3, size: 0.20, cash: 0.10 };
+  // Two accounts trade these rules. They differ in one thing: how new the high must be before a box may form.
+  const BOX_ACCTS = {
+    charts: { look: 252, high: "52-week", name: "strict" },         // the method's own rule: a new yearly high
+    charts2: { look: 63, high: "3-month", name: "loose" },          // looser: a new 3-month high, so it trades more often
+  };
   const barsOf = (s) => (Array.isArray(s.candles) && s.candles.length === s.series.length)
     ? s.series.map((p, k) => ({ d: p[0], o: s.candles[k][0], h: s.candles[k][1], l: s.candles[k][2], c: p[1] })) : null;
   const boxNew = () => ({ ph: "top", top: null, cnt: 0, lo: null, loCnt: 0, bot: null, bcnt: 0, held: false, stop: null, fired: null });
@@ -1995,14 +2001,14 @@
     return null;
   }
   // The end of a day: a box whose bottom the close fell through is dropped, and the day's candle builds the next box.
-  function boxBuild(st, B, i) {
+  function boxBuild(st, B, i, look) {
     const b = B[i];
     const seek = (high, low) => { st.ph = "top"; st.top = high; st.cnt = 0; st.lo = low; st.loCnt = 0; };
     const boxed = () => { st.ph = "box"; if (st.held && st.bot > st.stop) st.stop = st.bot; };
     if (!st.held && st.ph === "box" && b.c < st.bot) { st.ph = "top"; st.top = null; }
     if (st.ph === "top") {
       if (st.top == null) {
-        if (i >= BOX.look) { let m = 0; for (let k = i - BOX.look; k < i; k++) if (B[k].h > m) m = B[k].h; if (b.h >= m) seek(b.h, b.l); }
+        if (i >= look) { let m = 0; for (let k = i - look; k < i; k++) if (B[k].h > m) m = B[k].h; if (b.h >= m) seek(b.h, b.l); }
       } else if (b.h > st.top) seek(b.h, b.l);
       else {
         st.cnt++;
@@ -2027,14 +2033,16 @@
     } catch {}
     return Date.now();
   }
-  function chartsSync() {                                  // start the account, then act on every day once. True when it changed.
+  function chartsSync() { const strict = boxSync("charts"), loose = boxSync("charts2"); return strict || loose; }
+  function boxSync(key) {                                  // start the account, then act on every day once. True when it changed.
+    const look = BOX_ACCTS[key].look;
     if (!demo || !stocks || !stocks.stocks) return false;
     const list = listTickers(stocks).map(listStock).filter(Boolean).map((s) => ({ s, t: s.ticker, B: barsOf(s) })).filter((x) => x.B && x.B.length > 10);
     if (!list.length) return false;
     const today = dayNumber(nyDay(Date.now() / 60000));
-    let a = demo.charts, changed = false;
+    let a = demo[key], changed = false;
     if (!a) {
-      a = demo.charts = { start: demo.start, cash: demo.start, startedAt: demo.startedAt, pos: {}, trades: [], colors: {}, st: {},
+      a = demo[key] = { start: demo.start, cash: demo.start, startedAt: demo.startedAt, pos: {}, trades: [], colors: {}, st: {},
                           day: dayNumber(nyDay(demo.startedAt / 60000)) - 1 };
       changed = true;
     }
@@ -2044,7 +2052,7 @@
       for (let i = 0; i < x.B.length && x.B[i].d <= a.day; i++) {
         const r = boxTrigger(st, x.B[i]);
         if (r && r.ev === "buy") { st.held = false; st.stop = null; }
-        boxBuild(st, x.B, i);
+        boxBuild(st, x.B, i, look);
       }
       a.st[x.t] = st; changed = true;
     }
@@ -2088,7 +2096,7 @@
       for (const y of at) { const r = boxTrigger(a.st[y.x.t], y.x.B[y.i]); if (r) hits.push({ ev: r.ev, price: r.price, x: y.x, time: d * 86400000 + 17 * 3600000 }); }
       const closeOf = (t) => { const x = list.find((y) => y.t === t); let c = 0; if (x) for (const b of x.B) { if (b.d <= d) c = b.c; else break; } return c || a.pos[t].last || 0; };
       act(hits, closeOf);
-      for (const y of at) boxBuild(a.st[y.x.t], y.x.B, y.i);
+      for (const y of at) boxBuild(a.st[y.x.t], y.x.B, y.i, look);
       a.day = d; changed = true;
     }
     // the day that is still running: only the orders, against its high and low so far
@@ -2114,16 +2122,16 @@
     if (!$("demo").hidden && (charted || (stocks && stocks.updated) !== before || (claudeData && claudeData.updated) !== had)) renderDemo();
   }, 60000);
   // What the chart account is waiting for on each stock, in plain words.
-  function boxStatus(s) {
-    const st = demo && demo.charts && demo.charts.st[s.ticker];
+  function boxStatus(s, key) {
+    const cfg = BOX_ACCTS[key], st = demo && demo[key] && demo[key].st[s.ticker];
     if (!st) return "Not followed yet.";
     if (st.held) return `Holding. It sells the moment the price drops below ${money(st.stop)}` + (st.ph === "box" ? `; the newest box is ${money(st.bot)} to ${money(st.top)}.` : ".");
     if (st.ph === "box") return `In a box from ${money(st.bot)} to ${money(st.top)}. It buys the moment the price goes above ${money(st.top)}.`;
     if (st.ph === "bot") return `Top of a box at ${money(st.top)}. Waiting for a bottom that holds for ${BOX.days} days.`;
     if (st.top != null) return `New high at ${money(st.top)}. It becomes the top of a box if it holds for ${BOX.days} days.`;
     const B = barsOf(s);
-    const high = B ? Math.max(...B.slice(-BOX.look).map((b) => b.h)) : 0;
-    return high ? `Waiting for a new 52-week high (above ${money(high)}).` : "Waiting for a new 52-week high.";
+    const high = B ? Math.max(...B.slice(-cfg.look).map((b) => b.h)) : 0;
+    return high ? `Waiting for a new ${cfg.high} high (above ${money(high)}).` : `Waiting for a new ${cfg.high} high.`;
   }
 
   function renderDemoTabs() {
@@ -2139,6 +2147,7 @@
     show("tabMineVal", "tabMineGain", totalsOf(demo, listStock));
     show("tabClaudeVal", "tabClaudeGain", demo.claude ? totalsOf(demo.claude, claudeStock) : null);
     show("tabChartsVal", "tabChartsGain", demo.charts ? totalsOf(demo.charts, listStock) : null);
+    show("tabCharts2Val", "tabCharts2Gain", demo.charts2 ? totalsOf(demo.charts2, listStock) : null);
   }
   $("demoTabs").querySelectorAll("button").forEach((b) => b.onclick = () => {
     if (demoView === b.dataset.view) return;
@@ -2149,9 +2158,10 @@
     const el = $("claudeNote"), d = claudeData;
     el.hidden = demoView === "mine" || !demo;
     if (el.hidden) return;
-    if (demoView === "charts") {
+    if (BOX_ACCTS[demoView]) {
+      const cfg = BOX_ACCTS[demoView];
       el.innerHTML = `<b>How this account trades.</b> By itself, with the Box rules (Darvas) on the stocks of your list.
-        A stock first has to make a new 52-week high. The high that then holds for ${BOX.days} days is the top of a box; the low that then holds for ${BOX.days} days is its bottom.
+        ${cfg.name === "loose" ? "This is the looser of the two box accounts: a" : "This is the stricter of the two box accounts, the method as it was written: a"} stock first has to make a new <b>${cfg.high} high</b>${cfg.name === "loose" ? ", so it buys more often than the strict account" : ""}. The high that then holds for ${BOX.days} days is the top of a box; the low that then holds for ${BOX.days} days is its bottom.
         Then it watches the price all through market hours, like a standing order: it <b>buys</b> the moment the price goes above the top, at that price, with a fifth of the account (10% always stays in cash),
         and it <b>sells</b> the moment the price drops below the bottom, at that price. Every newer, higher box raises that sell line. A stock bought today can be sold from tomorrow.
         It never buys a falling stock, so it can sit in cash for months. The method's volume rule is left out, because the app has no volume data.
@@ -2202,18 +2212,19 @@
       <div class="d">Started ${new Date(a.startedAt).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" })} with ${money(a.start)}</div>`;
     const worthOf = (t) => a.pos[t].shares * (demoPrice(t).price || 0);
     const held = Object.keys(a.pos).sort((x, y) => worthOf(y) - worthOf(x));
-    $("demoPos").innerHTML = !held.length ? (view === "charts" ? `<div class="ighead">Stocks it holds</div><div class="drow flat"><div class="mid"><div class="sub">Nothing right now: none of your stocks has gone above the top of a box since it started.</div></div></div>` : "")
-      : `<div class="ighead">${view === "claude" ? "Claude's stocks" : view === "charts" ? "Stocks it holds" : "Your demo stocks"}</div>` + held.map((t) => {
+    const isBox = !!BOX_ACCTS[view];
+    $("demoPos").innerHTML = !held.length ? (isBox ? `<div class="ighead">Stocks it holds</div><div class="drow flat"><div class="mid"><div class="sub">Nothing right now: none of your stocks has gone above the top of a box since it started.</div></div></div>` : "")
+      : `<div class="ighead">${view === "claude" ? "Claude's stocks" : isBox ? "Stocks it holds" : "Your demo stocks"}</div>` + held.map((t) => {
       const p = a.pos[t], q = demoPrice(t), worth = worthOf(t), gain = worth - p.cost;
       return `<div class="drow" role="button" tabindex="0" data-row="${esc(t)}" data-side="sell">${q.live ? chartBtn(t, q.name) : ""}<div class="mid"><div class="nm">${esc(q.name)} <span class="tk">${esc(t)}</span></div>
         <div class="sub">${fmtShares(p.shares)} shares · bought for ${money(p.cost)}${claudeView ? ` · ${(worth / tot.value * 100).toFixed(0)}% of the account` : (q.live ? "" : " · off your list, last known price")}</div></div>
         <div class="px"><b>${money(worth)}</b><span class="${upDown(gain)}">${signed(gain)} (${pct1(p.cost > 0 && Math.abs(gain) >= 0.005 ? gain / p.cost * 100 : 0)})</span></div></div>`; }).join("");
-    $("demoBuyHead").textContent = view === "charts" ? "What it is watching" : "Buy a stock";
-    if (view === "charts") {                                 // every stock of your list, and what the rules wait for
+    $("demoBuyHead").textContent = isBox ? "What it is watching" : "Buy a stock";
+    if (isBox) {                                 // every stock of your list, and what the rules wait for
       const mine = have ? listTickers(data).map(listStock).filter(Boolean) : [];
       $("demoBuyHead").hidden = !mine.length;
       $("demoBuy").innerHTML = mine.map((s) => `<div class="drow" role="button" tabindex="0" data-row="${esc(s.ticker)}">${chartBtn(s.ticker, s.name)}<div class="mid"><div class="nm">${esc(s.name)} <span class="tk">${esc(s.ticker)}</span></div>
-          <div class="sub">${esc(boxStatus(s))}</div></div>
+          <div class="sub">${esc(boxStatus(s, view))}</div></div>
           <div class="px"><b>${money(s.price)}</b><span class="${s.day_pct >= 0 ? "up" : "down"}">${pct(s.day_pct)}</span></div></div>`).join("");
     } else if (claudeView) { $("demoBuyHead").hidden = true; $("demoBuy").innerHTML = ""; }
     else {
