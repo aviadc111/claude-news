@@ -579,7 +579,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "3.8";
+  const APP_VERSION = "3.9";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -1950,32 +1950,46 @@
     return true;
   }
   // ---- Claude's chart account: trades your list by the Box rules (Darvas) ---------
-  // Mechanical, on finished days only, from daily candles:
+  // Mechanical, from daily candles:
   //   1. a stock makes a new 52-week high
   //   2. top of the box: a high that is not exceeded for 3 days
   //   3. bottom of the box: the low after it that is not broken for 3 days
-  //   4. buy on a close above the top; the sell line is the bottom of the box
-  //   5. each newer, higher box raises the sell line; sell on a close below it
-  // Money rules: a fifth of the account per stock, 10% always kept in cash. The volume part of
-  // the method is left out (there is no volume data here). Each stock's state is saved with the
-  // account, so a day is handled once and what was traded never changes afterwards.
+  //   4. two standing orders, as Darvas placed them, that react during the day:
+  //        buy the moment the price goes above the top of the box, at that price
+  //        sell the moment the price drops below the sell line (the bottom of the box), at that price
+  //      (when the day opens already beyond the line, the price is the day's open)
+  //   5. each newer, higher box raises the sell line
+  // Boxes are built at the end of each day; the orders are checked against every day's high and
+  // low, also the day that is still running. One trade per stock per day: a stock bought today
+  // can be sold from tomorrow. Money rules: a fifth of the account per stock, 10% always kept in
+  // cash. The volume part of the method is left out (there is no volume data here). Each
+  // stock's state is saved with the account, so what was traded never changes afterwards.
   const BOX = { days: 3, look: 252, size: 0.20, cash: 0.10 };
   const barsOf = (s) => (Array.isArray(s.candles) && s.candles.length === s.series.length)
-    ? s.series.map((p, k) => ({ d: p[0], h: s.candles[k][1], l: s.candles[k][2], c: p[1] })) : null;
-  const boxNew = () => ({ ph: "top", top: null, cnt: 0, lo: null, loCnt: 0, bot: null, bcnt: 0, held: false, stop: null });
-  function boxStep(st, B, i) {                             // one finished day of one stock: "buy", "sell" or null
+    ? s.series.map((p, k) => ({ d: p[0], o: s.candles[k][0], h: s.candles[k][1], l: s.candles[k][2], c: p[1] })) : null;
+  const boxNew = () => ({ ph: "top", top: null, cnt: 0, lo: null, loCnt: 0, bot: null, bcnt: 0, held: false, stop: null, fired: null });
+  // The standing orders against one day's candle, finished or still running. Returns { ev, price } when one is hit.
+  function boxTrigger(st, b) {
+    if (st.fired === b.d) return null;
+    if (st.held) {
+      if (b.l < st.stop) {
+        const price = Math.min(b.o, st.stop);
+        st.held = false; st.stop = null; st.ph = "top"; st.top = null; st.fired = b.d;
+        return { ev: "sell", price };
+      }
+    } else if (st.ph === "box" && b.h > st.top) {
+      const price = Math.max(b.o, st.top);
+      st.held = true; st.stop = st.bot; st.ph = "top"; st.top = null; st.fired = b.d;
+      return { ev: "buy", price };
+    }
+    return null;
+  }
+  // The end of a day: a box whose bottom the close fell through is dropped, and the day's candle builds the next box.
+  function boxBuild(st, B, i) {
     const b = B[i];
-    let ev = null;
     const seek = (high, low) => { st.ph = "top"; st.top = high; st.cnt = 0; st.lo = low; st.loCnt = 0; };
     const boxed = () => { st.ph = "box"; if (st.held && st.bot > st.stop) st.stop = st.bot; };
-    // what was known before today decides today's trade
-    if (st.held) {
-      if (b.c < st.stop) { ev = "sell"; st.held = false; st.stop = null; st.ph = "top"; st.top = null; }
-    } else if (st.ph === "box") {
-      if (b.c > st.top) { ev = "buy"; st.held = true; st.stop = st.bot; st.ph = "top"; st.top = null; }
-      else if (b.c < st.bot) { st.ph = "top"; st.top = null; }            // it fell out of the bottom: the box failed
-    }
-    // then today's candle builds the next box
+    if (!st.held && st.ph === "box" && b.c < st.bot) { st.ph = "top"; st.top = null; }
     if (st.ph === "top") {
       if (st.top == null) {
         if (i >= BOX.look) { let m = 0; for (let k = i - BOX.look; k < i; k++) if (B[k].h > m) m = B[k].h; if (b.h >= m) seek(b.h, b.l); }
@@ -1992,9 +2006,18 @@
     } else if (st.ph === "box" && st.held) {
       if (b.c > st.top) seek(b.h, b.l);                                   // it broke out again: look for the next box
     }
-    return ev;
   }
-  function chartsSync() {                                  // start the account, then handle every finished day once. True when it changed.
+  // When, during the running day, a level was crossed: the first 5-minute candle beyond it.
+  function crossTime(s, ev, level, today) {
+    try {
+      if (Array.isArray(s.today) && Array.isArray(s.today_c) && s.today.length === s.today_c.length && s.today.length && dayNumber(nyDay(s.today[0][0])) === today) {
+        const k = s.today_c.findIndex((c) => (ev === "buy" ? c[1] > level : c[2] < level));
+        if (k >= 0) return s.today[k][0] * 60000;
+      }
+    } catch {}
+    return Date.now();
+  }
+  function chartsSync() {                                  // start the account, then act on every day once. True when it changed.
     if (!demo || !stocks || !stocks.stocks) return false;
     const list = listTickers(stocks).map(listStock).filter(Boolean).map((s) => ({ s, t: s.ticker, B: barsOf(s) })).filter((x) => x.B && x.B.length > 10);
     if (!list.length) return false;
@@ -2008,7 +2031,11 @@
     for (const x of list) {                                  // a stock it has not followed yet: read its past, without buying
       if (a.st[x.t]) continue;
       const st = boxNew();
-      for (let i = 0; i < x.B.length && x.B[i].d <= a.day; i++) if (boxStep(st, x.B, i) === "buy") { st.held = false; st.stop = null; }
+      for (let i = 0; i < x.B.length && x.B[i].d <= a.day; i++) {
+        const r = boxTrigger(st, x.B[i]);
+        if (r && r.ev === "buy") { st.held = false; st.stop = null; }
+        boxBuild(st, x.B, i);
+      }
       a.st[x.t] = st; changed = true;
     }
     for (const t of Object.keys(a.st)) {                     // a stock that left your list: sold at its last known price
@@ -2021,47 +2048,67 @@
       }
       delete a.st[t]; changed = true;
     }
-    const days = [...new Set(list.flatMap((x) => x.B.filter((b) => b.d > a.day && b.d < today).map((b) => b.d)))].sort((p, q) => p - q);
-    for (const d of days) {
-      const todo = [];
-      for (const x of list) {
-        const i = x.B.findIndex((b) => b.d === d);
-        if (i < 0) continue;
-        const ev = boxStep(a.st[x.t], x.B, i);
-        if (ev) todo.push({ ev, x, c: x.B[i].c });
-      }
-      const closeOf = (t) => { const x = list.find((y) => y.t === t); let c = 0; if (x) for (const b of x.B) { if (b.d <= d) c = b.c; else break; } return c || a.pos[t].last || 0; };
-      const time = d * 86400000 + 21 * 3600000;              // about the New York close of that day
-      for (const z of todo) {
+    // Carry out the orders that were hit on one day. priceOf gives every held stock's price on that day.
+    const act = (hits, priceOf) => {
+      for (const z of hits) {
         const p = a.pos[z.x.t];
         if (z.ev !== "sell" || !p) continue;
-        const total = p.shares * z.c;
-        a.trades.push({ t: z.x.t, side: "sell", shares: p.shares, price: z.c, total, gain: total - p.cost, time });
+        const total = p.shares * z.price;
+        a.trades.push({ t: z.x.t, side: "sell", shares: p.shares, price: z.price, total, gain: total - p.cost, time: z.time });
         a.cash += total; delete a.pos[z.x.t];
       }
-      for (const z of todo) {
+      for (const z of hits) {
         if (z.ev !== "buy") continue;
         const t = z.x.t, st = a.st[t];
         let value = a.cash;
-        for (const k of Object.keys(a.pos)) value += a.pos[k].shares * closeOf(k);
+        for (const k of Object.keys(a.pos)) value += a.pos[k].shares * priceOf(k);
         const total = Math.min(BOX.size * value, a.cash - BOX.cash * value);
         if (a.pos[t] || !(total >= 0.02 * value)) { st.held = false; st.stop = null; continue; }     // no money left for it: not bought
-        a.pos[t] = { shares: total / z.c, cost: total, name: z.x.s.name, last: z.c };
+        a.pos[t] = { shares: total / z.price, cost: total, name: z.x.s.name, last: z.price };
         a.cash -= total;
-        a.trades.push({ t, side: "buy", shares: total / z.c, price: z.c, total, gain: null, time });
+        a.trades.push({ t, side: "buy", shares: total / z.price, price: z.price, total, gain: null, time: z.time });
       }
+      if (hits.length) changed = true;
+    };
+    // finished days, each once: the orders first, then the day's candle builds the boxes
+    const days = [...new Set(list.flatMap((x) => x.B.filter((b) => b.d > a.day && b.d < today).map((b) => b.d)))].sort((p, q) => p - q);
+    for (const d of days) {
+      const at = list.map((x) => ({ x, i: x.B.findIndex((b) => b.d === d) })).filter((y) => y.i >= 0);
+      const hits = [];
+      for (const y of at) { const r = boxTrigger(a.st[y.x.t], y.x.B[y.i]); if (r) hits.push({ ev: r.ev, price: r.price, x: y.x, time: d * 86400000 + 17 * 3600000 }); }
+      const closeOf = (t) => { const x = list.find((y) => y.t === t); let c = 0; if (x) for (const b of x.B) { if (b.d <= d) c = b.c; else break; } return c || a.pos[t].last || 0; };
+      act(hits, closeOf);
+      for (const y of at) boxBuild(a.st[y.x.t], y.x.B, y.i);
       a.day = d; changed = true;
     }
+    // the day that is still running: only the orders, against its high and low so far
+    const hits = [];
+    for (const x of list) {
+      const b = x.B[x.B.length - 1];
+      if (b.d !== today) continue;
+      const st = a.st[x.t], level = st.held ? st.stop : st.top;
+      const r = boxTrigger(st, b);
+      if (r) hits.push({ ev: r.ev, price: r.price, x, time: crossTime(x.s, r.ev, level, today) });
+    }
+    act(hits, (t) => { const x = list.find((y) => y.t === t); return x ? x.s.price : (a.pos[t].last || 0); });
     if (a.trades.length > 500) a.trades = a.trades.slice(-500);
     if (changed) saveDemo();
     return changed;
   }
+  // While the Demo is open, the newest prices are fetched every minute and the orders are checked again.
+  setInterval(async () => {
+    if (document.hidden || $("demo").hidden || !demo) return;
+    const before = stocks && stocks.updated, had = claudeData && claudeData.updated;
+    await Promise.all([loadStocks(true), loadClaude(true)]);
+    const charted = chartsSync();
+    if (!$("demo").hidden && (charted || (stocks && stocks.updated) !== before || (claudeData && claudeData.updated) !== had)) renderDemo();
+  }, 60000);
   // What the chart account is waiting for on each stock, in plain words.
   function boxStatus(s) {
     const st = demo && demo.charts && demo.charts.st[s.ticker];
     if (!st) return "Not followed yet.";
-    if (st.held) return `Holding. It sells on a close below ${money(st.stop)}` + (st.ph === "box" ? `; the newest box is ${money(st.bot)} to ${money(st.top)}.` : ".");
-    if (st.ph === "box") return `In a box from ${money(st.bot)} to ${money(st.top)}. It buys on a close above ${money(st.top)}.`;
+    if (st.held) return `Holding. It sells the moment the price drops below ${money(st.stop)}` + (st.ph === "box" ? `; the newest box is ${money(st.bot)} to ${money(st.top)}.` : ".");
+    if (st.ph === "box") return `In a box from ${money(st.bot)} to ${money(st.top)}. It buys the moment the price goes above ${money(st.top)}.`;
     if (st.ph === "bot") return `Top of a box at ${money(st.top)}. Waiting for a bottom that holds for ${BOX.days} days.`;
     if (st.top != null) return `New high at ${money(st.top)}. It becomes the top of a box if it holds for ${BOX.days} days.`;
     const B = barsOf(s);
@@ -2093,9 +2140,10 @@
     el.hidden = demoView === "mine" || !demo;
     if (el.hidden) return;
     if (demoView === "charts") {
-      el.innerHTML = `<b>How this account trades.</b> By itself, with the Box rules (Darvas) on the stocks of your list, looking at finished days only.
+      el.innerHTML = `<b>How this account trades.</b> By itself, with the Box rules (Darvas) on the stocks of your list.
         A stock first has to make a new 52-week high. The high that then holds for ${BOX.days} days is the top of a box; the low that then holds for ${BOX.days} days is its bottom.
-        It <b>buys</b> on a close above the top, with a fifth of the account, and always keeps 10% in cash. It <b>sells</b> on a close below the bottom, and every newer, higher box raises that sell line.
+        Then it watches the price all through market hours, like a standing order: it <b>buys</b> the moment the price goes above the top, at that price, with a fifth of the account (10% always stays in cash),
+        and it <b>sells</b> the moment the price drops below the bottom, at that price. Every newer, higher box raises that sell line. A stock bought today can be sold from tomorrow.
         It never buys a falling stock, so it can sit in cash for months. The method's volume rule is left out, because the app has no volume data.
         Tests of this method are mixed, so its result here proves nothing either way. Pretend money; this is not advice.`;
       return;
@@ -2144,7 +2192,7 @@
       <div class="d">Started ${new Date(a.startedAt).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" })} with ${money(a.start)}</div>`;
     const worthOf = (t) => a.pos[t].shares * (demoPrice(t).price || 0);
     const held = Object.keys(a.pos).sort((x, y) => worthOf(y) - worthOf(x));
-    $("demoPos").innerHTML = !held.length ? (view === "charts" ? `<div class="ighead">Stocks it holds</div><div class="drow flat"><div class="mid"><div class="sub">Nothing right now: none of your stocks has broken out of a box since it started.</div></div></div>` : "")
+    $("demoPos").innerHTML = !held.length ? (view === "charts" ? `<div class="ighead">Stocks it holds</div><div class="drow flat"><div class="mid"><div class="sub">Nothing right now: none of your stocks has gone above the top of a box since it started.</div></div></div>` : "")
       : `<div class="ighead">${view === "claude" ? "Claude's stocks" : view === "charts" ? "Stocks it holds" : "Your demo stocks"}</div>` + held.map((t) => {
       const p = a.pos[t], q = demoPrice(t), worth = worthOf(t), gain = worth - p.cost;
       return `<div class="drow" role="button" tabindex="0" data-row="${esc(t)}" data-side="sell">${q.live ? chartBtn(t, q.name) : ""}<div class="mid"><div class="nm">${esc(q.name)} <span class="tk">${esc(t)}</span></div>
