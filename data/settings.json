@@ -7,10 +7,11 @@
   "META",
   "TSLA",
   "NVDA",
-  "MU"
+  "MU",
+  "VOO"
  ],
- "since": "lrCSE8CMevMr",
- "updated": "2026-11-18T18:28:31+00:00",
+ "since": "bdO9a5RSKv9V",
+ "updated": "2026-11-18T19:52:05+00:00",
  "tickers": {
   "AAPL": "Apple",
   "MSFT": "Microsoft",
@@ -19,7 +20,8 @@
   "META": "Meta",
   "TSLA": "Tesla",
   "NVDA": "NVIDIA",
-  "MU": "Micron Technology"
+  "MU": "Micron Technology",
+  "VOO": "Vanguard S&P 500 ETF"
  },
  "known": [
   "NVDA",
@@ -32,7 +34,8 @@
   "F",
   "BIXI",
   "E",
-  "MU"
+  "MU",
+  "VOO"
  ],
  "rejected": {},
  "name_tried": [],
