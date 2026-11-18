@@ -105,8 +105,13 @@ def _vapid_key_path():
     return path
 
 
-def notify(title, body, project="General", url=None, priority="default", cfg=None, state=None):
-    """Publish to the feed and push to every phone. Returns (summary dict, devices changed)."""
+def notify(title, body, project="General", url=None, priority="default", cfg=None, state=None,
+           feed=True, ephemeral=False):
+    """Publish to the feed and push to every phone. Returns (summary dict, devices changed).
+
+    feed=False sends the push only: the message is in no list the app reads later.
+    ephemeral=True marks a self-deleting message: the app shows the notification, keeps
+    nothing, and closes it when the app is opened."""
     from pywebpush import WebPushException, webpush
 
     cfg = cfg or load_app_config()
@@ -117,18 +122,20 @@ def notify(title, body, project="General", url=None, priority="default", cfg=Non
     headers = {"Title": title, "Priority": priority, "Tags": project.replace(",", " ")}
     if url:
         headers["Click"] = url
-    try:
-        r = requests.post(f"{cfg['ntfy'].rstrip('/')}/{cfg['topic']}", data=body.encode("utf-8"),
-                          headers=headers, timeout=20)
-        r.raise_for_status()
-        result["feed"] = True
-    except Exception as e:
-        print("ntfy publish failed:", e)
+    if feed:
+        try:
+            r = requests.post(f"{cfg['ntfy'].rstrip('/')}/{cfg['topic']}", data=body.encode("utf-8"),
+                              headers=headers, timeout=20)
+            r.raise_for_status()
+            result["feed"] = True
+        except Exception as e:
+            print("ntfy publish failed:", e)
 
     if state["devices"]:
         key_path = _vapid_key_path()
         payload = json.dumps({"title": title, "body": body, "project": project, "url": url or "",
-                              "time": dt.datetime.now().isoformat(timespec="seconds")})
+                              "time": dt.datetime.now().isoformat(timespec="seconds"),
+                              **({"ephemeral": True} if ephemeral else {})})
         for endpoint, dev in list(state["devices"].items()):
             try:
                 webpush(subscription_info=dev["sub"], data=payload, vapid_private_key=key_path,

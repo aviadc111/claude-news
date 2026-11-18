@@ -1,5 +1,5 @@
 /* Claude News service worker: offline shell + push notifications. */
-const CACHE = "claude-news-v31";
+const CACHE = "claude-news-v32";
 const STATE = "claude-news-state";          // small notes shared with the page; kept across updates
 const SHELL = ["./", "./index.html", "./config.js", "./manifest.webmanifest",
                "./icons/icon-192.png", "./icons/icon-512.png", "./icons/logo.svg"];
@@ -99,19 +99,23 @@ self.addEventListener("push", (event) => {
     time, received: Date.now(), title: data.title || "Claude News", body: data.body || "",
     project: data.project || "General", url: data.url || "",
   };
+  // A self-deleting message (a new app version, Claude waiting for an answer) is only a
+  // notification: it is not kept in the app, belongs to no category, and is closed when the
+  // app is opened. Its link carries "sys=1".
+  const ephemeral = !!data.ephemeral || /[?&]sys=1\b/.test(msg.url);
   event.waitUntil((async () => {
-    await storeMessage(msg);
+    if (!ephemeral) await storeMessage(msg);
     await self.registration.showNotification(msg.title, {
       body: msg.body,
       icon: "./icons/icon-192.png",
       badge: "./icons/icon-192.png",
       tag: msg.id,
-      data: { url: msg.url, project: msg.project, time: msg.time },
+      data: { url: msg.url, project: ephemeral ? "" : msg.project, time: msg.time, ephemeral },
     });
     await pruneOld();
     const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-    clients.forEach((c) => c.postMessage({ type: "new-message", message: msg }));
-    await tapLog(`a message from ${msg.project} arrived, ${clients.length} app window(s)`);
+    if (!ephemeral) clients.forEach((c) => c.postMessage({ type: "new-message", message: msg }));
+    await tapLog(ephemeral ? `a self-deleting message arrived, ${clients.length} app window(s)` : `a message from ${msg.project} arrived, ${clients.length} app window(s)`);
   })());
 });
 
@@ -148,7 +152,7 @@ self.addEventListener("notificationclick", (event) => {
   const scope = self.registration.scope;
   event.waitUntil((async () => {
     let project = d.project || "";
-    if (!project && n.tag) { const m = await getMessage(n.tag); project = (m && m.project) || ""; }
+    if (!project && n.tag && !d.ephemeral) { const m = await getMessage(n.tag); project = (m && m.project) || ""; }
     if (project) {
       try { await (await caches.open(STATE)).put(stateUrl("__open-tab"), asJson({ project, id: n.tag || "", time: Date.now() })); } catch (e) { /* other ways remain */ }
     }
@@ -161,7 +165,7 @@ self.addEventListener("notificationclick", (event) => {
         return;
       }
     }
-    try { await self.clients.openWindow(d.url || (project ? scope + "?tab=" + encodeURIComponent(project) : scope)); }
+    try { await self.clients.openWindow(d.ephemeral ? scope : (d.url || (project ? scope + "?tab=" + encodeURIComponent(project) : scope))); }
     catch (e) { await tapLog("could not open the app window: " + (e && e.message || e)); }
   })());
 });

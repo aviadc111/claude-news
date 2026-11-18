@@ -1,0 +1,41 @@
+name: App update message
+
+# When a new version of the app is pushed, the phone gets one notification that says so
+# (worker/announce.py). It is the self-deleting kind: it is not kept in any category of the
+# app and it disappears from the phone when the app is opened. A push that does not change the
+# version number sends nothing.
+on:
+  push:
+    branches: [main]
+    paths: [index.html]
+
+permissions:
+  contents: read
+
+# one at a time, in order, so two quick pushes cannot both announce or both stay silent
+concurrency:
+  group: announce
+  cancel-in-progress: false
+
+jobs:
+  announce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 100          # the commit before the push is needed, to compare the version
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -q requests pywebpush "cryptography>=42"
+
+      - name: Tell the phone when the version changed
+        env:
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          DEVICES_KEY: ${{ secrets.DEVICES_KEY }}
+          BEFORE: ${{ github.event.before }}
+          PYTHONUNBUFFERED: "1"
+        run: python worker/announce.py "$BEFORE"

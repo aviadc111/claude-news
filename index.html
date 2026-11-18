@@ -579,7 +579,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "3.9";
+  const APP_VERSION = "4.0";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -687,9 +687,19 @@
   // Every message deletes itself 48 hours after it was sent.
   const KEEP_MS = 48 * 3600 * 1000;
   const expired = (m) => Date.now() - m.time > KEEP_MS;
+  // Self-deleting messages (their link carries "sys=1") are never kept or shown in a category.
+  const isSystemMsg = (m) => !!m && /[?&]sys=1\b/.test(m.url || "");
+  // ...and their notifications leave the phone's list when the app is opened.
+  async function clearSystemNotes() {
+    try {
+      const reg = registration || await Promise.race([navigator.serviceWorker.ready, new Promise((r) => setTimeout(() => r(null), 1500))]);
+      if (!reg || !reg.getNotifications) return;
+      (await reg.getNotifications()).forEach((n) => { if (n.data && (n.data.ephemeral || isSystemMsg(n.data))) n.close(); });
+    } catch {}
+  }
   function addMessages(list) {
     let changed = false;
-    list.forEach((m) => { if (expired(m)) return; messages.set(m.id, m); if (!tabs.includes(m.project)) { tabs.push(m.project); changed = true; } });
+    list.forEach((m) => { if (expired(m) || isSystemMsg(m)) return; messages.set(m.id, m); if (!tabs.includes(m.project)) { tabs.push(m.project); changed = true; } });
     if (changed) ls.set("cn.tabs", JSON.stringify(tabs));
   }
   function purgeExpired() {
@@ -876,7 +886,7 @@
     return null;                                             // this phone can't list its notifications
   }
   async function openedNotification(lastTry) {
-    const fresh = (await dbAll()).filter((m) => String(m.id).startsWith("push-") && !expired(m)
+    const fresh = (await dbAll()).filter((m) => String(m.id).startsWith("push-") && !expired(m) && !isSystemMsg(m)
       && !tapDone.includes(m.id) && Date.now() - (m.received || m.time) > 1500);
     if (!fresh.length) return null;
     const shown = await shownTags();
@@ -935,7 +945,7 @@
   }
   async function loadLocal() {
     const all = await dbAll();
-    dbDelete(all.filter(expired).map((m) => m.id));       // gone for good, not just hidden
+    dbDelete(all.filter((m) => expired(m) || isSystemMsg(m)).map((m) => m.id));       // gone for good, not just hidden
     addMessages(all); render();
   }
 
@@ -2679,7 +2689,8 @@
     checkPendingTab(); fetchRecent(); checkForUpdate();
     if (!$("board").hidden && stocks && stocks.stocks && !inSync(stocks)) refreshBoard(true).then(followChecker);   // back in the app while a new stock was on its way
   });
-  window.addEventListener("pageshow", () => { checkPendingTab(); checkForUpdate(); });
+  window.addEventListener("pageshow", () => { checkPendingTab(); checkForUpdate(); clearSystemNotes(); });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) clearSystemNotes(); });
   setInterval(() => { if (!document.hidden) checkForUpdate(); }, 15 * 60000);
   setInterval(() => { if (!document.hidden) fetchRecent(); }, 60000);
   let reloading = false;
@@ -2688,6 +2699,7 @@
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.addEventListener("message", (e) => {
       if (!e.data) return;
+      if (e.data.type === "new-message" && isSystemMsg(e.data.message)) { dbDelete([e.data.message.id]); return; }   // from a worker of an older version
       if (e.data.type === "new-message") { addMessages([e.data.message]); render(); if (!document.hidden) watchBanner(e.data.message); }
       if (e.data.type === "open-tab") {                      // the worker saw a notification tap
         markOpened([e.data.id]); stateDel("__open-tab");
@@ -2727,7 +2739,8 @@
     await loadLocal();
     const urlTab = new URLSearchParams(location.search).get("tab");     // opened from a notification
     const urlOpen = new URLSearchParams(location.search).get("open");
-    if (urlTab || urlOpen) { try { history.replaceState(null, "", location.pathname); } catch {} }
+    if (location.search) { try { history.replaceState(null, "", location.pathname); } catch {} }
+    clearSystemNotes();
     if (urlTab) goToTab(urlTab, false);
     if (urlOpen === "demo") { goToTab("Stocks", false); openDemo(); }
     tellDemo();
