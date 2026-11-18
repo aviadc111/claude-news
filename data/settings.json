@@ -6,10 +6,11 @@
   "GOOGL",
   "META",
   "TSLA",
-  "NVDA"
+  "NVDA",
+  "MU"
  ],
- "since": "gwQGrDTSNH61",
- "updated": "2026-11-17T19:49:27+00:00",
+ "since": "lrCSE8CMevMr",
+ "updated": "2026-11-18T18:28:31+00:00",
  "tickers": {
   "AAPL": "Apple",
   "MSFT": "Microsoft",
@@ -17,7 +18,8 @@
   "GOOGL": "Alphabet (Google)",
   "META": "Meta",
   "TSLA": "Tesla",
-  "NVDA": "NVIDIA"
+  "NVDA": "NVIDIA",
+  "MU": "Micron Technology"
  },
  "known": [
   "NVDA",
@@ -29,7 +31,8 @@
   "TSLA",
   "F",
   "BIXI",
-  "E"
+  "E",
+  "MU"
  ],
  "rejected": {},
  "name_tried": [],
