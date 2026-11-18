@@ -146,17 +146,48 @@ def sync_settings(app_cfg, cfg, settings=None):
 
 
 # ------------------------------------------------------------- market data ---
-def fetch_closes(symbols):
+def _table(data, field, symbols):
+    """One price table (a column per stock) out of a Yahoo download."""
     import pandas as pd
+    f = data[field]
+    if isinstance(f, pd.Series):
+        f = f.to_frame(name=symbols[0])
+    return f
+
+
+def fetch_daily(symbols):
+    """Daily prices as far back as they go. Returns (closes, ohl): the closing prices, and the
+    Open / High / Low tables that the app's candle charts are drawn from."""
     import yfinance as yf
     symbols = list(symbols)
     data = yf.download(symbols, period="max", interval="1d", auto_adjust=True, progress=False, threads=True)
-    closes = data["Close"]
-    if isinstance(closes, pd.Series):
-        closes = closes.to_frame(name=symbols[0])
-    if closes.index.tz is not None:
-        closes.index = closes.index.tz_localize(None)
-    return closes
+    tables = {}
+    for field in ("Close", "Open", "High", "Low"):
+        try:
+            f = _table(data, field, symbols)
+        except KeyError:
+            if field == "Close":
+                raise
+            continue
+        if f.index.tz is not None:
+            f.index = f.index.tz_localize(None)
+        tables[field] = f
+    return tables["Close"], {k: v for k, v in tables.items() if k != "Close"}
+
+
+def fetch_closes(symbols):
+    return fetch_daily(symbols)[0]
+
+
+def candle_rows(closes, opens, highs, lows):
+    """One [open, high, low] per closing price, in the same order. A missing value falls back
+    on the close, and the high and low always enclose the open and the close."""
+    rows = []
+    for c, o, h, l in zip(closes, opens, highs, lows):
+        c = float(c)
+        o, h, l = (float(v) if v == v and v is not None else c for v in (o, h, l))    # NaN is not equal to itself
+        rows.append([round(o, 2), round(max(o, h, c), 2), round(min(o, l, c), 2)])
+    return rows
 
 
 def fetch_intraday(symbols):
@@ -171,13 +202,20 @@ def fetch_intraday(symbols):
     try:
         data = yf.download(symbols, period="5d", interval="5m", auto_adjust=True, progress=False,
                            threads=True, prepost=False)
-        closes = data["Close"]
-        if isinstance(closes, pd.Series):
-            closes = closes.to_frame(name=symbols[0])
+        closes = _table(data, "Close", symbols)
         idx = closes.index
         if idx.tz is None:
             idx = idx.tz_localize("America/New_York")
         closes.index = idx.tz_convert("UTC")
+        ohl = {}
+        for field in ("Open", "High", "Low"):                 # for the candle charts; fine without them
+            try:
+                f = _table(data, field, symbols)
+                f.index = closes.index
+                ohl[field] = f
+            except Exception:
+                ohl = {}
+                break
         out = {}
         for t in closes.columns:
             s = closes[t].dropna()
@@ -190,6 +228,24 @@ def fetch_intraday(symbols):
             if not week or week[-1] != pts[-1]:
                 week.append(pts[-1])                      # always end on the newest price
             out[str(t)] = {"today": today, "week": week}
+            if ohl:
+                try:
+                    bars = candle_rows(s.values, *(ohl[f][t].reindex(s.index).values for f in ("Open", "High", "Low")))
+                    out[str(t)]["today_c"] = bars[len(bars) - len(today):]
+                    # one candle per 15-minute point: the 5-minute bars since the point before it, same day only
+                    at = {p[0]: i for i, p in enumerate(pts)}
+                    wk, before = [], -1
+                    for p in week:
+                        i = at[p[0]]
+                        first = before + 1
+                        while first < i and days[first] != days[i]:
+                            first += 1
+                        grp = bars[first:i + 1]
+                        wk.append([grp[0][0], max(g[1] for g in grp), min(g[2] for g in grp)])
+                        before = i
+                    out[str(t)]["week_c"] = wk
+                except Exception as e:
+                    print("no intraday candles for", t, type(e).__name__)
         return out
     except Exception as e:
         print("no intraday prices this time:", type(e).__name__, e)
@@ -203,7 +259,7 @@ def add_intraday(results, old_board):
     old = {s.get("ticker"): s for s in (old_board or {}).get("stocks", []) if isinstance(s, dict)}
     for r in results:
         src = fresh.get(r["ticker"]) or old.get(r["ticker"]) or {}
-        for key in ("today", "week"):
+        for key in ("today", "week", "today_c", "week_c"):
             if src.get(key):
                 r[key] = src[key]
 
@@ -226,7 +282,7 @@ def slice_years(s, years):
     return s[s.index >= s.index[-1] - pd.Timedelta(days=int(years * 365.25))]
 
 
-def analyze(ticker, name, series, cfg):
+def analyze(ticker, name, series, cfg, ohl=None):
     s = series.dropna()
     if len(s) < 7:
         return None
@@ -265,7 +321,7 @@ def analyze(ticker, name, series, cfg):
     if day_pct <= -float(cfg["daily_drop_pct"]):
         reasons.append(f"down {abs(day_pct):.1f}% today")
 
-    return {
+    out = {
         "ticker": ticker, "name": name,
         "price": round(last, 2), "prev": round(prev, 2), "day_pct": round(day_pct, 2),
         "chg5_pct": round(chg5_pct, 2),
@@ -284,9 +340,15 @@ def analyze(ticker, name, series, cfg):
         # 2 years of daily closes for the charts: [days since 1970, close]
         "series": [[int(ts.value // 86_400_000_000_000), round(float(v), 2)] for ts, v in long.items()],
     }
+    if ohl:                                                   # [open, high, low] for every point of "series"
+        try:
+            out["candles"] = candle_rows(long.values, *(ohl[f][ticker].reindex(long.index).values for f in ("Open", "High", "Low")))
+        except Exception as e:
+            print("no candles for", ticker, type(e).__name__)
+    return out
 
 
-def build_results(settings, cfg, closes):
+def build_results(settings, cfg, closes, ohl=None):
     """Analyze every stock on the list. Stocks added in the app that the market does
     not know are moved to settings['rejected']. Returns (results, settings changed)."""
     changed = False
@@ -294,7 +356,7 @@ def build_results(settings, cfg, closes):
     for ticker in list(settings["tickers"]):
         r = None
         if ticker in closes.columns:
-            r = analyze(ticker, settings["tickers"][ticker], closes[ticker], cfg)
+            r = analyze(ticker, settings["tickers"][ticker], closes[ticker], cfg, ohl)
         if r:
             results.append(r)
     got = {r["ticker"] for r in results}
@@ -409,7 +471,7 @@ def same_board(old, new, cents=0.011):
     def split(board):
         board = json.loads(json.dumps(board))
         series = [s.pop(key, []) for s in board.get("stocks", []) if isinstance(s, dict)
-                  for key in ("series", "today", "week")]
+                  for key in ("series", "today", "week", "candles", "today_c", "week_c")]
         return board, series
     try:
         a, sa = split(old)
@@ -419,8 +481,8 @@ def same_board(old, new, cents=0.011):
         for x, y in zip(sa, sb):
             if len(x) != len(y):
                 return False
-            for (d1, p1), (d2, p2) in zip(x, y):
-                if d1 != d2 or abs(p1 - p2) > cents:
+            for row1, row2 in zip(x, y):                     # [day, price] or [open, high, low]
+                if len(row1) != len(row2) or any(abs(a - b) > cents for a, b in zip(row1, row2)):
                     return False
         return True
     except (TypeError, ValueError, AttributeError):
@@ -439,8 +501,8 @@ def main(argv):
     app_cfg = cn.load_app_config()
     settings, settings_changed = sync_settings(app_cfg, cfg)
 
-    closes = fetch_closes(settings["tickers"]) if settings["tickers"] else None
-    results, ch = build_results(settings, cfg, closes) if closes is not None else ([], False)
+    closes, ohl = fetch_daily(settings["tickers"]) if settings["tickers"] else (None, None)
+    results, ch = build_results(settings, cfg, closes, ohl) if closes is not None else ([], False)
     add_intraday(results, load_json(STOCKS_PATH, {}))
     settings_changed |= ch
     picked = settings["picked"]

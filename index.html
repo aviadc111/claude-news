@@ -314,6 +314,12 @@
   .marknote i { display: inline-block; width: 11px; height: 11px; border-radius: 50%; border: 3px solid; box-sizing: border-box; vertical-align: -1px; margin-right: 5px; }
   .marknote b { color: var(--fg); }
 
+  /* v3.6: Line / Candles switch on a stock's chart */
+  .kinds { display: flex; justify-content: flex-end; gap: 6px; margin: -2px 0 8px; }
+  .kinds button { padding: 6px 14px; font-size: 13px; background: var(--surface-2); color: var(--muted); border-radius: 10px; }
+  .kinds button.active { background: var(--fg); color: var(--bg); }
+  .scrub { flex-wrap: wrap; }
+
   /* v2.0: Instagram follow-back check */
   .chartsbtn.ig { background: #e1306c; color: #fff; box-shadow: 0 4px 14px rgba(225, 48, 108, .3); }
   .igsum { background: var(--surface); border-radius: 16px; padding: 16px; margin: 4px 0 12px; }
@@ -437,10 +443,12 @@
   <div class="stats" id="dStats"></div>
   <div class="reason" id="dReason" hidden></div>
   <div class="periods" id="dPeriods"></div>
+  <div class="kinds" id="dKind" role="group" aria-label="Kind of chart"><button type="button" data-kind="line">Line</button><button type="button" data-kind="candles">Candles</button></div>
   <div class="chartwrap">
     <canvas id="dChart" data-noswipe></canvas>
     <div class="scrub" id="dScrub"><span>Touch the chart for a date</span><span></span></div>
     <div class="marknote" id="dMarks" hidden></div>
+    <div class="marknote" id="dCandleNote" hidden></div>
   </div>
   <div id="dHold" class="holdcard"></div>
   <div id="dDemo" class="holdcard" hidden></div>
@@ -554,7 +562,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "3.5";
+  const APP_VERSION = "3.6";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -1382,6 +1390,7 @@
       : `<div class="k">My shares</div><div class="d">Do you own this stock? Record how many and when you bought.</div>
          <button class="small" id="dHoldEdit">+ I own this</button>`;
     $("dHoldEdit").onclick = () => openHold(s.ticker);
+    $("dHold").hidden = dFrom === "demo";                    // opened from the Demo: the demo's card only
     renderDetailDemo(s);
     removeArmed = false; $("dRemove").textContent = "Remove from my list";
     $("dRemove").onclick = () => {
@@ -1389,8 +1398,8 @@
       removeTicker(s.ticker, stocks); closeScreen("detail"); toast(s.name + " removed");
     };
   }
-  function openDetail(s, rules) {
-    dStock = s; dPeriod = rules.longterm_years;
+  function openDetail(s, rules, from) {
+    dStock = s; dPeriod = rules.longterm_years; dFrom = from === "demo" ? "demo" : "board";
     $("dName").textContent = s.name; $("dTicker").textContent = s.ticker + " · as of " + s.as_of;
     $("dPrice").textContent = money(s.price);
     $("dChange").textContent = pct(s.day_pct) + " today"; $("dChange").className = "chg " + (s.day_pct >= 0 ? "up" : "down");
@@ -1410,7 +1419,96 @@
     renderDetailExtras(s);
     requestAnimationFrame(animateChart);
   }
-  let dGeom = null, dSeries = [], dReveal = 1, chartAnim = 0;
+  let dGeom = null, dSeries = [], dReveal = 1, chartAnim = 0, dFrom = "board", dBars = null;
+  let dKind = ls.get("cn.chartKind", "line") === "candles" ? "candles" : "line";
+  function showKind() { $("dKind").querySelectorAll("button").forEach((b) => { const on = b.dataset.kind === dKind; b.classList.toggle("active", on); b.setAttribute("aria-pressed", String(on)); }); }
+  $("dKind").querySelectorAll("button").forEach((b) => b.onclick = () => { if (dKind === b.dataset.kind) return; dKind = b.dataset.kind; ls.set("cn.chartKind", dKind); showKind(); animateChart(); });
+  showKind();
+  // Candles: every candle has an open, a high, a low and a close. The checker saves
+  // [open, high, low] next to every closing price (candles / today_c / week_c). Where they are
+  // missing, a candle is built from the closes alone: it opens where the one before closed.
+  // A long period has too many days for a phone, so its candles are whole weeks or months.
+  function candleBars(s, pts, period) {
+    const intra = typeof period === "string";
+    const all = intra ? (s[period] || []) : s.series, ohl = intra ? s[period + "_c"] : s.candles;
+    const off = all.length - pts.length;                     // pts is the end of all
+    const real = Array.isArray(ohl) && ohl.length === all.length;
+    const one = pts.map((p, k) => {
+      const c = p[1], r = real ? ohl[off + k] : null;
+      const o = r ? r[0] : (k ? pts[k - 1][1] : (off > 0 ? all[off - 1][1] : c));
+      return { x: p[0], o, h: Math.max(r ? r[1] : o, o, c), l: Math.min(r ? r[2] : o, o, c), c };
+    });
+    const n = one.length, MOST = 70;
+    let key, unit;
+    if (intra) {
+      const g = Math.ceil(n / MOST), step = n > 1 ? Math.max(1, one[1].x - one[0].x) : 5, days = one.map((b) => nyDay(b.x));
+      let group = 0, count = 0;
+      key = one.map((b, k) => { if (k && (count >= g || days[k] !== days[k - 1])) { group++; count = 0; } count++; return group; });
+      unit = step * g >= 60 ? (step * g === 60 ? "one hour" : `${step * g / 60} hours`) : `${step * g} minutes`;
+    } else if (n <= MOST) { key = one.map((b, k) => k); unit = "one day"; }
+    else {
+      const weeks = one.map((b) => Math.floor((b.x + 3) / 7));       // day 0 was a Thursday: weeks start on Monday
+      if (new Set(weeks).size <= MOST) { key = weeks; unit = "one week"; }
+      else { key = one.map((b) => { const d = dayToDate(b.x); return d.getUTCFullYear() * 12 + d.getUTCMonth(); }); unit = "one month"; }
+    }
+    const bars = [];
+    one.forEach((b, k) => {
+      const last = bars[bars.length - 1];
+      if (k && key[k] === key[k - 1]) { last.h = Math.max(last.h, b.h); last.l = Math.min(last.l, b.l); last.c = b.c; last.x1 = b.x; last.i1 = k; }
+      else bars.push({ x: b.x, x1: b.x, o: b.o, h: b.h, l: b.l, c: b.c, i0: k, i1: k });
+    });
+    return { bars, unit, real };
+  }
+  function drawCandles(c, bars, scrubIndex, opt) {
+    opt = opt || {};
+    const { ctx, w, h } = setupCanvas(c);
+    const css = getComputedStyle(document.documentElement);
+    const muted = css.getPropertyValue("--muted").trim(), line = css.getPropertyValue("--line").trim(), fg = css.getPropertyValue("--fg").trim();
+    ctx.clearRect(0, 0, w, h);
+    const n = bars.length;
+    if (!n) return null;
+    const padL = 8, padR = 54, padT = 22, padB = 22;
+    const sLo = Math.min(...bars.map((b) => b.l)), sHi = Math.max(...bars.map((b) => b.h));
+    const base = opt.base || 0, sSpan = sHi - sLo || 1, showBase = base > 0 && base >= sLo - 0.6 * sSpan && base <= sHi + 0.6 * sSpan;
+    const lo = showBase ? Math.min(sLo, base) : sLo, hi = showBase ? Math.max(sHi, base) : sHi, span = hi - lo || 1;
+    const dec = span >= 20 ? 0 : span >= 2 ? 1 : 2;
+    const axis = opt.axis || ((p) => dayToDate(p[0]).toLocaleDateString([], { month: "short", year: "2-digit" }));
+    const pitch = (w - padL - padR) / n;
+    const X = (i) => padL + (i + 0.5) * pitch, Y = (v) => padT + (hi - v) / span * (h - padT - padB);
+    ctx.font = "11px -apple-system, Segoe UI, Roboto, sans-serif"; ctx.fillStyle = muted; ctx.strokeStyle = line; ctx.lineWidth = 1;
+    for (let k = 0; k <= 4; k++) { const v = lo + span * k / 4, y = Y(v); ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke(); ctx.textAlign = "left"; ctx.fillText("$" + v.toLocaleString(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec }), w - padR + 6, y + 4); }
+    ctx.textAlign = "center";
+    [...new Set([0, Math.floor((n - 1) / 2), n - 1])].forEach((i) => ctx.fillText(axis([bars[i].x]), Math.min(Math.max(X(i), 28), w - padR - 28), h - 6));
+    if (showBase) { const y = Y(base); ctx.save(); ctx.strokeStyle = fg; ctx.globalAlpha = 0.55; ctx.setLineDash([2, 4]); ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke(); ctx.restore(); }
+    const reveal = opt.reveal == null ? 1 : opt.reveal;
+    ctx.save();
+    if (reveal < 1) { ctx.beginPath(); ctx.rect(0, 0, padL + (w - padL - padR) * reveal + 1, h); ctx.clip(); }
+    const bw = Math.max(1.5, Math.min(14, pitch * 0.66));
+    bars.forEach((b, i) => {                                 // green closed above its open, red below
+      const col = b.c >= b.o ? "#22c55e" : "#ef4444", x = X(i);
+      ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x, Y(b.h)); ctx.lineTo(x, Y(b.l)); ctx.stroke();
+      const top = Y(Math.max(b.o, b.c)), bottom = Y(Math.min(b.o, b.c));
+      ctx.fillRect(x - bw / 2, top, bw, Math.max(1, bottom - top));
+    });
+    const iHi = bars.findIndex((b) => b.h === sHi), iLo = bars.findIndex((b) => b.l === sLo);
+    ctx.fillStyle = fg; ctx.textAlign = "center"; ctx.font = "bold 11px -apple-system, Segoe UI, Roboto, sans-serif";
+    ctx.fillText(money(sHi), Math.min(Math.max(X(iHi), 34), w - padR - 34), Y(sHi) - 7);
+    ctx.fillText(money(sLo), Math.min(Math.max(X(iLo), 34), w - padR - 34), Y(sLo) + 14);
+    ctx.restore();
+    (opt.marks || []).forEach((m) => {                       // a ring on the candle in which the stock was bought
+      if (m.i < 0 || m.i >= n || !m.colors.length) return;
+      const x = X(m.i), y = Y(bars[m.i].c);
+      if (reveal < 1 && x > padL + (w - padL - padR) * reveal) return;
+      (m.colors.length > 1 ? [7.5, 5] : [6.5]).forEach((r, j) => { ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = m.colors[j]; ctx.fill(); });
+      ctx.beginPath(); ctx.arc(x, y, 2.7, 0, 7); ctx.fillStyle = css.getPropertyValue("--surface").trim(); ctx.fill();
+    });
+    if (scrubIndex != null) {
+      const x = X(scrubIndex);
+      ctx.strokeStyle = muted; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(x, padT - 6); ctx.lineTo(x, h - padB); ctx.stroke(); ctx.setLineDash([]);
+    }
+    return { X, n, padL, padR, w, toIndex: (x) => Math.floor((x - padL) / pitch) };
+  }
   // Which of a chart's points a purchase belongs to, or -1 when it was before the chart begins.
   // `when` is { day: "YYYY-MM-DD" } (My shares keeps the date only) or { time: milliseconds }.
   // A purchase on a day without trading sits on the next trading day's point.
@@ -1440,8 +1538,9 @@
   function detailMarks(s, pts, intra) {
     const at = new Map();
     const put = (i, kind, text) => { if (i < 0) return; if (!at.has(i)) at.set(i, { real: [], demo: [] }); at.get(i)[kind].push(text); };
-    (holdings[s.ticker] || []).forEach((l) => put(markIndex(pts, intra, { day: l.date }), "real", `${fmtShares(l.shares)} at ${money(l.price)}`));
-    if (demo) demo.trades.forEach((x) => { if (x.t === s.ticker && x.side === "buy") put(markIndex(pts, intra, { time: x.time }), "demo", `${fmtShares(x.shares)} at ${money(x.price)}`); });
+    // opened from Charts: the purchases in My shares. Opened from the Demo: the demo's purchases. Never both.
+    if (dFrom !== "demo") (holdings[s.ticker] || []).forEach((l) => put(markIndex(pts, intra, { day: l.date }), "real", `${fmtShares(l.shares)} at ${money(l.price)}`));
+    if (dFrom === "demo" && demo) demo.trades.forEach((x) => { if (x.t === s.ticker && x.side === "buy") put(markIndex(pts, intra, { time: x.time }), "demo", `${fmtShares(x.shares)} at ${money(x.price)}`); });
     return at;
   }
   function renderMarkNote(marks, scrub) {
@@ -1480,20 +1579,42 @@
     if (!dStock) return;
     const intra = typeof dPeriod === "string", today = dPeriod === "today";
     dSeries = intra ? (dStock[dPeriod] || []) : sliceSeries(dStock.series, dPeriod);
-    if (dSeries.length < 2) { dGeom = null; $("dMarks").hidden = true; return; }
-    const marks = detailMarks(dStock, dSeries, intra), accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+    if (dSeries.length < 2) { dGeom = null; $("dMarks").hidden = true; $("dCandleNote").hidden = true; return; }
+    const cb = dKind === "candles" ? candleBars(dStock, dSeries, dPeriod) : null;
+    dBars = cb ? cb.bars : null;
+    let marks = detailMarks(dStock, dSeries, intra);
+    if (cb) {                                                // a ring sits on the candle that holds its point
+      const byBar = new Map();
+      for (const [i, m] of marks) {
+        const b = cb.bars.findIndex((x) => i >= x.i0 && i <= x.i1);
+        if (b < 0) continue;
+        const t = byBar.get(b) || { real: [], demo: [] };
+        t.real.push(...m.real); t.demo.push(...m.demo); byBar.set(b, t);
+      }
+      marks = byBar;
+    }
+    const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
     const markList = [...marks].map(([i, m]) => ({ i, colors: [m.real.length ? accent : "", m.demo.length ? DEMO_COLOR : ""].filter(Boolean) }));
     const first = dSeries[0], last = dSeries[dSeries.length - 1];
     // Today is measured from the previous day's close, like the "today" figure at the top
     const base = today ? ((nyDay(last[0]) === dStock.as_of ? dStock.prev : dStock.price) || first[1]) : first[1];
-    dGeom = drawChart($("dChart"), dSeries, scrub, Object.assign({ reveal: dReveal, marks: markList }, !intra ? {} : today
+    const opt = Object.assign({ reveal: dReveal, marks: markList }, !intra ? {} : today
       ? { base, axis: (p) => fmtClock(p[0]) }
-      : { axis: (p) => minToDate(p[0]).toLocaleDateString([], { weekday: "short", day: "numeric" }) }));
+      : { axis: (p) => minToDate(p[0]).toLocaleDateString([], { weekday: "short", day: "numeric" }) });
+    dGeom = cb ? drawCandles($("dChart"), cb.bars, scrub, opt) : drawChart($("dChart"), dSeries, scrub, opt);
+    const cn = $("dCandleNote");
+    cn.hidden = !cb;
+    if (cb) cn.innerHTML = `<span>Each candle is <b>${cb.unit}</b>: green closed higher than it opened, red lower. The thin line reaches its highest and lowest price.${cb.real ? "" : " Until the checker's next run they are drawn from closing prices only."}</span>`;
     const sc = $("dScrub");
     const range = today ? fmtDayShort(first[0])
                 : intra ? `${fmtDayShort(first[0])} → ${fmtDayShort(last[0])}` : `${fmtDate(first[0])} → ${fmtDate(last[0])}`;
     if (scrub == null) sc.innerHTML = `<span>${range}</span><span class="${last[1] >= base ? "up" : "down"}"><b>${pct((last[1] / base - 1) * 100)}</b> ${today ? "since previous close" : "over this period"}</span>`;
-    else {
+    else if (cb) {
+      const b = cb.bars[scrub], num = (v) => Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const dayText = (d) => dayToDate(d).toLocaleDateString([], { day: "numeric", month: "short", year: "2-digit" });
+      const when = intra ? `${fmtDayShort(b.x)}, ${fmtClock(b.x)}` : (b.x1 !== b.x ? `${dayText(b.x)} → ${dayText(b.x1)}` : dayText(b.x));
+      sc.innerHTML = `<span><b>${when}</b></span><span>open <b>${num(b.o)}</b> · high <b>${num(b.h)}</b> · low <b>${num(b.l)}</b> · close <b>${num(b.c)}</b></span>`;
+    } else {
       const p = dSeries[scrub];
       const when = intra ? `${fmtDayShort(p[0])}, ${fmtClock(p[0])}` : dayToDate(p[0]).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short", year: "numeric" });
       sc.innerHTML = `<span><b>${when}</b></span><span><b>${money(p[1])}</b> · ${pct((p[1] / base - 1) * 100)}</span>`;
@@ -1504,7 +1625,7 @@
     if (!dGeom) return;
     const rect = $("dChart").getBoundingClientRect();
     const x = clientX - rect.left;
-    const i = Math.round((x - dGeom.padL) / (dGeom.w - dGeom.padL - dGeom.padR) * (dGeom.n - 1));
+    const i = dGeom.toIndex ? dGeom.toIndex(x) : Math.round((x - dGeom.padL) / (dGeom.w - dGeom.padL - dGeom.padR) * (dGeom.n - 1));
     drawDetail(Math.min(Math.max(i, 0), dGeom.n - 1));
   }
   const chart = $("dChart");
@@ -1734,7 +1855,7 @@
   }
   const CHART_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>';
   const chartBtn = (t, name) => `<button type="button" class="chartbtn" data-chart="${esc(t)}" aria-label="Open the chart of ${esc(name)}">${CHART_ICON}</button>`;
-  function openChartOf(t) { const s = stockOf(t); if (s) openDetail(s, stocks.rules); else toast("No chart for " + t + " right now"); }
+  function openChartOf(t) { const s = stockOf(t); if (s) openDetail(s, stocks.rules, "demo"); else toast("No chart for " + t + " right now"); }
   function renderDemo() {
     const data = stocks, have = !!(data && data.stocks);
     $("demoUpdated").textContent = have ? "prices " + priceTime(data) : "";
@@ -1976,8 +2097,8 @@
   // The stock's own screen (its chart) shows what you have of it in the demo, with Buy and Sell.
   function renderDetailDemo(s) {
     const el = $("dDemo");
-    el.hidden = !demo;
-    if (!demo) return;
+    el.hidden = !demo || dFrom !== "demo";                    // opened from Charts: My shares only
+    if (el.hidden) return;
     const p = demo.pos[s.ticker], worth = p ? p.shares * s.price : 0, gain = p ? worth - p.cost : 0;
     el.innerHTML = `<div class="k">Demo account</div>`
       + (p ? `<div class="v">${fmtShares(p.shares)} shares · worth ${money(worth)}</div>
