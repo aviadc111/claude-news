@@ -501,9 +501,50 @@ def main(argv):
     app_cfg = cn.load_app_config()
     settings, settings_changed = sync_settings(app_cfg, cfg)
 
-    closes, ohl = fetch_daily(settings["tickers"]) if settings["tickers"] else (None, None)
+    # Claude's demo account follows a few stocks of its own (worker/claude_demo.py). Their prices
+    # come in the same downloads as the list's. Whatever goes wrong there, the stock check goes on.
+    cdemo, cdemo_changed, extra = None, False, []
+    try:
+        import claude_demo
+        cdemo, cdemo_changed = claude_demo.refresh(cfg, claude_demo.load())
+        extra = [t for t in claude_demo.tickers(cdemo) if t not in settings["tickers"]]
+    except Exception as e:
+        print("Claude's demo skipped:", type(e).__name__, e)
+
+    symbols = list(settings["tickers"]) + extra
+    closes, ohl = fetch_daily(symbols) if symbols else (None, None)
     results, ch = build_results(settings, cfg, closes, ohl) if closes is not None else ([], False)
-    add_intraday(results, load_json(STOCKS_PATH, {}))
+    old_board = load_json(STOCKS_PATH, {})
+    extras = []
+    if cdemo and closes is not None:
+        try:
+            names = cdemo.setdefault("names", {})
+            for t in extra:
+                if t not in closes.columns:
+                    continue
+                if t not in names:
+                    names[t] = claude_demo.tidy(lookup_name(t)) or t
+                    cdemo_changed = True
+                x = analyze(t, names[t], closes[t], cfg, ohl)
+                if x:
+                    extras.append(x)
+        except Exception as e:
+            print("Claude's demo: no prices for its stocks this time:", type(e).__name__, e)
+            extras = []
+    old_extra = (cdemo or {}).get("stocks", []) if cdemo else []
+    add_intraday(results + extras, {"stocks": list(old_board.get("stocks", [])) + [s for s in old_extra if isinstance(s, dict)]})
+    if cdemo:
+        try:
+            have = {x["ticker"]: x for x in results + extras}
+            for h in cdemo["holdings"]:
+                if h["ticker"] in have:
+                    h["name"] = have[h["ticker"]]["name"]
+            mine = [have[t] for t in claude_demo.tickers(cdemo) if t in have]
+            if len(mine) == len(cdemo["holdings"]) and (cdemo_changed or not same_board({"stocks": old_extra}, {"stocks": mine})):
+                save_json(claude_demo.DATA_PATH, {**{k: v for k, v in cdemo.items() if k != "stocks"}, "updated": utc_now(), "stocks": mine}, compact=True)
+                print("wrote", claude_demo.DATA_PATH)
+        except Exception as e:
+            print("Claude's demo: could not save:", type(e).__name__, e)
     settings_changed |= ch
     picked = settings["picked"]
     print("list:", ", ".join(settings["tickers"]) or "(empty)")
@@ -527,7 +568,7 @@ def main(argv):
         "weekly": cfg["weekly"],
         "stocks": results,
     }
-    old = load_json(STOCKS_PATH, {})
+    old = old_board
     old.pop("updated", None)
     if results and not same_board(old, board):               # market closed: nothing moves, nothing to commit
         save_json(STOCKS_PATH, {"updated": utc_now(), **board}, compact=True)

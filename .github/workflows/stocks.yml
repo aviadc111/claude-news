@@ -42,6 +42,7 @@ jobs:
         env:
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
           DEVICES_KEY: ${{ secrets.DEVICES_KEY }}
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}       # the contact the SEC asks programs for (Claude's demo)
           GITHUB_TOKEN: ${{ github.token }}
           TZ: Asia/Jerusalem
           PYTHONUNBUFFERED: "1"

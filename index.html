@@ -320,6 +320,17 @@
   .kinds button.active { background: var(--fg); color: var(--bg); }
   .scrub { flex-wrap: wrap; }
 
+  /* v3.7: the demo's two accounts, "My demo" and "Claude's" */
+  .acctabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 2px 0 10px; }
+  .acctabs button { display: grid; gap: 1px; justify-items: start; text-align: left; padding: 10px 12px; border-radius: 14px; background: var(--surface); color: var(--fg); font-weight: 400; border: 2px solid transparent; }
+  .acctabs button.on { border-color: #6366f1; }
+  .acctabs .t { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .acctabs b { font-size: 17px; font-variant-numeric: tabular-nums; }
+  .acctabs .g { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  #claudeNote { background: var(--surface); border-radius: 14px; padding: 12px 14px; margin: 0 0 12px; font-size: 13px; color: var(--muted); line-height: 1.5; }
+  #claudeNote b { color: var(--fg); }
+  #claudeNote a { color: var(--accent); }
+
   /* v2.0: Instagram follow-back check */
   .chartsbtn.ig { background: #e1306c; color: #fff; box-shadow: 0 4px 14px rgba(225, 48, 108, .3); }
   .igsum { background: var(--surface); border-radius: 16px; padding: 16px; margin: 4px 0 12px; }
@@ -408,6 +419,10 @@
     <h2>Demo account</h2>
     <span id="demoUpdated" class="sub"></span>
   </div>
+  <div class="acctabs" id="demoTabs" role="group" aria-label="Which demo account" hidden>
+    <button type="button" data-view="mine"><span class="t">My demo</span><b id="tabMineVal"></b><span class="g" id="tabMineGain"></span></button>
+    <button type="button" data-view="claude"><span class="t">Claude's</span><b id="tabClaudeVal"></b><span class="g" id="tabClaudeGain"></span></button>
+  </div>
   <div id="demoCard" class="igsum">
     <div id="demoSum"></div>
     <div id="demoChartBox" hidden>
@@ -417,6 +432,7 @@
       <div id="demoLegend"></div>
     </div>
   </div>
+  <div id="claudeNote" hidden></div>
   <div id="demoPos"></div>
   <div id="demoBuyHead" class="ighead" hidden>Buy a stock</div>
   <div id="demoAddBox" hidden>
@@ -562,7 +578,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "3.6";
+  const APP_VERSION = "3.7";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -1326,7 +1342,8 @@
   // ---- my shares: how many, when bought, at what price (kept on this phone) --
   let holdTicker = null;
   const todayLocal = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
-  function stockOf(t) { return stocks && stocks.stocks.find((x) => x.ticker === t); }
+  const listStock = (t) => (stocks && stocks.stocks.find((x) => x.ticker === t)) || undefined;
+  function stockOf(t) { return claudeOn() ? (claudeStock(t) || listStock(t)) : listStock(t); }
   function openHold(t) {
     holdTicker = t;
     $("hShares").value = ""; $("hPrice").value = ""; $("hDate").max = todayLocal(); $("hDate").value = todayLocal();
@@ -1390,7 +1407,8 @@
       : `<div class="k">My shares</div><div class="d">Do you own this stock? Record how many and when you bought.</div>
          <button class="small" id="dHoldEdit">+ I own this</button>`;
     $("dHoldEdit").onclick = () => openHold(s.ticker);
-    $("dHold").hidden = dFrom === "demo";                    // opened from the Demo: the demo's card only
+    $("dHold").hidden = dFrom !== "board";                   // opened from the Demo: no My shares card
+    $("dRemove").hidden = dFrom === "claude";                // Claude's stocks need not be on your list
     renderDetailDemo(s);
     removeArmed = false; $("dRemove").textContent = "Remove from my list";
     $("dRemove").onclick = () => {
@@ -1399,7 +1417,7 @@
     };
   }
   function openDetail(s, rules, from) {
-    dStock = s; dPeriod = rules.longterm_years; dFrom = from === "demo" ? "demo" : "board";
+    dStock = s; dPeriod = rules.longterm_years; dFrom = from === "demo" || from === "claude" ? from : "board";
     $("dName").textContent = s.name; $("dTicker").textContent = s.ticker + " · as of " + s.as_of;
     $("dPrice").textContent = money(s.price);
     $("dChange").textContent = pct(s.day_pct) + " today"; $("dChange").className = "chg " + (s.day_pct >= 0 ? "up" : "down");
@@ -1540,7 +1558,8 @@
     const put = (i, kind, text) => { if (i < 0) return; if (!at.has(i)) at.set(i, { real: [], demo: [] }); at.get(i)[kind].push(text); };
     // opened from Charts: the purchases in My shares. Opened from the Demo: the demo's purchases. Never both.
     if (dFrom !== "demo") (holdings[s.ticker] || []).forEach((l) => put(markIndex(pts, intra, { day: l.date }), "real", `${fmtShares(l.shares)} at ${money(l.price)}`));
-    if (dFrom === "demo" && demo) demo.trades.forEach((x) => { if (x.t === s.ticker && x.side === "buy") put(markIndex(pts, intra, { time: x.time }), "demo", `${fmtShares(x.shares)} at ${money(x.price)}`); });
+    const acct = dFrom === "claude" ? (demo && demo.claude) : dFrom === "demo" ? demo : null;
+    if (acct) acct.trades.forEach((x) => { if (x.t === s.ticker && x.side === "buy") put(markIndex(pts, intra, { time: x.time }), "demo", `${fmtShares(x.shares)} at ${money(x.price)}`); });
     return at;
   }
   function renderMarkNote(marks, scrub) {
@@ -1556,8 +1575,8 @@
     const ring = (col) => `<i style="border-color:${col}"></i>`;
     note.innerHTML = near
       ? (near.real.length ? `<span>${ring("var(--accent)")}<b>You bought ${esc(near.real.join(", "))}</b></span>` : "")
-        + (near.demo.length ? `<span>${ring(DEMO_COLOR)}<b>Demo: bought ${esc(near.demo.join(", "))}</b></span>` : "")
-      : (real ? `<span>${ring("var(--accent)")}you bought (My shares)</span>` : "") + (dm ? `<span>${ring(DEMO_COLOR)}bought in the demo</span>` : "")
+        + (near.demo.length ? `<span>${ring(DEMO_COLOR)}<b>${dFrom === "claude" ? "Claude" : "Demo:"} bought ${esc(near.demo.join(", "))}</b></span>` : "")
+      : (real ? `<span>${ring("var(--accent)")}you bought (My shares)</span>` : "") + (dm ? `<span>${ring(DEMO_COLOR)}${dFrom === "claude" ? "Claude bought here" : "bought in the demo"}</span>` : "")
         + `<span>Touch a ring for the details</span>`;
   }
   const calmMotion = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
@@ -1810,17 +1829,24 @@
       return !["Sat", "Sun"].includes(p.weekday) && mins >= 9 * 60 + 30 && mins < 16 * 60;
     } catch { return true; }
   }
+  // The demo has two accounts with the same shape: yours (demo) and Claude's (demo.claude).
+  // Which one the screen shows:
+  let demoView = "mine", claudeData = null, claudeAt = 0;
+  const claudeStock = (t) => (claudeData && claudeData.stocks.find((x) => x.ticker === t)) || undefined;
+  const claudeOn = () => demoView === "claude" && !!(demo && demo.claude);
+  const cur = () => (claudeOn() ? demo.claude : demo);
   function demoPrice(t) {                                  // the latest price; a stock taken off the list keeps its last known one
-    const s = stockOf(t), p = demo && demo.pos[t];
+    const s = stockOf(t), p = demo && cur().pos[t];
     if (s) { if (p) { p.last = s.price; p.name = s.name; } return { price: s.price, live: true, name: s.name }; }
     return { price: p ? p.last : null, live: false, name: (p && p.name) || t };
   }
-  function demoTotals() {
+  function totalsOf(a, find) {                             // what an account is worth, with `find` giving a stock's data
     let inStocks = 0;
-    for (const t of Object.keys(demo.pos)) inStocks += demo.pos[t].shares * (demoPrice(t).price || 0);
-    const value = demo.cash + inStocks, gain = value - demo.start;
-    return { inStocks, value, gain, pct: gain / demo.start * 100 };
+    for (const t of Object.keys(a.pos)) { const s = find(t); inStocks += a.pos[t].shares * ((s ? s.price : a.pos[t].last) || 0); }
+    const value = a.cash + inStocks, gain = value - a.start;
+    return { inStocks, value, gain, pct: gain / a.start * 100 };
   }
+  const demoTotals = () => totalsOf(cur(), stockOf);
   // The checker sends the daily 20:00 message only while a demo account exists, so the app
   // tells it when one is opened or erased. Only that yes or no leaves the phone.
   async function tellDemo() {
@@ -1836,17 +1862,19 @@
     amount = cents(Number(amount));
     if (!(amount >= 100 && amount <= 10000000)) { toast("Choose an amount between $100 and $10,000,000"); return; }
     demo = { start: amount, cash: amount, startedAt: Date.now(), pos: {}, trades: [] };
+    demoView = "mine";
     saveDemo(); renderDemo(); animateDemoChart(); tellDemo(); toast("Demo account opened with " + money(amount));
+    loadClaude().then(() => { if (claudeSync() && !$("demo").hidden) renderDemo(); });
   }
   // How much the account moved in the latest trading day. Shares bought or sold during that
   // day count from the price they were traded at, not from the day before's close.
   function demoToday() {
     let change = 0, any = false, day = "";
-    for (const t of Object.keys(demo.pos)) {
+    for (const t of Object.keys(cur().pos)) {
       const s = stockOf(t);
-      if (s && s.prev > 0) { change += demo.pos[t].shares * (s.price - s.prev); any = true; day = s.as_of; }
+      if (s && s.prev > 0) { change += cur().pos[t].shares * (s.price - s.prev); any = true; day = s.as_of; }
     }
-    for (const x of demo.trades) {
+    for (const x of cur().trades) {
       const s = stockOf(x.t);
       if (!s || !(s.prev > 0) || nyDay(x.time / 60000) < s.as_of) continue;
       change += x.side === "buy" ? x.shares * (s.prev - x.price) : x.shares * (x.price - s.prev); any = true; day = s.as_of;
@@ -1855,15 +1883,111 @@
   }
   const CHART_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>';
   const chartBtn = (t, name) => `<button type="button" class="chartbtn" data-chart="${esc(t)}" aria-label="Open the chart of ${esc(name)}">${CHART_ICON}</button>`;
-  function openChartOf(t) { const s = stockOf(t); if (s) openDetail(s, stocks.rules, "demo"); else toast("No chart for " + t + " right now"); }
+  function openChartOf(t) { const s = stockOf(t); if (s) openDetail(s, stocks.rules, claudeOn() ? "claude" : "demo"); else toast("No chart for " + t + " right now"); }
+  // ---- Claude's demo account ---------------------------------------------------
+  // It does not think. It follows one public recipe (the "copy an investor" method of the
+  // Trader skill): the largest holdings in an investor's latest quarterly report, with a cash
+  // buffer and a cap per stock. The checker works out those targets (data/claude_demo.json);
+  // the pretend buying happens here, with the same amount and on the same day as your demo.
+  async function loadClaude(force) {
+    if (claudeData && !force && Date.now() - claudeAt < 60000) return claudeData;
+    try {
+      const r = await fetch("data/claude_demo.json", { cache: "no-store" });
+      if (r.ok) { const d = await r.json(); if (d && Array.isArray(d.holdings) && Array.isArray(d.stocks) && d.report) { claudeData = d; claudeAt = Date.now(); } }
+    } catch {}
+    return claudeData;
+  }
+  const dayNumber = (iso) => Math.floor(Date.parse(iso + "T00:00:00Z") / 86400000);
+  // A stock's closing price on a day (the next trading day when there was none); today's price while the day is not over.
+  function closeOn(s, iso) { const d = dayNumber(iso), p = s.series.find((x) => x[0] >= d); return p ? p[1] : s.price; }
+  function claudeSync() {                                  // start Claude's account, or follow a new report. True when it changed.
+    if (!demo || !claudeData) return false;
+    const want = claudeData.holdings.filter((h) => h.target > 0);
+    if (!want.length || want.some((h) => !claudeStock(h.ticker))) return false;      // a price is missing: wait for the next data
+    const report = claudeData.report.accession;
+    if (!demo.claude) {
+      const mine = nyDay(demo.startedAt / 60000), filed = claudeData.report.filed;
+      const late = mine < filed;                             // never from a day on which the report was not public yet
+      const day = late ? filed : mine, time = late ? Date.parse(filed + "T21:00:00Z") : demo.startedAt;
+      const c = { start: demo.start, cash: demo.start, startedAt: time, pos: {}, trades: [], colors: {}, report };
+      for (const h of want) {
+        const s = claudeStock(h.ticker), price = closeOn(s, day), total = demo.start * h.target / 100;
+        if (!(price > 0)) return false;
+        c.pos[h.ticker] = { shares: total / price, cost: total, name: s.name, last: s.price };
+        c.cash -= total;
+        c.trades.push({ t: h.ticker, side: "buy", shares: total / price, price, total, gain: null, time });
+      }
+      demo.claude = c; saveDemo();
+      return true;
+    }
+    const c = demo.claude;
+    if (c.report === report) return false;
+    // A new quarterly report: bring the account to the new targets at the prices of the day it came out.
+    const day = claudeData.since || claudeData.report.filed, time = Date.parse(day + "T21:00:00Z");
+    const priceOf = (t) => { const s = claudeStock(t); return s ? closeOn(s, day) : ((c.pos[t] && c.pos[t].last) || 0); };
+    let value = c.cash;
+    for (const t of Object.keys(c.pos)) value += c.pos[t].shares * priceOf(t);
+    const goal = Object.fromEntries(want.map((h) => [h.ticker, value * h.target / 100]));
+    const moves = [...new Set([...Object.keys(c.pos), ...Object.keys(goal)])]
+      .map((t) => ({ t, price: priceOf(t), diff: (goal[t] || 0) - (c.pos[t] ? c.pos[t].shares * priceOf(t) : 0) }))
+      .filter((m) => m.price > 0 && Math.abs(m.diff) >= 0.01).sort((a, b) => a.diff - b.diff);        // sales first
+    for (const m of moves) {
+      const p = c.pos[m.t] || (c.pos[m.t] = { shares: 0, cost: 0, name: (claudeStock(m.t) || {}).name || m.t, last: m.price });
+      const shares = Math.abs(m.diff) / m.price;
+      if (m.diff < 0) {
+        const part = p.cost * Math.min(1, shares / p.shares);
+        c.trades.push({ t: m.t, side: "sell", shares, price: m.price, total: -m.diff, gain: -m.diff - part, time });
+        p.shares -= shares; p.cost -= part; c.cash -= m.diff;
+        if (p.shares * m.price < 0.01) delete c.pos[m.t];
+      } else {
+        c.trades.push({ t: m.t, side: "buy", shares, price: m.price, total: m.diff, gain: null, time });
+        p.shares += shares; p.cost += m.diff; c.cash -= m.diff;
+      }
+    }
+    c.report = report; saveDemo();
+    return true;
+  }
+  function renderDemoTabs() {
+    const box = $("demoTabs");
+    box.hidden = !demo;
+    if (!demo) return;
+    box.querySelectorAll("button").forEach((b) => { const on = b.dataset.view === demoView; b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on)); });
+    const show = (val, gain, t) => {
+      $(val).textContent = t ? money(t.value) : "…";
+      $(gain).textContent = t ? `${signed(t.gain)} (${pctz(t.pct)})` : "getting ready";
+      $(gain).className = "g " + (t ? upDown(t.gain) : "");
+    };
+    show("tabMineVal", "tabMineGain", totalsOf(demo, listStock));
+    show("tabClaudeVal", "tabClaudeGain", demo.claude ? totalsOf(demo.claude, claudeStock) : null);
+  }
+  $("demoTabs").querySelectorAll("button").forEach((b) => b.onclick = () => {
+    if (demoView === b.dataset.view) return;
+    demoView = b.dataset.view; $("demo").scrollTop = 0;
+    renderDemo(); animateDemoChart();
+  });
+  function renderClaudeNote() {
+    const el = $("claudeNote"), d = claudeData;
+    el.hidden = demoView !== "claude" || !demo;
+    if (el.hidden) return;
+    const day = (iso) => new Date(iso + "T00:00:00").toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
+    el.innerHTML = d
+      ? `<b>How Claude's demo trades.</b> It does not choose stocks by itself. It follows the "copy an investor" recipe of the Trader skill:
+         the ${d.rules.top} largest stocks in <b>${esc(d.investor.name)}</b>'s latest public report (what it held on ${day(d.report.period)}, filed ${day(d.report.filed)}),
+         no stock over ${d.rules.cap_pct}% of the money and ${d.rules.cash_pct}% kept in cash. It started with the same amount as your demo
+         and changes only when a new quarterly report comes out. The report shows what the firm held then, not what it holds today.
+         Pretend money; this is not advice. <a href="${esc(d.report.url)}" target="_blank" rel="noopener">The report at the SEC</a>`
+      : `<b>Claude's demo</b> needs data from the checker. Check your connection and open the demo again.`;
+  }
   function renderDemo() {
     const data = stocks, have = !!(data && data.stocks);
+    const claudeView = demoView === "claude" && !!demo;
     $("demoUpdated").textContent = have ? "prices " + priceTime(data) : "";
-    resetArmed = false; $("demoReset").textContent = "Start over"; $("demoReset").hidden = !demo;
-    $("demoAddBox").hidden = !demo || !have;
+    resetArmed = false; $("demoReset").textContent = "Start over"; $("demoReset").hidden = !demo || claudeView;
+    $("demoAddBox").hidden = !demo || !have || claudeView;
+    renderDemoTabs(); renderClaudeNote();
     if (!demo) {
       $("demoSum").innerHTML = `<div class="lbl">Practice with pretend money</div>
-        <div class="d">Buy and sell the stocks on your list at their real prices and see how you would have done. No real money is involved.</div>
+        <div class="d">Buy and sell the stocks on your list at their real prices and see how you would have done. No real money is involved. Claude gets a demo account with the same amount, so you can compare.</div>
         <div class="ighead" style="margin-left:0">How much pretend money to start with?</div>
         <div class="chips">${[1000, 10000, 100000].map((a) => `<button type="button" class="chip" data-start="${a}">$${a.toLocaleString()}</button>`).join("")}</div>
         <form id="demoOther" class="demoform"><input id="demoAmount" type="number" inputmode="decimal" min="100" step="any" placeholder="Another amount ($)" aria-label="Another starting amount in dollars"><button type="submit">Start</button></form>`;
@@ -1873,34 +1997,45 @@
       $("demoChartBox").hidden = true;
       return;
     }
+    if (claudeView && !demo.claude) {                        // the targets or their prices have not arrived yet
+      $("demoSum").innerHTML = `<div class="lbl">Claude's demo is getting ready</div>
+        <div class="d">It starts with ${money(demo.start)}, like yours, as soon as the checker's data arrives. Open the demo again in a little while.</div>`;
+      $("demoPos").innerHTML = ""; $("demoBuy").innerHTML = ""; $("demoHist").innerHTML = ""; $("demoBuyHead").hidden = true;
+      $("demoChartBox").hidden = true;
+      return;
+    }
+    const a = cur(), who = claudeView ? "it" : "you";
     const tot = demoTotals(), day = demoToday();
     $("demoSum").innerHTML = `<div class="num">${money(tot.value)}</div>
-      <div class="lbl ${upDown(tot.gain)}">${signed(tot.gain)} (${pctz(tot.pct)}) since you started</div>`
+      <div class="lbl ${upDown(tot.gain)}">${signed(tot.gain)} (${pctz(tot.pct)}) since ${who} started</div>`
       + (day ? `<div class="d">${day.live ? "Today" : "Last trading day"}: <b class="${upDown(day.change)}">${signed(day.change)}${tot.value - day.change > 0 ? ` (${pctz(day.change / (tot.value - day.change) * 100)})` : ""}</b></div>` : "")
-      + `<div class="d">Cash ${money(demo.cash)} · In stocks ${money(tot.inStocks)}</div>
-      <div class="d">Started ${new Date(demo.startedAt).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" })} with ${money(demo.start)}</div>`;
-    const worthOf = (t) => demo.pos[t].shares * (demoPrice(t).price || 0);
-    const held = Object.keys(demo.pos).sort((a, b) => worthOf(b) - worthOf(a));
-    $("demoPos").innerHTML = held.length ? `<div class="ighead">Your demo stocks</div>` + held.map((t) => {
-      const p = demo.pos[t], q = demoPrice(t), worth = worthOf(t), gain = worth - p.cost;
-      return `<div class="drow" role="button" tabindex="0" data-trade="${esc(t)}" data-side="sell">${q.live ? chartBtn(t, q.name) : ""}<div class="mid"><div class="nm">${esc(q.name)} <span class="tk">${esc(t)}</span></div>
-        <div class="sub">${fmtShares(p.shares)} shares · bought for ${money(p.cost)}${q.live ? "" : " · off your list, last known price"}</div></div>
+      + `<div class="d">Cash ${money(a.cash)} · In stocks ${money(tot.inStocks)}</div>
+      <div class="d">Started ${new Date(a.startedAt).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" })} with ${money(a.start)}</div>`;
+    const worthOf = (t) => a.pos[t].shares * (demoPrice(t).price || 0);
+    const held = Object.keys(a.pos).sort((x, y) => worthOf(y) - worthOf(x));
+    $("demoPos").innerHTML = held.length ? `<div class="ighead">${claudeView ? "Claude's stocks" : "Your demo stocks"}</div>` + held.map((t) => {
+      const p = a.pos[t], q = demoPrice(t), worth = worthOf(t), gain = worth - p.cost;
+      return `<div class="drow" role="button" tabindex="0" data-row="${esc(t)}" data-side="sell">${q.live ? chartBtn(t, q.name) : ""}<div class="mid"><div class="nm">${esc(q.name)} <span class="tk">${esc(t)}</span></div>
+        <div class="sub">${fmtShares(p.shares)} shares · bought for ${money(p.cost)}${claudeView ? ` · ${(worth / tot.value * 100).toFixed(0)}% of the account` : (q.live ? "" : " · off your list, last known price")}</div></div>
         <div class="px"><b>${money(worth)}</b><span class="${upDown(gain)}">${signed(gain)} (${pct1(p.cost > 0 && Math.abs(gain) >= 0.005 ? gain / p.cost * 100 : 0)})</span></div></div>`; }).join("") : "";
-    const tickers = have ? listTickers(data) : [], rejected = (have && data.rejected) || {};
-    const list = tickers.map((t) => data.stocks.find((s) => s.ticker === t)).filter(Boolean);
-    const waiting = tickers.filter((t) => !data.stocks.some((s) => s.ticker === t));
-    $("demoBuyHead").hidden = false;
-    $("demoBuy").innerHTML = waiting.map((t) => `<div class="drow flat"><div class="mid"><div class="nm">${esc(myNames[t] || t)}${myNames[t] ? ` <span class="tk">${esc(t)}</span>` : ""} <span class="tag${rejected[t] ? " big" : ""}">${rejected[t] ? "NOT FOUND" : "WAITING"}</span></div>
-        <div class="sub">${rejected[t] ? "No stock has this ticker. Remove it in Charts." : (checkerOnDuty() ? "Getting its prices now. This takes about a minute." : "The market is closed. Its prices arrive in a few minutes if your PC is on, otherwise within about 2 hours.")}</div></div></div>`).join("")
-      + (list.length ? list.map((s) => `<div class="drow" role="button" tabindex="0" data-trade="${esc(s.ticker)}" data-side="buy">${chartBtn(s.ticker, s.name)}<div class="mid"><div class="nm">${esc(s.name)} <span class="tk">${esc(s.ticker)}</span></div>
-        <div class="sub">${demo.pos[s.ticker] ? "You have " + fmtShares(demo.pos[s.ticker].shares) + " shares" : "Tap to buy"}</div></div>
-        <div class="px"><b>${money(s.price)}</b><span class="${s.day_pct >= 0 ? "up" : "down"}">${pct(s.day_pct)}</span></div></div>`).join("")
-      : waiting.length ? "" : `<div class="empty"><strong>${have ? "No stocks on your list yet" : "No prices right now"}</strong>${have ? "Add a stock in the box above to practise with it." : "Check your connection and open the demo again."}</div>`);
-    $("demoHist").innerHTML = demo.trades.length ? `<div class="ighead">What you did (${demo.trades.length})</div>` + demo.trades.slice(-40).reverse().map((x) => `
+    if (claudeView) { $("demoBuyHead").hidden = true; $("demoBuy").innerHTML = ""; }
+    else {
+      const tickers = have ? listTickers(data) : [], rejected = (have && data.rejected) || {};
+      const list = tickers.map((t) => data.stocks.find((s) => s.ticker === t)).filter(Boolean);
+      const waiting = tickers.filter((t) => !data.stocks.some((s) => s.ticker === t));
+      $("demoBuyHead").hidden = false;
+      $("demoBuy").innerHTML = waiting.map((t) => `<div class="drow flat"><div class="mid"><div class="nm">${esc(myNames[t] || t)}${myNames[t] ? ` <span class="tk">${esc(t)}</span>` : ""} <span class="tag${rejected[t] ? " big" : ""}">${rejected[t] ? "NOT FOUND" : "WAITING"}</span></div>
+          <div class="sub">${rejected[t] ? "No stock has this ticker. Remove it in Charts." : (checkerOnDuty() ? "Getting its prices now. This takes about a minute." : "The market is closed. Its prices arrive in a few minutes if your PC is on, otherwise within about 2 hours.")}</div></div></div>`).join("")
+        + (list.length ? list.map((s) => `<div class="drow" role="button" tabindex="0" data-row="${esc(s.ticker)}" data-side="buy">${chartBtn(s.ticker, s.name)}<div class="mid"><div class="nm">${esc(s.name)} <span class="tk">${esc(s.ticker)}</span></div>
+          <div class="sub">${a.pos[s.ticker] ? "You have " + fmtShares(a.pos[s.ticker].shares) + " shares" : "Tap to buy"}</div></div>
+          <div class="px"><b>${money(s.price)}</b><span class="${s.day_pct >= 0 ? "up" : "down"}">${pct(s.day_pct)}</span></div></div>`).join("")
+        : waiting.length ? "" : `<div class="empty"><strong>${have ? "No stocks on your list yet" : "No prices right now"}</strong>${have ? "Add a stock in the box above to practise with it." : "Check your connection and open the demo again."}</div>`);
+    }
+    $("demoHist").innerHTML = a.trades.length ? `<div class="ighead">${claudeView ? "What Claude did" : "What you did"} (${a.trades.length})</div>` + a.trades.slice(-40).reverse().map((x) => `
       <div class="drow flat"><div class="mid"><div class="nm">${x.side === "buy" ? "Bought" : "Sold"} ${fmtShares(x.shares)} ${esc(x.t)}</div><div class="sub">at ${money(x.price)} · ${fmtWhen(x.time)}</div></div>
         <div class="px"><b>${money(x.total)}</b>${x.side === "sell" ? `<span class="${upDown(x.gain)}">${signed(x.gain)}</span>` : ""}</div></div>`).join("") : "";
-    $("demo").querySelectorAll(".drow[data-trade]").forEach((b) => {
-      b.onclick = () => openTrade(b.dataset.trade, b.dataset.side);
+    $("demo").querySelectorAll(".drow[data-row]").forEach((b) => {     // your rows trade; Claude's rows open the chart
+      b.onclick = () => (claudeView ? openChartOf(b.dataset.row) : openTrade(b.dataset.row, b.dataset.side));
       b.onkeydown = (e) => { if (e.key === "Enter" && e.target === b) b.click(); };
     });
     $("demo").querySelectorAll(".drow [data-chart]").forEach((b) => b.onclick = (e) => { e.stopPropagation(); openChartOf(b.dataset.chart); });
@@ -1916,13 +2051,13 @@
   let dmPeriod = 1 / 12, dmLines = [], dmMore = 0, dmGeom = null, dmReveal = 1, dmAnim = 0;
   try { const p = JSON.parse(ls.get("cn.demoPeriod", "null")); if (PERIODS.some(([, y]) => y === p)) dmPeriod = p; } catch {}
   function demoChartStocks() {
-    const held = Object.keys(demo.pos).map(stockOf).filter(Boolean)
-      .sort((a, b) => demo.pos[b.ticker].shares * b.price - demo.pos[a.ticker].shares * a.price);
+    const held = Object.keys(cur().pos).map(stockOf).filter(Boolean)
+      .sort((a, b) => cur().pos[b.ticker].shares * b.price - cur().pos[a.ticker].shares * a.price);
     const list = held.length ? held : (stocks ? listTickers(stocks).map(stockOf).filter(Boolean) : []);
     return { list: list.slice(0, SERIES_SLOTS), more: Math.max(0, list.length - SERIES_SLOTS) };
   }
   function slotsFor(list) {                                // a stock keeps its colour for as long as it is on the chart
-    const colors = demo.colors && typeof demo.colors === "object" ? demo.colors : (demo.colors = {});
+    const colors = cur().colors && typeof cur().colors === "object" ? cur().colors : (cur().colors = {});
     const shown = list.map((s) => s.ticker), used = new Set();
     for (const t of Object.keys(colors)) if (!shown.includes(t)) delete colors[t];
     for (const t of shown) { const c = colors[t]; if (Number.isInteger(c) && c >= 0 && c < SERIES_SLOTS && !used.has(c)) used.add(c); else delete colors[t]; }
@@ -1939,7 +2074,7 @@
       const last = pts[pts.length - 1];
       const base = today ? ((nyDay(last[0]) === s.as_of ? s.prev : s.price) || pts[0][1]) : pts[0][1];
       const at = new Map();                                    // where on this line the stock was bought in the demo
-      demo.trades.forEach((x) => {
+      cur().trades.forEach((x) => {
         if (x.t !== s.ticker || x.side !== "buy") return;
         const k = markIndex(pts, intra, { time: x.time });
         if (k >= 0) at.set(k, (at.get(k) || []).concat(`${fmtShares(x.shares)} at ${money(x.price)}`));
@@ -2023,7 +2158,7 @@
   function demoLegend(scrub) {
     const g = dmGeom, today = dmPeriod === "today", intra = typeof dmPeriod === "string";
     $("demoLegend").innerHTML = dmLines.map((l) => {
-      const p = demo.pos[l.s.ticker];
+      const p = cur().pos[l.s.ticker];
       const v = l.pts.length > 1 ? l.vals[scrub != null && g ? pointAt(l, scrub, g) : l.vals.length - 1] : null;
       return `<button type="button" class="leg" data-chart="${esc(l.s.ticker)}" aria-label="Open the chart of ${esc(l.s.name)}"><i style="background:var(--s${l.slot + 1})"></i>
         <span class="n">${esc(l.s.name)}${p ? ` <span>(${legShares(p.shares)})</span>` : ""}</span><b class="${v == null ? "" : v >= 0 ? "up" : "down"}">${v == null ? "no data" : pct(v)}</b></button>`; }).join("")
@@ -2046,7 +2181,7 @@
   }
   function renderDemoChart() {
     const box = $("demoChartBox");
-    const any = !!(demo && stocks && stocks.stocks && demoChartStocks().list.length);
+    const any = !!(demo && stocks && stocks.stocks && !(demoView === "claude" && !demo.claude) && demoChartStocks().list.length);
     box.hidden = !any;
     if (!any) return;
     const all = demoChartStocks().list;
@@ -2110,19 +2245,20 @@
   }
   async function openDemo() {
     openScreen("demo"); loadTickers(); renderDemo(); animateDemoChart();
-    const before = stocks && stocks.updated;
-    await loadStocks(true);
-    if (!$("demo").hidden && (stocks && stocks.updated) !== before) { renderDemo(); animateDemoChart(); }
+    const before = stocks && stocks.updated, had = claudeData && claudeData.updated;
+    await Promise.all([loadStocks(true), loadClaude(true)]);
+    const moved = claudeSync();
+    if (!$("demo").hidden && (moved || (stocks && stocks.updated) !== before || (claudeData && claudeData.updated) !== had)) { renderDemo(); animateDemoChart(); }
     followChecker(); tellDemo();
   }
   $("demoBtn").onclick = openDemo;
   $("demoReset").onclick = () => {
     if (!resetArmed) { resetArmed = true; $("demoReset").textContent = "Tap again to erase the demo account"; return; }
-    demo = null; ls.set("cn.demo", "null"); renderDemo(); tellDemo(); toast("Demo account erased");
+    demo = null; demoView = "mine"; ls.set("cn.demo", "null"); renderDemo(); tellDemo(); toast("Demo account erased");
   };
 
   function openTrade(t, side) {
-    if (!demo) return;
+    if (!demo || claudeOn()) return;                          // only your own account trades by hand
     if (!demoPrice(t).live) { toast("No current price. Add " + t + " back to your list in Charts to sell it."); return; }
     tradeT = t; tradeSide = side || "buy";
     $("tAmount").value = ""; $("tShares").value = "";
