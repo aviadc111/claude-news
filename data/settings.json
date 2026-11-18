@@ -8,10 +8,11 @@
   "TSLA",
   "NVDA",
   "MU",
-  "VOO"
+  "VOO",
+  "TTWO"
  ],
- "since": "bdO9a5RSKv9V",
- "updated": "2026-11-18T19:52:05+00:00",
+ "since": "cfYpR7y7q8Wh",
+ "updated": "2026-11-18T19:55:01+00:00",
  "tickers": {
   "AAPL": "Apple",
   "MSFT": "Microsoft",
@@ -21,7 +22,8 @@
   "TSLA": "Tesla",
   "NVDA": "NVIDIA",
   "MU": "Micron Technology",
-  "VOO": "Vanguard S&P 500 ETF"
+  "VOO": "Vanguard S&P 500 ETF",
+  "TTWO": "Take-Two Interactive Software"
  },
  "known": [
   "NVDA",
@@ -35,7 +37,8 @@
   "BIXI",
   "E",
   "MU",
-  "VOO"
+  "VOO",
+  "TTWO"
  ],
  "rejected": {},
  "name_tried": [],
