@@ -9,10 +9,11 @@
   "NVDA",
   "MU",
   "VOO",
-  "TTWO"
+  "TTWO",
+  "ASML"
  ],
- "since": "cfYpR7y7q8Wh",
- "updated": "2026-11-18T19:55:01+00:00",
+ "since": "qLhFwKB4M3No",
+ "updated": "2026-11-19T22:00:34+00:00",
  "tickers": {
   "AAPL": "Apple",
   "MSFT": "Microsoft",
@@ -23,7 +24,8 @@
   "NVDA": "NVIDIA",
   "MU": "Micron Technology",
   "VOO": "Vanguard S&P 500 ETF",
-  "TTWO": "Take-Two Interactive Software"
+  "TTWO": "Take-Two Interactive Software",
+  "ASML": "ASML Holding N.V. - New York Re"
  },
  "known": [
   "NVDA",
@@ -38,9 +40,12 @@
   "E",
   "MU",
   "VOO",
-  "TTWO"
+  "TTWO",
+  "ASML"
  ],
  "rejected": {},
- "name_tried": [],
+ "name_tried": [
+  "ASML"
+ ],
  "demo": true
 }
