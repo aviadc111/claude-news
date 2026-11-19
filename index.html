@@ -235,7 +235,6 @@
   .holdcard .d { font-size: 13px; color: var(--muted); }
   .holdcard .d.up { color: var(--ok); } .holdcard .d.down { color: var(--danger); }
   .holdcard button { margin-top: 6px; }
-  #dRemove { width: 100%; margin-top: 12px; color: var(--danger); }
   .lot { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--bg); border-radius: 12px; padding: 10px 12px; }
   .lot .d { font-size: 12px; color: var(--muted); margin-top: 2px; }
   #holdList { display: grid; gap: 8px; }
@@ -330,6 +329,17 @@
   #claudeNote { background: var(--surface); border-radius: 14px; padding: 12px 14px; margin: 0 0 12px; font-size: 13px; color: var(--muted); line-height: 1.5; }
   #claudeNote b { color: var(--fg); }
   #claudeNote a { color: var(--accent); }
+
+  /* v4.2: lines that trade in the demo; press and hold a stock for its menu */
+  #dLines { justify-items: stretch; }
+  #dLines .lrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--bg); border-radius: 10px; padding: 8px 10px; font-size: 13px; }
+  #dLines .lrow span { min-width: 0; }
+  #dLines button { justify-self: start; }
+  .menu { display: grid; gap: 8px; }
+  .menu button { width: 100%; }
+  .menu .danger { color: var(--danger); }
+  #lineText { min-height: 32px; }
+  #lineText.bad { color: var(--danger); font-weight: 700; }
 
   /* v2.0: Instagram follow-back check */
   .chartsbtn.ig { background: #e1306c; color: #fff; box-shadow: 0 4px 14px rgba(225, 48, 108, .3); }
@@ -470,7 +480,7 @@
   </div>
   <div id="dHold" class="holdcard"></div>
   <div id="dDemo" class="holdcard" hidden></div>
-  <button id="dRemove" class="ghost">Remove from my list</button>
+  <div id="dLines" class="holdcard" hidden></div>
 </section>
 
 <section id="ig" class="screen" hidden aria-label="Instagram follow-back check">
@@ -515,6 +525,34 @@
     <div class="chips" id="tradeQuick"></div>
     <p id="tradeAfter" class="note"></p>
     <div class="row"><button type="submit" id="tradeGo">Buy</button><button type="button" id="tradeClose" class="ghost">Cancel</button></div>
+  </form>
+  <p class="note">Pretend money. Nothing is bought or sold for real.</p>
+</section>
+
+<div id="rowBg" class="sheet-bg" hidden></div>
+<section id="rowSheet" class="sheet" hidden aria-label="Stock options">
+  <div class="grab"></div>
+  <h2 id="rowTitle"></h2>
+  <div class="menu">
+    <button type="button" id="rowPin" class="ghost">Pin to top</button>
+    <button type="button" id="rowRemove" class="ghost danger">Remove from my list</button>
+    <button type="button" id="rowCancel" class="ghost">Cancel</button>
+  </div>
+</section>
+
+<div id="lineBg" class="sheet-bg" hidden></div>
+<section id="lineSheet" class="sheet" hidden aria-label="A line that trades in the demo">
+  <div class="grab"></div>
+  <h2 id="lineTitle"></h2>
+  <div id="lineInfo" class="holdsum"></div>
+  <div class="seg" id="lineSide"><button type="button" data-side="buy">Buy</button><button type="button" data-side="sell">Sell</button></div>
+  <form id="lineForm" class="holdform">
+    <div class="two">
+      <div class="kv"><label for="lPrice">Line at ($)</label><input id="lPrice" type="number" inputmode="decimal" min="0" step="any"></div>
+      <div class="kv" id="lAmountBox"><label for="lAmount">Buy for ($)</label><input id="lAmount" type="number" inputmode="decimal" min="0" step="any"></div>
+    </div>
+    <p id="lineText" class="note"></p>
+    <div class="row"><button type="submit" id="lineSave">Save the line</button><button type="button" id="lineCancel" class="ghost">Cancel</button></div>
   </form>
   <p class="note">Pretend money. Nothing is bought or sold for real.</p>
 </section>
@@ -580,7 +618,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "4.1";
+  const APP_VERSION = "4.2";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -831,6 +869,7 @@
     try { openSheet(false); } catch {}
     try { closeMsg(); } catch {}
     try { closeTrade(); } catch {}
+    try { closeLineSheet(); closeRowMenu(); } catch {}
     selectTab(p);
   }
   // The daily demo message carries "open=demo" in its link: tapping it opens the demo account.
@@ -1071,7 +1110,11 @@
     // show the previous close as a dashed line when it is near the day's range; after a big
     // overnight jump it would squash the day's line flat, so then it is left out
     const sSpan = sHi - sLo || 1, showBase = base > 0 && base >= sLo - 0.6 * sSpan && base <= sHi + 0.6 * sSpan;
-    const lo = showBase ? Math.min(sLo, base) : sLo, hi = showBase ? Math.max(sHi, base) : sHi, span = hi - lo || 1;
+    let lo = showBase ? Math.min(sLo, base) : sLo, hi = showBase ? Math.max(sHi, base) : sHi;
+    // a line of yours that is a little outside the prices shown widens the chart to include it
+    (opt.lines || []).forEach((L) => { if (L.price > hi && L.price <= sHi + 0.6 * sSpan) hi = L.price; if (L.price < lo && L.price >= sLo - 0.6 * sSpan) lo = L.price; });
+    if (opt.room) { const r = (hi - lo || 1) * opt.room; hi += r; lo -= r; }      // room above and below while a line is being placed
+    const span = hi - lo || 1;
     const dec = span >= 20 ? 0 : span >= 2 ? 1 : 2;          // small moves need cents on the price labels
     const axis = opt.axis || ((p) => dayToDate(p[0]).toLocaleDateString([], { month: "short", year: "2-digit" }));
     const X = (i) => padL + i * (w - padL - padR) / (series.length - 1);
@@ -1111,13 +1154,14 @@
       (m.colors.length > 1 ? [7.5, 5] : [6.5]).forEach((r, j) => { ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = m.colors[j]; ctx.fill(); });
       ctx.beginPath(); ctx.arc(x, y, 2.7, 0, 7); ctx.fillStyle = css.getPropertyValue("--surface").trim(); ctx.fill();
     });
+    drawLevels(ctx, opt, { Y, lo, hi, padL, padR, w });
     // scrub line
     if (scrubIndex != null) {
       const x = X(scrubIndex), y = Y(series[scrubIndex][1]);
       ctx.strokeStyle = muted; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(x, padT - 6); ctx.lineTo(x, h - padB); ctx.stroke(); ctx.setLineDash([]);
       ctx.beginPath(); ctx.arc(x, y, 5, 0, 7); ctx.fillStyle = fg; ctx.fill();
     }
-    return { X, n: series.length, padL, padR, w };
+    return { X, n: series.length, padL, padR, w, yToPrice: (y) => hi - (y - padT) / (h - padT - padB) * span };
   }
 
   const freshStart = (el) => { if (el && el._resetSwipe) el._resetSwipe(); };   // stop a closing movement that is still running
@@ -1177,8 +1221,56 @@
     saveLocal(data);
     return true;
   }
+  // Stocks pinned to the top of the list, in the order they were pinned (kept on this phone).
+  let pinned = [];
+  try { pinned = JSON.parse(ls.get("cn.pinned", "[]")) || []; } catch { pinned = []; }
+  if (!Array.isArray(pinned)) pinned = [];
+  function setPinned(t, on) {
+    pinned = pinned.filter((x) => x !== t);
+    if (on) pinned.push(t);
+    ls.set("cn.pinned", JSON.stringify(pinned));
+  }
+  // Press and hold. `fn` runs after about half a second without moving; the tap that would follow is swallowed.
+  function onHold(el, fn) {
+    let timer = 0, x0 = 0, y0 = 0;
+    const stop = () => { clearTimeout(timer); timer = 0; };
+    el.addEventListener("touchstart", (e) => {
+      const p = e.touches[0]; x0 = p.clientX; y0 = p.clientY; el._held = false; stop();
+      timer = setTimeout(() => { timer = 0; el._held = true; fn(); }, 520);
+    }, { passive: true });
+    el.addEventListener("touchmove", (e) => { const p = e.touches[0]; if (Math.abs(p.clientX - x0) > 10 || Math.abs(p.clientY - y0) > 10) stop(); }, { passive: true });
+    el.addEventListener("touchend", (e) => { stop(); if (el._held && e.cancelable) e.preventDefault(); });
+    el.addEventListener("touchcancel", stop);
+    el.addEventListener("contextmenu", (e) => { e.preventDefault(); stop(); if (!el._held) { el._held = true; fn(); setTimeout(() => { el._held = false; }, 400); } });
+  }
+  let rowTicker = null, rowArmed = false;
+  function openRowMenu(t) {
+    rowTicker = t; rowArmed = false;
+    const s = stocks && stocks.stocks.find((x) => x.ticker === t), name = (s && s.name) || myNames[t] || t;
+    $("rowTitle").textContent = name;
+    $("rowPin").textContent = pinned.includes(t) ? "Unpin from the top" : "Pin to the top";
+    $("rowRemove").textContent = "Remove from my list";
+    freshStart($("rowSheet"));
+    $("rowSheet").hidden = false; $("rowBg").hidden = false;
+  }
+  function closeRowMenu() { $("rowSheet").hidden = true; $("rowBg").hidden = true; rowTicker = null; }
+  $("rowPin").onclick = () => {
+    const t = rowTicker; if (!t) return;
+    const on = !pinned.includes(t);
+    setPinned(t, on); rowSwipe.out();
+    if (stocks) renderBoard(stocks);
+    toast(on ? "Pinned to the top" : "Unpinned");
+  };
+  $("rowRemove").onclick = () => {
+    const t = rowTicker; if (!t) return;
+    if (!rowArmed) { rowArmed = true; $("rowRemove").textContent = "Tap again to remove " + $("rowTitle").textContent; return; }
+    const name = $("rowTitle").textContent;
+    rowSwipe.out(); removeTicker(t, stocks); toast(name + " removed");
+  };
   function removeTicker(t, data) {
     ensureLocal(data);
+    setPinned(t, false);
+    if (demo && Array.isArray(demo.lines) && demo.lines.some((L) => L.t === t)) { demo.lines = demo.lines.filter((L) => L.t !== t); saveDemo(); }
     myTickers = myTickers.filter((x) => x !== t); picked = picked.filter((x) => x !== t);
     saveLocal(data);
   }
@@ -1262,9 +1354,11 @@
     const tickers = listTickers(data), mine = currentPicked(data), srv = serverTickers(data), rejected = data.rejected || {};
     const synced = inSync(data), soon = checkerOnDuty();
     const when = (data.weekly && data.weekly.time) || "08:30";
-    $("boardHint").innerHTML = `Stocks with a <b class="glowtxt">green glow</b> are in your Sunday ${when} report (<b>${mine.length} of ${tickers.length}</b>). Tap the circle to put one in or take it out.`
+    $("boardHint").innerHTML = `Stocks with a <b class="glowtxt">green glow</b> are in your Sunday ${when} report (<b>${mine.length} of ${tickers.length}</b>). Tap the circle to put one in or take it out. Press and hold a stock to pin it to the top or remove it.`
       + (synced ? "" : `<br><span class="pending">Saved on this phone. ${soon ? "The checker follows in about a minute." : "The market is closed: the checker follows in a few minutes if your PC is on, otherwise within about 2 hours."}</span>`);
-    const withData = tickers.map((t) => data.stocks.find((s) => s.ticker === t)).filter(Boolean).sort((a, b) => a.from_lt_high_pct - b.from_lt_high_pct);
+    const pinRank = (t) => { const i = pinned.indexOf(t); return i < 0 ? 1e9 : i; };      // pinned stocks first, in the order they were pinned
+    const withData = tickers.map((t) => data.stocks.find((s) => s.ticker === t)).filter(Boolean)
+      .sort((a, b) => pinRank(a.ticker) - pinRank(b.ticker) || a.from_lt_high_pct - b.from_lt_high_pct);
     const waiting = tickers.filter((t) => !data.stocks.some((s) => s.ticker === t));
     list.innerHTML = waiting.map((t) => {
       const bad = !!rejected[t];
@@ -1284,7 +1378,7 @@
       return `
       <div class="srow ${on ? "on" : "off"}" data-t="${esc(s.ticker)}">
         <button class="pick${on ? " on" : ""}" data-pick="${esc(s.ticker)}" aria-pressed="${on}" aria-label="${on ? "Take out of" : "Put in"} the Sunday report: ${esc(s.name)}">${on ? CHECK : ""}</button>
-        <div class="info"><div class="nm">${esc(s.name)} <span class="tk">${esc(s.ticker)}</span> ${tag}</div>
+        <div class="info"><div class="nm">${esc(s.name)} <span class="tk">${esc(s.ticker)}</span> ${tag}${pinned.includes(s.ticker) ? ' <span class="tag dip">PINNED</span>' : ""}</div>
           <div class="sub">${Math.abs(s.from_lt_high_pct).toFixed(0)}% below ${data.rules.longterm_years}-year high</div></div>
         <canvas data-spark="${esc(s.ticker)}"></canvas>
         <div class="px"><b>${money(s.price)}</b><span class="${s.day_pct >= 0 ? "up" : "down"}">${pct(s.day_pct)}</span><br>${own}</div>
@@ -1293,7 +1387,10 @@
     list.querySelectorAll("[data-pick]").forEach((b) => b.onclick = (e) => { e.stopPropagation(); togglePick(b.dataset.pick, data); });
     list.querySelectorAll("[data-remove]").forEach((b) => b.onclick = (e) => { e.stopPropagation(); removeTicker(b.dataset.remove, data); });
     list.querySelectorAll("[data-own]").forEach((b) => b.onclick = (e) => { e.stopPropagation(); openHold(b.dataset.own); });
-    list.querySelectorAll(".srow[data-t]").forEach((b) => b.onclick = () => openDetail(data.stocks.find((x) => x.ticker === b.dataset.t), data.rules));
+    list.querySelectorAll(".srow[data-t]").forEach((b) => {
+      b.onclick = () => { if (b._held) { b._held = false; return; } openDetail(data.stocks.find((x) => x.ticker === b.dataset.t), data.rules); };
+      onHold(b, () => openRowMenu(b.dataset.t));
+    });
   }
   // ---- adding a stock: live suggestions from the list of real tickers --------
   let tickerDB = null, tickerMap = new Map(), tickerLoad = null, addErrTimer = null;
@@ -1409,7 +1506,6 @@
   $("holdClose").onclick = closeHold;
   $("holdBg").onclick = closeHold;
 
-  let removeArmed = false;
   function renderDetailExtras(s) {
     const h = holdingOf(s.ticker, s.price);
     $("dHold").innerHTML = h.shares > 0
@@ -1420,13 +1516,8 @@
          <button class="small" id="dHoldEdit">+ I own this</button>`;
     $("dHoldEdit").onclick = () => openHold(s.ticker);
     $("dHold").hidden = dFrom !== "board";                   // opened from the Demo: no My shares card
-    $("dRemove").hidden = dFrom === "claude";                // Claude's stocks need not be on your list
     renderDetailDemo(s);
-    removeArmed = false; $("dRemove").textContent = "Remove from my list";
-    $("dRemove").onclick = () => {
-      if (!removeArmed) { removeArmed = true; $("dRemove").textContent = "Tap again to remove " + s.name; return; }
-      removeTicker(s.ticker, stocks); closeScreen("detail"); toast(s.name + " removed");
-    };
+    renderLines(s);
   }
   function openDetail(s, rules, from) {
     dStock = s; dPeriod = rules.longterm_years; dFrom = ["demo", "claude", "charts", "charts2"].includes(from) ? from : "board";
@@ -1450,6 +1541,22 @@
     requestAnimationFrame(animateChart);
   }
   let dGeom = null, dSeries = [], dReveal = 1, chartAnim = 0, dFrom = "board", dBars = null;
+  let placing = false, placePrice = null;                    // a line is being placed on the chart with a finger
+  // Your lines (and the one being placed) across a chart: a price level, drawn as a dashed line with its label.
+  function drawLevels(ctx, opt, g) {
+    const one = (price, label, strong) => {
+      if (!(price >= g.lo && price <= g.hi)) return;
+      const y = g.Y(price);
+      ctx.save();
+      ctx.strokeStyle = DEMO_COLOR; ctx.lineWidth = strong ? 2 : 1.5; ctx.setLineDash(strong ? [] : [6, 4]);
+      ctx.beginPath(); ctx.moveTo(g.padL, y); ctx.lineTo(g.w - g.padR, y); ctx.stroke();
+      ctx.font = "bold 11px -apple-system, Segoe UI, Roboto, sans-serif"; ctx.textAlign = "left"; ctx.fillStyle = DEMO_COLOR;
+      ctx.fillText(label, g.padL + 4, y - 5 < 12 ? y + 13 : y - 5);
+      ctx.restore();
+    };
+    (opt.lines || []).forEach((L) => one(L.price, L.label, false));
+    if (opt.preview != null) one(opt.preview, money(opt.preview), true);
+  }
   let dKind = ls.get("cn.chartKind", "line") === "candles" ? "candles" : "line";
   function showKind() { $("dKind").querySelectorAll("button").forEach((b) => { const on = b.dataset.kind === dKind; b.classList.toggle("active", on); b.setAttribute("aria-pressed", String(on)); }); }
   $("dKind").querySelectorAll("button").forEach((b) => b.onclick = () => { if (dKind === b.dataset.kind) return; dKind = b.dataset.kind; ls.set("cn.chartKind", dKind); showKind(); animateChart(); });
@@ -1500,7 +1607,11 @@
     const padL = 8, padR = 54, padT = 22, padB = 22;
     const sLo = Math.min(...bars.map((b) => b.l)), sHi = Math.max(...bars.map((b) => b.h));
     const base = opt.base || 0, sSpan = sHi - sLo || 1, showBase = base > 0 && base >= sLo - 0.6 * sSpan && base <= sHi + 0.6 * sSpan;
-    const lo = showBase ? Math.min(sLo, base) : sLo, hi = showBase ? Math.max(sHi, base) : sHi, span = hi - lo || 1;
+    let lo = showBase ? Math.min(sLo, base) : sLo, hi = showBase ? Math.max(sHi, base) : sHi;
+    // a line of yours that is a little outside the prices shown widens the chart to include it
+    (opt.lines || []).forEach((L) => { if (L.price > hi && L.price <= sHi + 0.6 * sSpan) hi = L.price; if (L.price < lo && L.price >= sLo - 0.6 * sSpan) lo = L.price; });
+    if (opt.room) { const r = (hi - lo || 1) * opt.room; hi += r; lo -= r; }      // room above and below while a line is being placed
+    const span = hi - lo || 1;
     const dec = span >= 20 ? 0 : span >= 2 ? 1 : 2;
     const axis = opt.axis || ((p) => dayToDate(p[0]).toLocaleDateString([], { month: "short", year: "2-digit" }));
     const pitch = (w - padL - padR) / n;
@@ -1533,11 +1644,12 @@
       (m.colors.length > 1 ? [7.5, 5] : [6.5]).forEach((r, j) => { ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = m.colors[j]; ctx.fill(); });
       ctx.beginPath(); ctx.arc(x, y, 2.7, 0, 7); ctx.fillStyle = css.getPropertyValue("--surface").trim(); ctx.fill();
     });
+    drawLevels(ctx, opt, { Y, lo, hi, padL, padR, w });
     if (scrubIndex != null) {
       const x = X(scrubIndex);
       ctx.strokeStyle = muted; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(x, padT - 6); ctx.lineTo(x, h - padB); ctx.stroke(); ctx.setLineDash([]);
     }
-    return { X, n, padL, padR, w, toIndex: (x) => Math.floor((x - padL) / pitch) };
+    return { X, n, padL, padR, w, toIndex: (x) => Math.floor((x - padL) / pitch), yToPrice: (y) => hi - (y - padT) / (h - padT - padB) * span };
   }
   // Which of a chart's points a purchase belongs to, or -1 when it was before the chart begins.
   // `when` is { day: "YYYY-MM-DD" } (My shares keeps the date only) or { time: milliseconds }.
@@ -1632,6 +1744,10 @@
     const opt = Object.assign({ reveal: dReveal, marks: markList }, !intra ? {} : today
       ? { base, axis: (p) => fmtClock(p[0]) }
       : { axis: (p) => minToDate(p[0]).toLocaleDateString([], { weekday: "short", day: "numeric" }) });
+    if (dFrom === "demo" && demo) {                          // your demo's lines on this stock
+      opt.lines = (demo.lines || []).filter((L) => L.t === dStock.ticker).map((L) => ({ price: L.price, label: `${L.side === "buy" ? "Buy" : "Sell"} at ${money(L.price)}` }));
+      if (placing) { opt.room = 0.15; if (placePrice != null) opt.preview = placePrice; }
+    }
     dGeom = cb ? drawCandles($("dChart"), cb.bars, scrub, opt) : drawChart($("dChart"), dSeries, scrub, opt);
     const cn = $("dCandleNote");
     cn.hidden = !cb;
@@ -1663,6 +1779,7 @@
   // The chart is redrawn at most once per screen frame, however fast the finger moves.
   let scrubX = null, scrubFrame = 0;
   const scrubSoon = (x) => {
+    if (placing) return;                                     // the finger is placing a line, not reading a date
     cancelAnimationFrame(chartAnim); dReveal = 1;
     scrubX = x;
     if (!scrubFrame) scrubFrame = requestAnimationFrame(() => { scrubFrame = 0; if (scrubX !== null) scrubAt(scrubX); });
@@ -1674,6 +1791,23 @@
   chart.addEventListener("touchcancel", scrubEnd, { passive: true });
   chart.addEventListener("mousemove", (e) => scrubSoon(e.clientX));
   chart.addEventListener("mouseleave", scrubEnd);
+  // Placing a line: the finger slides up and down on the chart, the line follows, and letting go keeps its price.
+  const priceAtY = (clientY) => {
+    if (!dGeom || !dGeom.yToPrice) return null;
+    return Math.max(0.01, Math.round(dGeom.yToPrice(clientY - chart.getBoundingClientRect().top) * 100) / 100);
+  };
+  const placeMove = (e, clientY) => { if (!placing) return; if (e.cancelable) e.preventDefault(); placePrice = priceAtY(clientY); drawDetail(); };
+  const placeDone = (e) => {
+    if (!placing || placePrice == null) return;
+    if (e.cancelable) e.preventDefault();
+    const price = placePrice;
+    stopPlacing(); openLineSheet(dStock.ticker, price);
+  };
+  chart.addEventListener("touchstart", (e) => placeMove(e, e.touches[0].clientY), { passive: false });
+  chart.addEventListener("touchmove", (e) => placeMove(e, e.touches[0].clientY), { passive: false });
+  chart.addEventListener("touchend", placeDone, { passive: false });
+  chart.addEventListener("mousedown", (e) => placeMove(e, e.clientY));
+  chart.addEventListener("mouseup", placeDone);
   window.addEventListener("resize", () => { if (!$("detail").hidden) drawDetail(); if (!$("board").hidden && stocks) renderBoard(stocks); });
   $("boardBtn").onclick = openBoard;
 
@@ -2118,8 +2252,9 @@
     if (document.hidden || $("demo").hidden || !demo) return;
     const before = stocks && stocks.updated, had = claudeData && claudeData.updated;
     await Promise.all([loadStocks(true), loadClaude(true)]);
-    const charted = chartsSync();
-    if (!$("demo").hidden && (charted || (stocks && stocks.updated) !== before || (claudeData && claudeData.updated) !== had)) renderDemo();
+    const charted = chartsSync(), lined = linesSync();
+    if (!$("demo").hidden && (charted || lined || (stocks && stocks.updated) !== before || (claudeData && claudeData.updated) !== had)) renderDemo();
+    if (lined && !$("detail").hidden && dStock) { renderDetailExtras(dStock); drawDetail(); }
   }, 60000);
   // What the chart account is waiting for on each stock, in plain words.
   function boxStatus(s, key) {
@@ -2240,7 +2375,7 @@
         : waiting.length ? "" : `<div class="empty"><strong>${have ? "No stocks on your list yet" : "No prices right now"}</strong>${have ? "Add a stock in the box above to practise with it." : "Check your connection and open the demo again."}</div>`);
     }
     $("demoHist").innerHTML = a.trades.length ? `<div class="ighead">${claudeView ? "What Claude did" : "What you did"} (${a.trades.length})</div>` + a.trades.slice(-40).reverse().map((x) => `
-      <div class="drow flat"><div class="mid"><div class="nm">${x.side === "buy" ? "Bought" : "Sold"} ${fmtShares(x.shares)} ${esc(x.t)}</div><div class="sub">at ${money(x.price)} · ${fmtWhen(x.time)}</div></div>
+      <div class="drow flat"><div class="mid"><div class="nm">${x.side === "buy" ? "Bought" : "Sold"} ${fmtShares(x.shares)} ${esc(x.t)}</div><div class="sub">at ${money(x.price)} · ${fmtWhen(x.time)}${x.line ? " · by a line" : ""}</div></div>
         <div class="px"><b>${money(x.total)}</b>${x.side === "sell" ? `<span class="${upDown(x.gain)}">${signed(x.gain)}</span>` : ""}</div></div>`).join("") : "";
     $("demo").querySelectorAll(".drow[data-row]").forEach((b) => {     // your rows trade; Claude's rows open the chart
       b.onclick = () => (claudeView ? openChartOf(b.dataset.row) : openTrade(b.dataset.row, b.dataset.side));
@@ -2451,11 +2586,143 @@
     $("dDemoBuy").onclick = () => openTrade(s.ticker, "buy");
     if (p) $("dDemoSell").onclick = () => openTrade(s.ticker, "sell");
   }
+  // ---- lines on a chart that trade for you (your demo) ---------------------------
+  // A line is a price on one stock with an order: buy for an amount, or sell all your shares.
+  // It acts when the price reaches it, from above or from below, whichever side the price was on
+  // when the line was made. The price is followed in 15-minute steps of market time (in whole days
+  // for anything older than the last five trading days); the order fills at the line's price, or at
+  // the step's opening price when the price jumped past the line. A sell line waits while you hold
+  // none of the stock. Each line works once and is then removed.
+  const MAX_LINES = 20;
+  function lineSteps(s) {                                  // the stock's price steps in order of time: { time, o, h, l }
+    const ok = Array.isArray(s.week) && Array.isArray(s.week_c) && s.week.length === s.week_c.length && s.week.length;
+    const wk = ok ? s.week.map((p, k) => ({ time: p[0] * 60000, o: s.week_c[k][0], h: s.week_c[k][1], l: s.week_c[k][2] })) : [];
+    const firstDay = wk.length ? Math.floor(wk[0].time / 86400000) : Infinity;
+    const days = (barsOf(s) || []).filter((b) => b.d < firstDay).map((b) => ({ time: b.d * 86400000 + 14.5 * 3600000, o: b.o, h: b.h, l: b.l }));
+    return days.concat(wk);
+  }
+  function linesSync() {                                   // carry out every line that was reached. True when something changed.
+    if (!demo || !Array.isArray(demo.lines) || !demo.lines.length || !stocks || !stocks.stocks) return false;
+    const events = [];
+    for (const L of demo.lines) {
+      const s = listStock(L.t);
+      if (!s) continue;                                      // off your list for now: the line waits
+      for (const c of lineSteps(s)) if (c.time > L.until) events.push({ L, c, s });
+    }
+    if (!events.length) return false;
+    events.sort((a, b) => a.c.time - b.c.time || (a.L.side === "sell" ? -1 : 1) - (b.L.side === "sell" ? -1 : 1));
+    const done = new Set();
+    for (const { L, c, s } of events) {
+      if (done.has(L.id)) continue;
+      L.until = c.time;
+      const reached = L.dir === "above" ? c.h >= L.price : c.l <= L.price;
+      if (!reached) continue;
+      const price = L.dir === "above" ? Math.max(c.o, L.price) : Math.min(c.o, L.price);
+      if (L.side === "sell") {
+        const p = demo.pos[L.t];
+        if (!p || !(p.shares > 0)) continue;                 // nothing to sell yet: keep waiting
+        const total = p.shares * price;
+        demo.trades.push({ t: L.t, side: "sell", shares: p.shares, price, total, gain: total - p.cost, time: c.time, line: true });
+        demo.cash += total; delete demo.pos[L.t];
+      } else {
+        const total = Math.min(L.amount, demo.cash);
+        if (total >= 1) {
+          const p = demo.pos[L.t] || (demo.pos[L.t] = { shares: 0, cost: 0, name: s.name, last: price });
+          p.shares += total / price; p.cost += total; demo.cash -= total;
+          demo.trades.push({ t: L.t, side: "buy", shares: total / price, price, total, gain: null, time: c.time, line: true });
+        }
+      }
+      done.add(L.id);
+    }
+    demo.lines = demo.lines.filter((L) => !done.has(L.id));
+    if (demo.trades.length > 500) demo.trades = demo.trades.slice(-500);
+    saveDemo();
+    return true;
+  }
+  const lineWords = (L, name) => `${L.side === "buy" ? "Buy " + money(L.amount) + " of " + name : "Sell all your " + name} when it ${L.dir === "above" ? "rises" : "drops"} to ${money(L.price)}`;
+  function renderLines(s) {                                // the card under a stock's chart, when it was opened from My demo
+    const el = $("dLines");
+    el.hidden = !(dFrom === "demo" && demo);
+    if (el.hidden) { if (placing) { placing = false; placePrice = null; } return; }
+    const mine = (demo.lines || []).filter((L) => L.t === s.ticker);
+    el.innerHTML = `<div class="k">Lines that trade for you</div>`
+      + (mine.length ? mine.map((L) => `<div class="lrow"><span>${esc(lineWords(L, s.name))}</span><button type="button" class="ghost small" data-line="${esc(L.id)}">Delete</button></div>`).join("")
+                     : `<div class="d">Draw a line on the chart at a price. When the price reaches it, the demo buys or sells by itself.</div>`)
+      + (placing ? `<div class="d"><b>Slide your finger up and down on the chart</b> and let go at the price you want.</div><button type="button" class="ghost small" id="dLineAdd">Cancel</button>`
+                 : `<button type="button" class="small" id="dLineAdd">+ Draw a line</button>`);
+    el.querySelectorAll("[data-line]").forEach((b) => b.onclick = () => {
+      demo.lines = (demo.lines || []).filter((L) => L.id !== b.dataset.line); saveDemo();
+      renderLines(s); drawDetail(); toast("Line deleted");
+    });
+    $("dLineAdd").onclick = () => {
+      if (placing) { stopPlacing(); return; }
+      if ((demo.lines || []).length >= MAX_LINES) { toast("You have " + MAX_LINES + " lines already. Delete one first."); return; }
+      placing = true; placePrice = null;
+      renderLines(s); drawDetail();
+      $("dChart").scrollIntoView({ block: "center", behavior: calmMotion ? "auto" : "smooth" });
+    };
+  }
+  function stopPlacing() { placing = false; placePrice = null; if (dStock && !$("detail").hidden) { renderLines(dStock); drawDetail(); } }
+  let lineT = null, lineSide = "buy";
+  function openLineSheet(t, price) {
+    const s = listStock(t);
+    if (!demo || !s) return;
+    lineT = t; lineSide = "buy";
+    $("lPrice").value = Number(price).toFixed(2);
+    const value = totalsOf(demo, listStock).value;
+    $("lAmount").value = Math.max(0, Math.floor(Math.min(demo.cash, value * 0.2))) || "";
+    renderLineSheet();
+    freshStart($("lineSheet"));
+    $("lineSheet").hidden = false; $("lineBg").hidden = false; $("lineSheet").scrollTop = 0;
+  }
+  function closeLineSheet() { $("lPrice").blur(); $("lAmount").blur(); $("lineSheet").hidden = true; $("lineBg").hidden = true; }
+  function readLine() {
+    const s = listStock(lineT), price = Math.round(parseFloat($("lPrice").value) * 100) / 100, amount = Math.floor(parseFloat($("lAmount").value) * 100) / 100;
+    if (!s) return { error: "This stock is not on your list any more" };
+    if (!(price > 0)) return { error: "Enter the price of the line" };
+    if (Math.abs(price - s.price) < 0.005) return { error: "The line is exactly at the price now. Put it above or below." };
+    if (lineSide === "buy" && !(amount >= 1)) return { error: "Enter how much money to buy for" };
+    return { s, line: { t: lineT, side: lineSide, dir: price > s.price ? "above" : "below", price, amount: lineSide === "buy" ? amount : 0 } };
+  }
+  function renderLineSheet() {
+    const s = listStock(lineT);
+    if (!s) return;
+    const own = demo.pos[lineT] ? demo.pos[lineT].shares : 0;
+    $("lineTitle").textContent = `A line on ${s.name}`;
+    $("lineInfo").innerHTML = `The price now is <b>${money(s.price)}</b>. You have ${money(demo.cash)} in cash` + (own > 0 ? ` and ${fmtShares(own)} shares` : " and none of this stock") + ".";
+    $("lineSide").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.side === lineSide));
+    $("lAmountBox").hidden = lineSide !== "buy";
+    const r = readLine(), el = $("lineText");
+    el.classList.toggle("bad", !!r.error);
+    el.textContent = r.error ? r.error
+      : lineWords(r.line, s.name) + "."
+        + (r.line.side === "sell" && !(own > 0) ? " You hold none now, so it waits until you do." : "")
+        + (r.line.side === "buy" && r.line.amount > demo.cash ? " You have less cash than that now; it will buy with what there is." : "")
+        + " The line works once.";
+  }
+  $("lineSide").querySelectorAll("button").forEach((b) => b.onclick = () => { lineSide = b.dataset.side; renderLineSheet(); });
+  $("lPrice").addEventListener("input", renderLineSheet);
+  $("lAmount").addEventListener("input", renderLineSheet);
+  $("lineForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const r = readLine();
+    if (r.error) { toast(r.error); return; }
+    if (!Array.isArray(demo.lines)) demo.lines = [];
+    if (demo.lines.length >= MAX_LINES) { toast("You have " + MAX_LINES + " lines already. Delete one first."); return; }
+    const now = Date.now();
+    // "until": the moment up to which the price has been followed. The first step counted starts after the line was made.
+    demo.lines.push(Object.assign(r.line, { id: now.toString(36) + Math.random().toString(36).slice(2, 6), created: now, until: now + 14 * 60000 }));
+    saveDemo();
+    if (dStock && !$("detail").hidden) { renderLines(dStock); drawDetail(); }
+    toast("Line saved");
+    lineSwipe.out();
+  });
+
   async function openDemo() {
     openScreen("demo"); loadTickers(); renderDemo(); animateDemoChart();
     const before = stocks && stocks.updated, had = claudeData && claudeData.updated;
     await Promise.all([loadStocks(true), loadClaude(true)]);
-    const copied = claudeSync(), charted = chartsSync(), moved = copied || charted;
+    const copied = claudeSync(), charted = chartsSync(), lined = linesSync(), moved = copied || charted || lined;
     if (!$("demo").hidden && (moved || (stocks && stocks.updated) !== before || (claudeData && claudeData.updated) !== had)) { renderDemo(); animateDemoChart(); }
     followChecker(); tellDemo();
   }
@@ -2682,6 +2949,10 @@
   $("holdBg").onclick = $("holdClose").onclick = holdSwipe.out;
   const tradeSwipe = swipeToClose($("trade"), "down", closeTrade, $("tradeBg"));
   $("tradeBg").onclick = $("tradeClose").onclick = tradeSwipe.out;
+  const lineSwipe = swipeToClose($("lineSheet"), "down", closeLineSheet, $("lineBg"));
+  $("lineBg").onclick = $("lineCancel").onclick = lineSwipe.out;
+  const rowSwipe = swipeToClose($("rowSheet"), "down", closeRowMenu, $("rowBg"));
+  $("rowBg").onclick = $("rowCancel").onclick = rowSwipe.out;
   document.querySelectorAll(".screen").forEach((scr) => {
     const sw = swipeToClose(scr, "right", () => closeScreen(scr.id));
     document.querySelectorAll(`[data-close="${scr.id}"]`).forEach((b) => { b.onclick = sw.out; });
