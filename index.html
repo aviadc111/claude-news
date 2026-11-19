@@ -379,6 +379,10 @@
   .pinsign { width: 15px; height: 15px; vertical-align: -2px; margin-right: 5px; color: var(--muted); }
   .drow.pin .pinsign { width: 17px; height: 17px; }
 
+  /* v4.6: trading is paused while the prices are not live */
+  .paused { margin-top: 8px; padding: 8px 10px; border-radius: 10px; font-size: 13px; font-weight: 600; line-height: 1.4;
+            background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+
   /* v2.0: Instagram follow-back check */
   .chartsbtn.ig { background: #e1306c; color: #fff; box-shadow: 0 4px 14px rgba(225, 48, 108, .3); }
   .igsum { background: var(--surface); border-radius: 16px; padding: 16px; margin: 4px 0 12px; }
@@ -747,7 +751,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "4.5";
+  const APP_VERSION = "4.6";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -2154,6 +2158,30 @@
   const upDown = (v) => (cents(v) >= 0 ? "up" : "down");
   const fmtWhen = (ms) => { const d = new Date(ms); return d.toLocaleDateString([], { day: "numeric", month: "short" }) + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }); };
   const priceTime = (data) => { const at = new Date(data.updated); return at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + (at.toDateString() === new Date().toDateString() ? "" : " " + at.toLocaleDateString([], { day: "numeric", month: "short" })); };
+  // Are the prices live? Trading by hand in your demo is only allowed with current prices:
+  //   - the phone is online, and
+  //   - the data is as new as the market allows: at most 40 minutes old while the market is open
+  //     (the checker brings prices every 15 minutes), and from the last close or later while it is shut.
+  // A copy kept from an earlier download, or prices that stopped arriving, do not count.
+  // Returns { ok: true } or { ok: false, why }.
+  function pricesLive() {
+    if (navigator.onLine === false) return { ok: false, why: "You're offline, so the prices aren't live." };
+    if (!stocks || !stocks.updated) return { ok: false, why: "The prices haven't been downloaded yet." };
+    const now = Date.now(), at = Date.parse(stocks.updated);
+    const old = { ok: false, why: `The prices are from ${priceTime(stocks)} and aren't live right now.` };
+    if (!(at > 0)) return old;
+    if (marketOpen()) return now - at <= 40 * 60000 ? { ok: true } : old;
+    let p;
+    try { p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(now)).map((x) => [x.type, x.value])); }
+    catch { return { ok: true }; }
+    const mins = Number(p.hour) * 60 + Number(p.minute);
+    let day = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(p.weekday), back = 0;
+    if (!(day >= 1 && day <= 5 && mins >= 16 * 60)) { do { back++; day = (day + 6) % 7; } while (day === 0 || day === 6); }
+    const lastClose = now - (mins - 16 * 60) * 60000 - back * 86400000;      // 16:00 in New York on the last working day
+    return at >= lastClose - 30 * 60000 ? { ok: true } : old;
+  }
+  window.addEventListener("online", () => { loadStocks(true).then(() => { if (!$("demo").hidden) { chartsSync(); linesSync(); renderDemo(); } }); });
+  window.addEventListener("offline", () => { if (!$("demo").hidden) renderDemo(); });
   function marketOpen() {                                  // New York, Mon to Fri 09:30 to 16:00 (holidays are not known here)
     try {
       const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date()).map((x) => [x.type, x.value]));
@@ -2528,6 +2556,7 @@
     const tot = demoTotals(), day = demoToday();
     $("demoSum").innerHTML = `<div class="num">${money(tot.value)}</div>
       <div class="lbl ${upDown(tot.gain)}">${signed(tot.gain)} (${pctz(tot.pct)}) since ${who} started</div>`
+      + (!claudeView && !pricesLive().ok ? `<div class="paused" role="status">Trading is paused. ${esc(pricesLive().why)}</div>` : "")
       + (day ? `<div class="d">${day.live ? "Today" : "Last trading day"}: <b class="${upDown(day.change)}">${signed(day.change)}${tot.value - day.change > 0 ? ` (${pctz(day.change / (tot.value - day.change) * 100)})` : ""}</b></div>` : "")
       + `<div class="d">Cash ${money(a.cash)} · In stocks ${money(tot.inStocks)}</div>
       <div class="d">Started ${new Date(a.startedAt).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" })} with ${money(a.start)}</div>`;
@@ -2852,6 +2881,8 @@
     });
     $("dLineAdd").onclick = () => {
       if (placing) { stopPlacing(); return; }
+      const live = pricesLive();                             // a line is placed against the price now, so that has to be live
+      if (!live.ok) { toast(live.why + " Lines can be drawn when they are."); return; }
       if ((demo.lines || []).length >= MAX_LINES) { toast("You have " + MAX_LINES + " lines already. Delete one first."); return; }
       placing = true; placePrice = null;
       renderLines(s); drawDetail();
@@ -2901,6 +2932,8 @@
   $("lAmount").addEventListener("input", renderLineSheet);
   $("lineForm").addEventListener("submit", (e) => {
     e.preventDefault();
+    const live = pricesLive();
+    if (!live.ok) { toast(live.why + " Lines can be drawn when they are."); return; }
     const r = readLine();
     if (r.error) { toast(r.error); return; }
     if (!Array.isArray(demo.lines)) demo.lines = [];
@@ -2928,8 +2961,15 @@
     demo = null; demoView = "mine"; ls.set("cn.demo", "null"); renderDemo(); tellDemo(); toast("Demo account erased");
   };
 
-  function openTrade(t, side) {
+  async function openTrade(t, side) {
     if (!demo || demoView !== "mine") return;                 // only your own account trades by hand
+    let live = pricesLive();
+    if (!live.ok && navigator.onLine !== false) {             // maybe newer prices are one download away: try once
+      await loadStocks(true);
+      live = pricesLive();
+      if (!$("demo").hidden) renderDemo();
+    }
+    if (!live.ok) { toast(live.why + " Trading is paused until they are."); return; }
     if (!demoPrice(t).live) { toast("No current price. Add " + t + " back to your list in Charts to sell it."); return; }
     tradeT = t; tradeSide = side || "buy";
     $("tAmount").value = ""; $("tShares").value = "";
@@ -2983,6 +3023,8 @@
   $("tradeSide").querySelectorAll("button").forEach((b) => b.onclick = () => { tradeSide = b.dataset.side; $("tAmount").value = ""; $("tShares").value = ""; renderTrade(); });
   $("tradeForm").addEventListener("submit", (e) => {
     e.preventDefault();
+    const live = pricesLive();                               // the sheet may have stood open while the prices went old
+    if (!live.ok) { toast(live.why + " Trading is paused until they are."); tradeSwipe.out(); if (!$("demo").hidden) renderDemo(); return; }
     const r = readTrade();
     if (r.error) { toast(r.error); return; }
     const t = tradeT, p = demo.pos[t] || (demo.pos[t] = { shares: 0, cost: 0, name: r.s.name, last: r.s.price });
