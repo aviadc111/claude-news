@@ -443,13 +443,14 @@
     x.shadowBlur = 0; x.globalAlpha = 1;
   }
   const WORDS = ["Getting your prices", "Checking your demo", "Looking for messages"];
-  // The speed follows the app. At its own pace the line takes DRAW to arrive. When the app says its
-  // first data is in (window.__splashReady) before that, the rest of the line is drawn quickly so the
-  // opening ends with the loading; LEAST keeps it from being a flash. When the app needs longer than
-  // the line, the line waits, finished, and only the three dots at the bottom keep moving.
-  const began = performance.now(), DRAW = 2100, LEAST = 800, FINISH = 350, LONGEST = 12000;
+  // The speed follows the app. Left alone, the line keeps coming toward you but ever more slowly, and
+  // never quite arrives: the longer the data takes, the slower it moves. The moment the app says it
+  // has what it needs (window.__splashReady), the rest of the line is drawn quickly and the opening
+  // ends. When nothing had to be downloaded that moment comes at once, and the whole opening takes
+  // well under a second (LEAST keeps it from being a mere flash). The three dots move all the time.
+  const began = performance.now(), PACE = 1500, LEAST = 600, FINISH = 320, LONGEST = 12000;
   let raf = 0, ended = false, readyAt = null, from = 0, leaveAt = null;
-  const own = (ms) => ease(c01(ms / DRAW));
+  const own = (ms) => 0.93 * (1 - Math.exp(-ms / PACE));
   function drawn(ms) {
     if (readyAt == null) return own(ms);
     const end = Math.max(readyAt + FINISH, LEAST);
@@ -488,7 +489,7 @@
       x.beginPath(); x.arc(W / 2 + (i - 1) * 17 * fs, dy - 5 * fs * wave, 3.4 * fs, 0, 7); x.fill();
     }
     x.globalAlpha = 1;
-    if (p >= 1 && readyAt != null && leaveAt == null) leaveAt = ms + 160;      // the line has arrived and the app is ready
+    if (p >= 1 && readyAt != null && leaveAt == null) leaveAt = ms + 120;      // the line has arrived and the app is ready
     if ((leaveAt != null && ms >= leaveAt) || ms >= LONGEST) { done(); return; }
     raf = requestAnimationFrame(frame);
   }
@@ -746,7 +747,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "4.4";
+  const APP_VERSION = "4.5";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -3222,7 +3223,14 @@
     checkPendingTab();
     // The first data: the messages, the stock prices and Claude's demo data. When they are in (or have
     // failed), the opening may end. Charts and the Demo then open without waiting.
-    Promise.allSettled([fetchRecent(), loadStocks(false), loadClaude(false)]).then(() => { if (window.__splashReady) window.__splashReady(); });
+    const openingMayEnd = () => { if (window.__splashReady) window.__splashReady(); };
+    // Fetched only minutes ago: there is nothing to wait for, so the opening is at its quickest
+    // (the data is still refreshed, in the background).
+    if (Date.now() - Number(ls.get("cn.loadedAt", "0")) < 10 * 60000) openingMayEnd();
+    Promise.allSettled([fetchRecent(), loadStocks(false), loadClaude(false)]).then(() => {
+      if (stocks && stocks.stocks) ls.set("cn.loadedAt", String(Date.now()));
+      openingMayEnd();
+    });
     if ("serviceWorker" in navigator) {
       try {
         registration = await navigator.serviceWorker.register("sw.js");
