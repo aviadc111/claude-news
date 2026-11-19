@@ -355,12 +355,17 @@
   .popmenu .ask { background: var(--surface-2); border-radius: 13px; padding: 12px 14px; font-size: 13px; line-height: 1.5; }
   .popmenu .yes { background: #7f1d1d; color: #fff; justify-content: center; }
   .popmenu .no { justify-content: center; }
+  /* the delete question: in the middle of the screen, with the stock set back down into the list */
+  .popmenu.center { top: 50% !important; left: 24px; right: 24px; transform: translateY(-50%); }
+  .poplift.down { transform: scale(1); opacity: 0; animation: none; transition: transform .22s ease-in, opacity .2s ease-in .06s; }
   @media (prefers-reduced-motion: no-preference) {
     .pop { animation: fadeIn .2s ease-out; }
     .poplift { animation: popLift .34s cubic-bezier(.2, 1.5, .4, 1) both; }
     .popmenu { animation: popMenu .28s cubic-bezier(.2, 1.2, .4, 1) .05s both; }
     @keyframes popLift { from { transform: scale(1); } to { transform: scale(1.045); } }
     @keyframes popMenu { from { opacity: 0; transform: translateY(-8px) scale(.96); } }
+    .popmenu.center { animation: popAsk .26s cubic-bezier(.2, 1.2, .4, 1) both; }
+    @keyframes popAsk { from { opacity: 0; transform: translateY(-50%) scale(.94); } to { opacity: 1; transform: translateY(-50%) scale(1); } }
   }
   /* My demo: every stock a little smaller, a pinned one a little bigger with a pin sign */
   .mine .drow { padding: 9px 12px; gap: 10px; }
@@ -438,15 +443,27 @@
     x.shadowBlur = 0; x.globalAlpha = 1;
   }
   const WORDS = ["Getting your prices", "Checking your demo", "Looking for messages"];
-  const began = performance.now(), DRAW = 2100, TOTAL = 2600;
-  let raf = 0, ended = false;
+  // The speed follows the app. At its own pace the line takes DRAW to arrive. When the app says its
+  // first data is in (window.__splashReady) before that, the rest of the line is drawn quickly so the
+  // opening ends with the loading; LEAST keeps it from being a flash. When the app needs longer than
+  // the line, the line waits, finished, and only the three dots at the bottom keep moving.
+  const began = performance.now(), DRAW = 2100, LEAST = 800, FINISH = 350, LONGEST = 12000;
+  let raf = 0, ended = false, readyAt = null, from = 0, leaveAt = null;
+  const own = (ms) => ease(c01(ms / DRAW));
+  function drawn(ms) {
+    if (readyAt == null) return own(ms);
+    const end = Math.max(readyAt + FINISH, LEAST);
+    if (ms >= end) return 1;
+    return Math.max(own(ms), from + (1 - from) * ease(c01((ms - readyAt) / (end - readyAt))));
+  }
+  window.__splashReady = () => { if (readyAt == null) { readyAt = performance.now() - began; from = own(readyAt); } };
   function done() {
     if (ended) return;
     ended = true; cancelAnimationFrame(raf);
     el.classList.add("out"); setTimeout(() => el.remove(), 380);
   }
   function frame(now) {
-    const ms = now - began, p = ease(c01(ms / DRAW)), m = Math.max(2, Math.round(N * p));
+    const ms = now - began, p = drawn(ms), m = Math.max(2, Math.round(N * p));
     x.clearRect(0, 0, W, H); x.fillStyle = "#070b14"; x.fillRect(0, 0, W, H);
     grid(ms / 9000 % 1);
     const top = P.slice(0, m + 1), dep = top.map((q) => [q[0] - 9 * q[2] * u, q[1] + 22 * q[2] * u, q[2]]);
@@ -457,18 +474,27 @@
     const h = top[m];
     x.shadowColor = NEON; x.shadowBlur = 24 * u; x.fillStyle = NEON; x.beginPath(); x.arc(h[0], h[1], (6.5 * h[2] + 2) * u, 0, 7); x.fill();
     x.shadowBlur = 0; x.fillStyle = "#eafff2"; x.beginPath(); x.arc(h[0], h[1], (2.6 * h[2] + 1) * u, 0, 7); x.fill();
-    const a = c01(ms / 500);
+    const a = c01(ms / 400), fs = Math.min(u, 1.5);
     x.globalAlpha = a; x.textAlign = "center"; x.fillStyle = "#f1f5f9";
-    x.font = "600 " + Math.round(22 * Math.min(u, 1.5)) + "px -apple-system, Segoe UI, Roboto, sans-serif"; x.fillText("Claude News", W / 2, H * 0.15);
-    x.fillStyle = "#8b9ab1"; x.font = "400 " + Math.round(13 * Math.min(u, 1.5)) + "px -apple-system, Segoe UI, Roboto, sans-serif";
-    x.fillText(WORDS[Math.min(WORDS.length - 1, Math.floor(ms / (DRAW / WORDS.length)))], W / 2, H * 0.15 + 26 * Math.min(u, 1.5));
-    x.globalAlpha = 1; x.textAlign = "left";
-    if (ms >= TOTAL) { done(); return; }
+    x.font = "600 " + Math.round(22 * fs) + "px -apple-system, Segoe UI, Roboto, sans-serif"; x.fillText("Claude News", W / 2, H * 0.15);
+    x.fillStyle = "#8b9ab1"; x.font = "400 " + Math.round(13 * fs) + "px -apple-system, Segoe UI, Roboto, sans-serif";
+    x.fillText(WORDS[Math.min(WORDS.length - 1, Math.floor(p * WORDS.length))], W / 2, H * 0.15 + 26 * fs);
+    x.textAlign = "left";
+    // three dots at the bottom, always moving: they are what is left to watch when the app needs longer
+    const dy = H - Math.max(46, H * 0.075);
+    for (let i = 0; i < 3; i++) {
+      const wave = Math.max(0, Math.sin((ms / 1000 - i * 0.16) * Math.PI * 2));
+      x.globalAlpha = a * (0.3 + 0.7 * wave); x.fillStyle = "#c8d3e3";
+      x.beginPath(); x.arc(W / 2 + (i - 1) * 17 * fs, dy - 5 * fs * wave, 3.4 * fs, 0, 7); x.fill();
+    }
+    x.globalAlpha = 1;
+    if (p >= 1 && readyAt != null && leaveAt == null) leaveAt = ms + 160;      // the line has arrived and the app is ready
+    if ((leaveAt != null && ms >= leaveAt) || ms >= LONGEST) { done(); return; }
     raf = requestAnimationFrame(frame);
   }
   el.addEventListener("click", done);                               // a tap skips it
   el.addEventListener("touchstart", done, { passive: true });
-  setTimeout(done, TOTAL + 1500);                                  // never in the way, whatever happens
+  setTimeout(done, LONGEST + 800);                                  // never in the way, whatever happens
   raf = requestAnimationFrame(frame);
 })();
 </script>
@@ -720,7 +746,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "4.3";
+  const APP_VERSION = "4.4";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -1373,12 +1399,17 @@
     copy.querySelectorAll("canvas").forEach((c, i) => { try { c.width = from[i].width; c.height = from[i].height; c.getContext("2d").drawImage(from[i], 0, 0); } catch {} });
     copy.removeAttribute("tabindex");
     lift.innerHTML = ""; lift.appendChild(copy);
-    const room = 190;                                             // the choices, or the question, under the stock
-    const top = Math.max(12, Math.min(r.top, window.innerHeight - r.height - room));
-    lift.style.left = r.left + "px"; lift.style.top = top + "px"; lift.style.width = r.width + "px";
-    menu.style.top = (top + r.height + 14) + "px";
-    showRowChoices();
+    lift.className = "poplift" + (row.closest(".mine") ? " mine" : "");    // the copy keeps the look of the list it came from
+    menu.className = "popmenu";
+    lift.style.left = r.left + "px"; lift.style.top = r.top + "px"; lift.style.width = r.width + "px";
     pop.hidden = false;
+    // The stock stays where it was, lifted. Its real height is measured (it is 4.5% bigger while lifted),
+    // and the choices go under it with a clear gap. Low on the screen, the stock moves up just enough for them to fit.
+    const tall = lift.offsetHeight, grown = tall * 0.0225, choices = 118, gap = 14;
+    const top = Math.max(12 + grown, Math.min(r.top, window.innerHeight - tall - grown - gap - choices - 16));
+    lift.style.top = top + "px";
+    menu.style.top = (top + tall + grown + gap) + "px";
+    showRowChoices();
     haptic();
   }
   function showRowChoices() {
@@ -1394,6 +1425,8 @@
     };
     $("popDel").onclick = () => {                            // a second message before anything is deleted
       const p = demo && demo.pos[rowTicker];
+      $("popLift").classList.add("down");                      // the stock goes back down into the list
+      $("popMenu").className = "popmenu center";               // and the question comes up in the middle of the screen
       $("popMenu").innerHTML = `<div class="ask">Delete <b>${esc(rowName)}</b>? It leaves Charts and the Demo.${p ? ` Your demo sells its ${fmtShares(p.shares)} shares of it at the price now.` : ""}</div>
         <button type="button" id="popYes" class="yes">Delete ${esc(rowName)}</button>
         <button type="button" id="popNo" class="no">Keep it</button>`;
@@ -3187,7 +3220,9 @@
     if (urlOpen === "demo") { goToTab("Stocks", false); openDemo(); }
     tellDemo();
     checkPendingTab();
-    fetchRecent();
+    // The first data: the messages, the stock prices and Claude's demo data. When they are in (or have
+    // failed), the opening may end. Charts and the Demo then open without waiting.
+    Promise.allSettled([fetchRecent(), loadStocks(false), loadClaude(false)]).then(() => { if (window.__splashReady) window.__splashReady(); });
     if ("serviceWorker" in navigator) {
       try {
         registration = await navigator.serviceWorker.register("sw.js");
