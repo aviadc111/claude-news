@@ -1,4 +1,4 @@
-#2026-11-15
+#2026-11-22
 A|Agilent Technologies
 AA|Alcoa
 AAA|Alternative Access First Priority CLO Bond ETF
@@ -41,6 +41,7 @@ AAT|American Assets Trust
 AAUA|Alpha Architect US Equity 3 ETF
 AAUB|Alpha Architect US Equity 4 ETF
 AAUC|Allied Gold
+AAUD|Alpha Architect US Equity 5 ETF
 AAUS|Alpha Architect US Equity ETF
 AAVM|Alpha Architect Global Factor Equity ETF
 AAXJ|iShares MSCI All Country Asia ex Japan ETF
@@ -98,7 +99,6 @@ ACGC|ACP Holdings Acquisition (Class A)
 ACGL|Arch Capital
 ACGO|Hartford Alpha Capture Growth ETF
 ACGR|American Century Large Cap Growth ETF
-ACH|Accendra Health
 ACHC|Acadia Healthcare
 ACHP|Global X Asia Semiconductor ETF
 ACHR|Archer Aviation (Class A)
@@ -541,6 +541,7 @@ ANNA|AleAnna (Class A)
 ANNX|Annexon
 ANPA|Rich Sparkle
 ANRO|Alto Neuroscience
+ANT|Anthropic, PBC (Class A)
 ANTA|Antalpha Platform (Class A)
 ANTW|Anthropic AI Lab Ecosystem ETF
 ANTX|AN2 Therapeutics
@@ -569,6 +570,7 @@ APCB|ActivePassive Core Bond ETF
 APD|Air Products and Chemicals
 APDB|Aptus April Deep Buffer ETF
 APEI|American Public Education
+APFS|Artisan Focus Fund: ETF Class Shares
 APG|APi
 APH|Amphenol
 APHG|Leverage Shares 2X Long APH Daily ETF
@@ -586,6 +588,7 @@ APMC|AmperCap Acquisition
 APMD|Apnimed
 APMI|Corgi AMAT 2x Daily ETF
 APMU|ActivePassive Intermediate Municipal Bond ETF
+APNX|Artisan Select Equity Fund: ETF Class Shares
 APO|Apollo Global Management, Inc. (New)
 APOC|Innovator Equity Defined Protection ETF - 6mo Apr/Oct
 APOG|Apogee Enterprises
@@ -747,7 +750,6 @@ ASTH|Astrana Health
 ASTI|Ascent Solar Technologies
 ASTL|Algoma Steel
 ASTM|Allspring Strategic Municipal Bond Fund ETF
-ASTN|Defiance Daily Target 2X Short ASTS ETF
 ASTS|AST SpaceMobile (Class A)
 ASTT|Corgi ASTS 2x Daily ETF
 ASTX|Tradr 2X Long ASTS Daily ETF
@@ -1268,7 +1270,6 @@ BKEM|BNY Mellon Emerging Markets Equity ETF
 BKF|iShares MSCI BIC ETF
 BKFI|BNY Mellon Active Core Bond ETF
 BKGI|BNY Mellon Global Infrastructure Income ETF
-BKH|Black Hills
 BKHA|Black Hawk Acquisition (Class A)
 BKHY|BNY Mellon High Yield ETF
 BKIE|BNY Mellon International Equity ETF
@@ -1467,6 +1468,7 @@ BRNY|Burney U.S. Factor Rotation ETF
 BRO|Brown & Brown
 BROL|Baron Risk Optimized Large Cap ETF
 BROS|Dutch Bros (Class A)
+BRRK|Bluerock Acquisition Corp. II (Class A)
 BRRR|Coinshares Bitcoin ETF
 BRSL|Brightstar Lottery PLC Trading under the Legal Name to begin
 BRSM|MFS Blended Research Small-Mid Cap ETF
@@ -1806,6 +1808,7 @@ CCEP|Coca-Cola Europacific Partners
 CCFE|Concourse Capital Focused Equity ETF
 CCG|Cheche (Class A)
 CCHH|CCH (Class A)
+CCHP|Global X China Semiconductor ETF
 CCI|Crown Castle
 CCIF|Carlyle Credit Income Fund
 CCII|Cohen Circle Acquisition Corp. II (Class A)
@@ -1901,6 +1904,7 @@ CFR|Cullen/Frost Bankers
 CG|The Carlyle
 CGAU|Centerra Gold
 CGBD|Carlyle Secured Lending, Inc. - Closed End Fund
+CGBI|Capital Group Multi-Asset Income Builder ETF
 CGBL|Capital Group Core Balanced ETF
 CGC|Canopy Growth
 CGCB|Capital Group Core Bond ETF
@@ -1921,6 +1925,7 @@ CGHY|Capital Group High Yield Bond ETF
 CGIB|Capital Group International Bond ETF (USD-Hedged)
 CGIC|Capital Group International Core Equity ETF
 CGIE|Capital Group International Equity ETF
+CGMI|Capital Group Multi-Asset Income ETF
 CGMM|Capital Group U.S. Small and Mid Cap ETF
 CGMS|Capital Group U.S. Multi-Sector Income ETF
 CGMU|Capital Group Municipal Income ETF
@@ -2469,6 +2474,8 @@ CWEN|Clearway Energy (Class C)
 CWH|Camping World (Class A)
 CWI|State Street SPDR MSCI ACWI ex-US ETF
 CWK|Cushman & Wakefield
+CWPD|CWP Premium Dividend ETF
+CWPG|CWP Premium Growth ETF
 CWS|AdvisorShares Focused Equity ETF
 CWST|Casella Waste Systems (Class A)
 CWT|California Water Service
@@ -2496,6 +2503,7 @@ CZFS|Citizens Financial Services
 CZNC|Citizens & Northern
 CZR|Caesars Entertainment
 CZWI|Citizens Community Bancorp
+CZZL|Cizzle Brands
 D|Dominion Energy
 DAAQ|Digital Asset Acquisition (Class A)
 DABS|DoubleLine Asset-Backed Securities ETF
@@ -2518,6 +2526,7 @@ DAR|Darling Ingredients
 DARE|Dare Bioscience
 DARP|Grizzle Growth ETF
 DASH|DoorDash
+DAU|GraniteShares Autocallable AMD ETF
 DAUG|FT Vest U.S. Equity Deep Buffer ETF - August
 DAVA|Endava (Class A)
 DAVE|Dave (Class A)
@@ -2843,6 +2852,7 @@ DPZ|Domino's Pizza
 DQ|DAQO New Energy
 DQJN|FT Vest Nasdaq-100 Dual Directional Buffer ETF - June
 DQSE|FT Vest Nasdaq-100 Dual Directional Buffer ETF - September
+DRAC|GraniteShares Autocallable DRAM ETF
 DRAI|Draco Evolution AI ETF
 DRAL|Defiance Daily Target 2X Long DRAM ETF
 DRAM|Roundhill Memory ETF
@@ -2936,7 +2946,6 @@ DV|DoubleVerify
 DVA|DaVita
 DVDN|Kingsbarn Dividend Opportunity ETF
 DVGR|DAC 3D Dividend Growth ETF
-DVLT|Datavault AI
 DVLU|First Trust Dorsey Wright Momentum & Value ETF
 DVN|Devon Energy
 DVND|Touchstone Dividend Select ETF
@@ -3584,6 +3593,7 @@ FDEC|FT Vest U.S. Equity Buffer ETF - December
 FDEM|Fidelity Emerging Markets Multifactor ETF
 FDEV|Fidelity International Multifactor ETF
 FDG|American Century Focused Dynamic Growth ETF
+FDGX|First Digital Acquisition (Class A)
 FDHY|Fidelity Enhanced High Yield ETF
 FDIG|Fidelity Crypto Industry and Digital Payments ETF
 FDIQ|Invesco Bloomberg Financial Data Providers ETF
@@ -3851,6 +3861,7 @@ FMAT|Fidelity MSCI Materials Index ETF
 FMAY|FT Vest U.S. Equity Buffer ETF - May
 FMB|First Trust Managed Municipal ETF
 FMBH|First Mid Bancshares
+FMBM|F&M Bank
 FMC|FMC
 FMCE|FM Compounders Equity ETF
 FMCX|FM Focus Equity ETF
@@ -3905,7 +3916,7 @@ FOA|Finance of America Companies (Class A)
 FOCL|EDAP TMS
 FOCT|FT Vest U.S. Equity Buffer ETF - October
 FOF|Cohen & Steers Closed-End Opportunity Fund
-FOFO|Hang Feng Technology Innovation
+FOFO|Hang Feng Technology Innovation (Class A)
 FOIL|Londian Wason New Energy Tech
 FOMG|Leverage Shares 2X Long FORM Daily ETF
 FOPC|Frontier Asset Opportunistic Credit ETF
@@ -4378,8 +4389,8 @@ GMEY|YieldMax GME Option Income Strategy ETF
 GMF|State Street SPDR S&P Emerging Asia Pacific ETF
 GMHS|Gamehaus (Class A)
 GMIE|GMO International Equity Fund, ETF Class
+GMIX|iShares Macro AlphaBeta Active ETF
 GMM|Global Mofy AI (Class A)
-GMMA|GammaRoad Market Navigation ETF
 GMMF|iShares Government Money Market ETF
 GMNY|Goldman Sachs Dynamic New York Municipal Income ETF
 GMOC|GMO Ultra-Short Income ETF
@@ -4461,6 +4472,7 @@ GPT|Intelligent Alpha Atlas ETF
 GPTY|YieldMax AI & Tech Portfolio Option Income ETF
 GPUS|Hyperscale Data
 GPZ|VanEck Alternative Asset Manager ETF
+GQGG|GQG Global Equity ETF
 GQGU|GQG US Equity ETF
 GQI|Natixis Gateway Quality Income ETF
 GQQQ|Astoria US Quality Growth Kings ETF
@@ -4508,6 +4520,7 @@ GSAT|Globalstar
 GSBC|Great Southern Bancorp
 GSBD|Goldman Sachs BDC
 GSC|Goldman Sachs Small Cap Equity ETF
+GSCZ|Goldman Sachs Securitized Income ETF
 GSEE|Goldman Sachs MarketBeta Emerging Markets Equity ETF
 GSEP|FT Vest U.S. Equity Moderate Buffer ETF - September
 GSEU|Goldman Sachs ActiveBeta Europe Equity ETF
@@ -4564,6 +4577,7 @@ GTR|WisdomTree Target Range Fund
 GTX|Garrett Motion
 GTY|Getty Realty
 GUAC|Berto Acquisition Corp. II
+GUER|Guerrilla RF
 GUG|Guggenheim Active Allocation Fund
 GUMI|Goldman Sachs Ultra Short Municipal Income ETF
 GUNN|Gunnison Copper
@@ -4659,6 +4673,7 @@ HCKT|The Hackett
 HCM|HUTCHMED (China)
 HCMA|HCM III Acquisition (Class A)
 HCMT|Direxion HCM Tactical Enhanced US ETF
+HCOP|Hartford Hybrid and Credit Opportunities ETF
 HCOW|Amplify COWS Covered Call ETF
 HCRB|Hartford Core Bond ETF
 HCSG|Healthcare Services
@@ -4955,6 +4970,7 @@ HYTR|Counterpoint High Yield Trend ETF
 HYUP|Xtrackers High Beta High Yield Bond ETF
 HYXF|iShares ESG Advanced High Yield Corporate Bond ETF
 HYZD|WisdomTree Interest Rate Hedged High Yield Bond Fund
+HZN|Bright Horizon Energy
 HZO|MarineMax, Inc. (FL)
 IA|Innovative Solutions and Support
 IACL|GraniteShares US 100 Autocallable Income ETF
@@ -5037,7 +5053,6 @@ IBMW|iShares iBonds Dec 2034 Term Muni Bond ETF
 IBMX|iShares iBonds Dec 2035 Term Muni Bond ETF
 IBN|ICICI Bank
 IBND|State Street SPDR Bloomberg International Corporate Bond ETF
-IBO|Impact BioMedical
 IBOC|International Bancshares
 IBOT|VanEck Robotics ETF
 IBP|Installed Building Products
@@ -5379,6 +5394,7 @@ IQM|Franklin Intelligent Machines ETF
 IQMM|ProShares GENIUS Money Market ETF
 IQMX|IQM Quantum Computers Oyj
 IQQ|iShares Nasdaq 100 ETF
+IQQI|IncomeQ Nasdaq-100 Premium Income ETF
 IQQQ|ProShares Nasdaq-100 High Income ETF
 IQSI|NYLIM Candriam International Equity ETF
 IQSM|NYLIM Candriam U.S. Mid Cap Equity ETF
@@ -5419,6 +5435,7 @@ ISHG|iShares 1-3 Year International Treasury Bond ETF
 ISHP|First Trust S-Network E-Commerce ETF
 ISMD|Inspire Small/Mid Cap ETF
 ISMF|iShares Managed Futures Active ETF
+ISMH|xETFs International Semiconductor ETF
 ISNR|Snow Rothschild Acquisition (Class A)
 ISOU|IsoEnergy
 ISPC|iSpecimen
@@ -5449,7 +5466,6 @@ ITDI|iShares LifePath Target Date 2065 ETF
 ITDJ|iShares LifePath Target Date 2070 ETF
 ITEQ|Amplify BlueStar Israel Technology ETF
 ITG|ITG (Class A)
-ITGR|Integer
 ITHA|ITHAX Acquisition Corp III (Class A)
 ITIC|Investors Title
 ITM|VanEck Intermediate Muni ETF
@@ -5548,6 +5564,7 @@ JAGU|Jaguar Uranium (Class A)
 JAGX|Jaguar Health
 JAJL|Innovator Equity Defined Protection ETF - 6mo Jan/Jul
 JAKK|JAKKS Pacific
+JALL|JPMorgan All Country Research Enhanced Equity ETF
 JAN|Janus Living (Class A)
 JANB|Aptus January Buffer ETF
 JANH|Innovator Premium Income 20 Barrier ETF - January
@@ -5677,7 +5694,7 @@ JOBC|Corgi JOBY 2x Daily ETF
 JOBX|Tradr 2X Long JOBY Daily ETF
 JOBY|Joby Aviation
 JOE|St. Joe Company (The)
-JOET|Virtus Terranova U.S. Quality Momentum ETF
+JOET|Virtus NYSE Terranova U.S. Quality Momentum ETF
 JOF|Japan Smaller Capitalization Fund
 JOJO|ATAC Credit Rotation ETF
 JONE|Jones Ventures INTL Acquisition1 (Class A)
@@ -5900,7 +5917,6 @@ KORP|American Century Diversified Corporate Bond ETF
 KORU|Direxion Daily South Korea Bull 3X ETF
 KOS|Kosmos Energy
 KOSS|Koss
-KOYN|CSLM Digital Asset Acquisition Corp III (Class A)
 KPET|KPET Ultra Paceline (Class A)
 KPHO|KraneShares Dragon Capital Growth of Vietnam Index ETF
 KPLT|Katapult
@@ -5944,7 +5960,6 @@ KT|KT
 KTB|Kontoor Brands
 KTCC|Key Tronic
 KTEC|KraneShares Hang Seng TECH Index ETF
-KTF|DWS Municipal Income Trust
 KTOS|Kratos Defense & Security Solutions
 KTTA|Pasithea Therapeutics
 KTUP|T-REX 2X Long KTOS Daily Target ETF
@@ -6303,7 +6318,6 @@ LWLX|Tradr 2X Long LWLG Daily ETF
 LX|LexinFintech
 LXEH|Lixiang Education Holding
 LXEO|Lexeo Therapeutics
-LXFR|Luxfer
 LXRX|Lexicon Pharmaceuticals
 LXU|LSB Industries
 LYB|LyondellBasell Industries NV (Class A)
@@ -6463,6 +6477,7 @@ MDXH|MDxHealth SA
 MDY|State Street SPDR S&P MIDCAP 400 ETF Trust
 MDYG|State Street SPDR S&P 400 Mid Cap Growth ETF
 MDYV|State Street SPDR S&P 400 Mid Cap Value ETF
+MEA|GraniteShares Autocallable META ETF
 MEAR|iShares Short Maturity Municipal Bond Active ETF
 MEC|Mayville Engineering
 MED|MEDIFAST INC
@@ -6483,7 +6498,6 @@ MEMS|Matthews Emerging Markets Discovery Active ETF
 MEMX|Matthews Emerging Markets ex China Active ETF
 MENS|Jyong Biotech
 MEOH|Methanex
-MERC|Mercer International
 MESH|Meshflow Acquisition (Class A)
 MESO|Mesoblast
 MET|MetLife
@@ -6687,7 +6701,7 @@ MOAT|VanEck Morningstar Wide Moat ETF
 MOB|Mobilicom
 MOBI|Mobia Medical
 MOBX|Mobix Labs (Class A)
-MOD|Modine Manufacturing
+MOD|Modexus Solutions
 MODD|Modular Medical
 MODL|VictoryShares WestEnd U.S. Sector ETF
 MOG-A|Moog (Class A)
@@ -7257,6 +7271,7 @@ NTAL|GraniteShares 2x Long NTAP Daily ETF
 NTAP|NetApp
 NTB|Bank of N.T. Butterfield & Son Limited (The) Voting
 NTCL|NETCLASS TECHNOLOGY INC (Class A)
+NTCR|Nuveen Technology & Infrastructure Credit ETF
 NTCT|NetScout Systems
 NTES|NetEase
 NTGR|NETGEAR
@@ -7361,7 +7376,6 @@ NVYY|GraniteShares YieldBOOST NVDA ETF
 NWAX|New America Acquisition I (Class A)
 NWBI|Northwest Bancshares
 NWCL|newcleo
-NWE|NorthWestern Energy
 NWFL|Norwood Financial
 NWG|NatWest
 NWGL|CL Workshop
@@ -7565,7 +7579,6 @@ OOMA|Ooma
 OOSP|Obra Opportunistic Structured Products ETF
 OPAD|Offerpad Solutions (Class A)
 OPAL|OPAL Fuels (Class A)
-OPAY|OPay
 OPBK|OP Bancorp
 OPCH|Option Care Health
 OPEN|Opendoor Technologies
@@ -7793,6 +7806,7 @@ PCF|High Income Securities Fund
 PCFI|Polen Floating Rate Income ETF
 PCG|Pacific Gas & Electric
 PCHI|Polen High Income ETF
+PCHX|State Street SPDR Nasdaq MyPaycheck ETF
 PCI|PGIM Corporate Bond 5-10 Year ETF
 PCL|PGIM Corporate Bond 10+ Year ETF
 PCLA|PicoCELA
@@ -7809,7 +7823,6 @@ PCPC|Porter & Company Property & Casualty Index ETF
 PCPI|PIMCO Inflation PLUS Active Exchange-Traded Fund
 PCPP|Porter & Company Porter Portfolio Index ETF
 PCQ|PIMCO California Municipal Income Fund
-PCRX|Pacira BioSciences
 PCS|PGIM Corporate Bond 0-5 Year ETF
 PCSA|Processa Pharmaceuticals
 PCSG|Polen 5Perspectives Small-Mid Growth ETF
@@ -7944,6 +7957,7 @@ PIO|Invesco Global Water ETF
 PIPE|Invesco SteelPath MLP & Energy Infrastructure ETF
 PIPR|Piper Sandler Companies
 PIT|VanEck Commodity Strategy ETF
+PIVT|VanEck Pivotal Trends ETF
 PIZ|Invesco Dorsey Wright Developed Markets Momentum ETF
 PJAN|Innovator U.S. Equity Power Buffer ETF - January
 PJFG|PGIM Jennison Focused Growth ETF
@@ -7973,7 +7987,6 @@ PLAY|Dave & Buster's Entertainment
 PLBC|Plumas Bancorp
 PLBL|Polibeli (Class A)
 PLBY|Playboy
-PLCE|Children's Place, Inc. (The)
 PLCI|Pelican Acquisition II
 PLD|Prologis
 PLG|Platinum Group Metals
@@ -8071,6 +8084,7 @@ PONO|Pono Capital Four (Class A)
 PONY|Pony AI
 POOL|Pool
 POR|Portland General Electric Co
+PORT|Southport Acquisition Corp. II (Class A)
 POST|Post
 POW|VistaShares Electrification Supercycle ETF
 POWA|Invesco Bloomberg Pricing Power ETF
@@ -8699,7 +8713,6 @@ RJVI|RJ Eagle Vertical Income ETF
 RKDA|Arcadia Biosciences
 RKLB|Rocket Lab
 RKLX|Defiance Daily Target 2X Long RKLB ETF
-RKLZ|Defiance Daily Target 2x Short RKLB ETF
 RKNG|Defiance Retail Kings ETF
 RKSG|Ruk Strategic Growth ETF
 RKT|Rocket Companies (Class A)
@@ -9018,7 +9031,6 @@ SCII|SC II Acquisition (Class A)
 SCIN|Schwab International Bond ETF
 SCIO|First Trust Structured Credit Income Opportunities ETF
 SCJ|iShares MSCI Japan Sm Cap
-SCKT|Socket Mobile
 SCL|Stepan
 SCLX|Scilex
 SCLZ|Swan Enhanced Dividend Income ETF
@@ -9046,6 +9058,7 @@ SCZ|iShares MSCI EAFE Small-Cap ETF
 SCZM|Santacruz Silver Mining
 SD|SandRidge Energy
 SDA|SunCar Technology
+SDC|KICK Space Data Center & Infrastructure Index ETF
 SDCI|USCF SummerHaven Dynamic Commodity Strategy No K-1 Fund
 SDCP|Virtus Newfleet Short Duration Core Plus Bond ETF
 SDD|ProShares UltraShort SmallCap600
@@ -9177,10 +9190,10 @@ SHE|State Street SPDR MSCI USA Gender Diversity ETF
 SHEH|Shell plc ADRhedged
 SHEL|Shell
 SHEN|Shenandoah Telecommunications Co
-SHFS|SHF (Class A)
 SHG|Shinhan Financial Group Co
 SHIM|Shimmick
 SHIP|Seanergy Maritime
+SHLA|Global X Asia Defense Tech ETF
 SHLD|Global X Defense Tech ETF
 SHLS|Shoals Technologies (Class A)
 SHM|State Street SPDR Nuveen ICE Short Term Municipal Bond ETF
@@ -9225,6 +9238,7 @@ SILJ|Amplify Junior Silver Miners ETF
 SILO|Silo Pharma
 SIM|Grupo Simec, S.A.B. de C.V.
 SIMA|SIM Acquisition Corp. I (Class A)
+SIMI|American Beacon SiM High Income ETF
 SIMO|Silicon Motion Technology
 SIMS|State Street SPDR S&P Kensho Intelligent Structures ETF
 SIMX|Corgi SIMO 2x Daily ETF
@@ -9463,6 +9477,7 @@ SOLZ|Solana ETF
 SOMN|Southern Company (The) 2025 Series A Corporate Units
 SON|Sonoco Products
 SONM|DNA X
+SONN|Southern Company (The) 2026 Series A Corporate Units
 SONO|Sonos
 SONY|Sony
 SOPH|SOPHiA GENETICS SA
@@ -9656,7 +9671,6 @@ SSPY|Stratified LargeCap Index ETF
 SSRM|SSR Mining
 SSS|CYBER HORNET S&P 500 and Solana 75/25 Strategy ETF
 SST|System1 (Class A)
-SSTI|SoundThinking
 SSTK|Shutterstock
 SSUS|Day Hagan Smart Sector ETF
 SSXU|Day Hagan Smart Sector International ETF
@@ -9713,7 +9727,6 @@ STRR|Star Equity
 STRT|STRATTEC SECURITY CORPORATION
 STRW|Strawberry Fields REIT
 STRZ|Starz Entertainment
-STSM|Defiance Daily Target 2X Short TSM ETF
 STT|State Street
 STTK|Shattuck Labs
 STUB|StubHub (Class A)
@@ -9974,6 +9987,7 @@ TFGZ|Thornburg Focus Growth Fund
 TFI|State Street SPDR Nuveen ICE Municipal Bond ETF
 TFII|TFI International
 TFIN|Triumph Financial
+TFIX|T. Rowe Price Capital Appreciation Fixed Income ETF
 TFJL|Innovator 20 Year Treasury Bond 5 Floor ETF - July
 TFLO|iShares Treasury Floating Rate Bond ETF
 TFLR|T. Rowe Price Floating Rate ETF
@@ -10230,6 +10244,7 @@ TRIL|VegaShares Trillions ETF
 TRIN|Trinity Capital
 TRIO|MC Trio Equity Buffered ETF
 TRIP|TripAdvisor
+TRLL|Direxion Trillions ETF
 TRLV|Trulieve Cannabis
 TRMB|Trimble
 TRMD|TORM (Class A)
@@ -10397,6 +10412,7 @@ TXNM|TXNM Energy
 TXNU|Direxion Daily TXN Bull 2X ETF
 TXNY|Northern Trust New York Intermediate Tax-Exempt Bond ETF
 TXO|TXO Partners
+TXR|Torex Resources
 TXRH|Texas Roadhouse
 TXS|Texas Capital Texas Equity Index ETF
 TXT|Textron
@@ -10416,7 +10432,6 @@ TYLD|Cambria Tactical Yield ETF
 TYLG|Global X Information Technology Covered Call & Growth ETF
 TYO|Direxion Daily 10-Yr Treasury Bear 3x Shrs
 TYRA|Tyra Biosciences
-TYYY|xETFs TSLA Daily Income ETF
 TZA|Direxion Small Cap Bear 3X ETF
 TZOO|Travelzoo
 U|Unity Software
@@ -10441,7 +10456,7 @@ UBR|ProShares Ultra MSCI Brazil Capped
 UBRL|GraniteShares 2x Long UBER Daily ETF
 UBS|UBS Group AG Registered
 UBSI|United Bankshares
-UBT|ProShares Ultra 20+ Year Treasury
+UBT|ProShares Ultra 20 Year Treasury
 UCAR|U Power (Class A)
 UCB|United Community Banks
 UCBG|State Street SPDR UC Investments 90/10 Endowment Strategy In
@@ -10641,7 +10656,6 @@ UTMD|Utah Medical Products
 UTSI|UTStarcom
 UTSL|Direxion Daily Utilities Bull 3X ETF
 UTWY|US Treasury 20 Year Bond ETF
-UTZ|Utz Brands (Class A)
 UUP|Invesco DB USD Index Bullish Fund ETF
 UUPP|Principal CLO ETF
 UUUC|Corgi UUUU 2x Daily ETF
@@ -10701,7 +10715,6 @@ VBIO|Valion Bio
 VBK|Vanguard Morningstar Small-Cap Growth ETF
 VBNB|VanEck BNB ETF
 VBND|Vident U.S. Bond Strategy ETF
-VBNK|VersaBank
 VBR|Vanguard Morningstar Small-Cap Value ETF
 VC|Visteon
 VCEB|Vanguard ESG U.S. Corporate Bond ETF
@@ -10745,6 +10758,7 @@ VELO|Velo3D
 VEM|Virtus Emerging Markets Dividend ETF
 VEMB|Vanguard Emerging Markets Bond Active ETF
 VEMY|Virtus Stone Harbor Emerging Markets High Yield Bond ETF
+VEN|Teucrium Venezuela Future Opportunities ETF
 VENU|Venu
 VEON|VEON
 VERA|Vera Therapeutics (Class A)
@@ -10901,6 +10915,7 @@ VRIG|Invesco Variable Rate Investment Grade ETF
 VRM|Vroom
 VRNS|Varonis Systems
 VRRM|Verra Mobility (Class A)
+VRSA|Versa Bancorp
 VRSK|Verisk Analytics
 VRSN|VeriSign
 VRT|Vertiv (Class A)
@@ -10967,6 +10982,7 @@ VUSV|Vanguard Wellington U.S. Value Active ETF
 VUZI|Vuzix
 VV|Vanguard Morningstar Large-Cap ETF
 VVOS|Vivos Therapeutics
+VVPL|Vulcan Value Partners ETF
 VVR|Invesco Senior Income Trust
 VVV|Valvoline
 VVVV|vVARDIS (Class A)
@@ -11216,7 +11232,6 @@ WYFL|Defiance Daily Target 2X Long WYFI ETF
 WYHG|Wing Yip Food Holdings
 WYNN|Wynn Resorts
 WYY|WidePoint
-WZRD|Opportunistic Trader ETF
 XA|Corgi AI Cybersecurity ETF
 XAGG|Eaton Vance Income Opportunities ETF
 XAGI|Corgi AGIX 2x Daily ETF
@@ -11479,6 +11494,7 @@ YALA|Yalla (Class A)
 YALL|Truth Social God Bless America ETF
 YANG|Direxion Daily FTSE China Bear 3X ETF
 YARW|Yarrow Bioscience
+YASX|Yorkville America Space Index ETF
 YB|Yuanbao
 YBIT|YieldMax Bitcoin Option Income Strategy ETF
 YBST|GraniteShares YieldBoost Single Stock Universe ETF
@@ -11512,6 +11528,7 @@ YJ|Yunji
 YJUN|FT Vest International Equity Moderate Buffer ETF - June
 YLD|Principal Active High Yield ETF
 YLDE|Franklin ClearBridge Enhanced Income ETF
+YLDS|Harbor Arena Structured Income ETF
 YLDW|Westwood Enhanced Income Opportunity ETF
 YLDY|Horizon High Income ETF
 YMAG|YieldMax Magnificent 7 Fund of Option Income ETFs
@@ -11521,6 +11538,7 @@ YMAX|YieldMax Universe Fund of Option Income ETFs
 YMM|Full Truck Alliance (Class A)
 YMT|Yimutian (Class A)
 YNOT|Horizon Digital Frontier ETF
+YO|Amplify S&P 500 Buffered Autocallable Yield Opportunity ETF
 YOKE|YOKE Core ETF
 YOLO|AdvisorShares Pure Cannabis ETF
 YORW|The York Water
@@ -11569,6 +11587,7 @@ ZCMD|Zhongchao (Class A)
 ZCSH|The Zcash ETF Shares
 ZD|Ziff Davis
 ZDAI|DirectBooking Technology (Class A)
+ZDAY|Bitwise AI Cyber Defense ETF
 ZDEK|Innovator Equity Defined Protection ETF - 1 Yr December
 ZDGE|Zedge (Class B)
 ZDIS|Virtus Zevenbergen Discovery Growth ETF
@@ -11605,6 +11624,7 @@ ZMUN|F/m Ultrashort Tax-Free Municipal ETF
 ZNB|Zeta Network (Class A)
 ZNOV|Innovator Equity Defined Protection ETF - 1 Yr November
 ZNTL|Zentalis Pharmaceuticals
+ZOAR|Zoar
 ZOCT|Innovator Equity Defined Protection ETF - 1 Yr October
 ZONE|Zone Frontier (Class B)
 ZOOZ|ZOOZ Strategy
