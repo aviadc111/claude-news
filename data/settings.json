@@ -10,10 +10,11 @@
   "MU",
   "VOO",
   "TTWO",
-  "ASML"
+  "ASML",
+  "PLTR"
  ],
- "since": "qLhFwKB4M3No",
- "updated": "2026-11-19T22:00:34+00:00",
+ "since": "DyXSx7gaAqel",
+ "updated": "2026-11-22T14:03:21+00:00",
  "tickers": {
   "AAPL": "Apple",
   "MSFT": "Microsoft",
@@ -25,7 +26,8 @@
   "MU": "Micron Technology",
   "VOO": "Vanguard S&P 500 ETF",
   "TTWO": "Take-Two Interactive Software",
-  "ASML": "ASML Holding N.V. - New York Re"
+  "ASML": "ASML Holding N.V. - New York Re",
+  "PLTR": "Palantir Technologies (Class A)"
  },
  "known": [
   "NVDA",
@@ -41,7 +43,8 @@
   "MU",
   "VOO",
   "TTWO",
-  "ASML"
+  "ASML",
+  "PLTR"
  ],
  "rejected": {},
  "name_tried": [
