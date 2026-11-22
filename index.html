@@ -751,7 +751,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "4.6";
+  const APP_VERSION = "4.7";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -1310,7 +1310,7 @@
     renderBoard(data);
     followChecker();
   }
-  // ---- my stocks: the list, the picks (Sunday report) and my shares ----------
+  // ---- my stocks: the list, the picks (sudden-dip alerts) and my shares ----------
   const TICKER_RE = /^[A-Z0-9.\-=^]{1,12}$/;
   let picked = null, myTickers = null, holdings = {}, pickTimer = null;
   try { picked = JSON.parse(ls.get("cn.picked", "null")); } catch { picked = null; }
@@ -1543,8 +1543,7 @@
     $("boardUpdated").textContent = "prices " + at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + (at.toDateString() === new Date().toDateString() ? "" : " " + at.toLocaleDateString([], { day: "numeric", month: "short" }));
     const tickers = listTickers(data), mine = currentPicked(data), srv = serverTickers(data), rejected = data.rejected || {};
     const synced = inSync(data), soon = checkerOnDuty();
-    const when = (data.weekly && data.weekly.time) || "08:30";
-    $("boardHint").innerHTML = `Stocks with a <b class="glowtxt">green glow</b> are in your Sunday ${when} report (<b>${mine.length} of ${tickers.length}</b>). Tap the circle to put one in or take it out. Press and hold a stock to pin it to the top or delete it.`
+    $("boardHint").innerHTML = `Stocks with a <b class="glowtxt">green glow</b> send you a sudden-dip alert (<b>${mine.length} of ${tickers.length}</b>). Tap the circle to turn it on or off. Press and hold a stock to pin it to the top or delete it.`
       + (synced ? "" : `<br><span class="pending">Saved on this phone. ${soon ? "The checker follows in about a minute." : "The market is closed: the checker follows in a few minutes if your PC is on, otherwise within about 2 hours."}</span>`);
     const pinRank = (t) => { const i = pinned.indexOf(t); return i < 0 ? 1e9 : i; };      // pinned stocks first, in the order they were pinned
     const withData = tickers.map((t) => data.stocks.find((s) => s.ticker === t)).filter(Boolean)
@@ -1567,7 +1566,7 @@
         : `<button class="own" data-own="${esc(s.ticker)}" aria-label="I own ${esc(s.name)}">+ I own</button>`;
       return `
       <div class="srow ${on ? "on" : "off"}" data-t="${esc(s.ticker)}">
-        <button class="pick${on ? " on" : ""}" data-pick="${esc(s.ticker)}" aria-pressed="${on}" aria-label="${on ? "Take out of" : "Put in"} the Sunday report: ${esc(s.name)}">${on ? CHECK : ""}</button>
+        <button class="pick${on ? " on" : ""}" data-pick="${esc(s.ticker)}" aria-pressed="${on}" aria-label="${on ? "Turn off" : "Turn on"} sudden-dip alerts: ${esc(s.name)}">${on ? CHECK : ""}</button>
         <div class="info"><div class="nm">${esc(s.name)} <span class="tk">${esc(s.ticker)}</span> ${tag}${pinned.includes(s.ticker) ? ' <span class="tag dip">PINNED</span>' : ""}</div>
           <div class="sub">${Math.abs(s.from_lt_high_pct).toFixed(0)}% below ${data.rules.longterm_years}-year high</div></div>
         <canvas data-spark="${esc(s.ticker)}"></canvas>

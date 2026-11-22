@@ -4,13 +4,14 @@ on:
   schedule:
     # GitHub is asked for a run every 15 minutes but really starts one every 1 to 2.5 hours.
     # So a run that starts in busy hours stays alive and checks on every quarter hour itself
-    # (worker/loop.py): Monday to Friday 06:00 to 16:20 New York time, and Sunday morning up to
-    # the 08:30 weekly message, and every day up to the 20:00 demo message while the app has a
-    # demo account. Outside busy hours a run checks once and ends.
+    # (worker/loop.py): Monday to Friday 06:00 to 16:20 New York time, and every day up to the
+    # 20:00 demo message while the app has a demo account. Outside busy hours a run checks
+    # once and ends.
     # Between checks a run in busy hours listens for changes made in the app, so a stock that
     # is added shows up about a minute later instead of at the next quarter hour.
-    # Each check picks up stocks added or picked in the app, refreshes the charts data, sends
-    # a sudden-dip alert when one happens, and sends the weekly prices message when it is due.
+    # Each check picks up stocks added or picked in the app, refreshes the charts data, and
+    # sends a sudden-dip alert when one happens (per stock: at most one in 14 days, unless it
+    # falls another 7% since that message).
     - cron: "*/15 * * * *"
   workflow_dispatch:
 

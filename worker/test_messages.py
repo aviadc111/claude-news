@@ -2,9 +2,8 @@
 Send a test copy of every message the Stocks tab can receive, right now, from GitHub.
 Used to prove the messages arrive with the PC switched off.
 
-  1. the Sunday prices message (current prices of the picked stocks)
-  2. the sudden-dip alert (for every picked stock in a sudden dip now, or a sample if none is)
-  3. the analyst message (the most recent ratings day that has a stock with enough Buy ratings)
+  1. the sudden-dip alert (for every picked stock in a sudden dip now, or a sample if none is)
+  2. the analyst message (the most recent ratings day that has a stock with enough Buy ratings)
 
 Every title starts with "Test:". Nothing is remembered: the real schedule and its
 "already sent" memory are not touched.
@@ -12,10 +11,8 @@ Every title starts with "Test:". Nothing is remembered: the real schedule and it
     python worker/test_messages.py [--dry]
 """
 
-import datetime as dt
 import os
 import sys
-from zoneinfo import ZoneInfo
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -51,11 +48,7 @@ def main(argv):
     if not mine:
         sys.exit("no picked stocks with prices")
 
-    # 1. the weekly prices message
-    now = dt.datetime.now(ZoneInfo(cfg["weekly"].get("timezone", "Asia/Jerusalem")))
-    send(*run.weekly_message(mine, now))
-
-    # 2. the sudden-dip alert
+    # 1. the sudden-dip alert
     sudden = [r for r in mine if r["sudden"]]
     if sudden:
         for r in sudden:
@@ -66,7 +59,7 @@ def main(argv):
         title, body = run.sudden_message(r)
         send(title, "(A sample: none of your picked stocks is in a sudden dip right now.)\n" + body, priority="high")
 
-    # 3. the analyst message
+    # 2. the analyst message
     scfg = scans.load_cfg()
     feed, _ = scans.analyst_feed(scfg)
     for day in sorted({row[0] for f in feed for row in f["rows"]}, reverse=True):

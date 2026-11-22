@@ -12,7 +12,7 @@ Market-wide scans that run on GitHub.
 
              Repeat rule: a stock that was sent is not sent again for
              `analyst_repeat_days` days. After that it is sent again only if it gets
-             many Buy ratings again AND it is not picked for the weekly report.
+             many Buy ratings again AND it is not one of the picked stocks.
 
              These are analysts' published ratings, reported as they are. Not advice.
 
@@ -253,7 +253,7 @@ def analyst_message(r):
         lines.append(f"Their price targets: {r.get('raised', 0)} raised, {r.get('lowered', 0)} lowered.")
     if r.get("sent_before"):
         lines.append(f"Sent to you before on {nice_day(r['sent_before'])} and it is getting Buy ratings again. "
-                     f"It is not in your weekly report.")
+                     f"It is not one of your picked stocks.")
     if "price" in r:
         lines += [f"Now ${r['price']:,.2f}", f"All-time high ${r['ath']:,.2f} ({r['ath_date']})",
                   f"30-day high ${r['high30']:,.2f}", f"30-day low ${r['low30']:,.2f}"]
@@ -286,7 +286,7 @@ def run_analysts(cfg, state, argv, send, now_ny):
             return False                               # never sent: send it
         if a < repeat_days:
             return True                                # sent in the last two weeks: stay quiet
-        return ticker in picked                        # later: again only if not in the weekly report
+        return ticker in picked                        # later: again only if it is not a picked stock
 
     after_close = (now_ny.hour, now_ny.minute) >= (16, 30)
     for day in sorted({row[0] for f in feed for row in f["rows"]}):
@@ -298,7 +298,7 @@ def run_analysts(cfg, state, argv, send, now_ny):
         print(f"ratings day {day}: {[(c['ticker'], c['buy']) for c in cands[:6]] or 'no stock reached the bar'}")
         quiet = [c["ticker"] for c in cands if skip(c["ticker"])]
         if quiet:
-            print("  not repeated (sent recently, or already in the weekly report):", quiet)
+            print("  not repeated (sent recently, or already a picked stock):", quiet)
         pick = next((c for c in cands if not skip(c["ticker"])), None)
         if pick:
             pick["sent_before"] = sent.get(pick["ticker"])

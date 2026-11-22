@@ -9,18 +9,16 @@ Every run:
      writes data/stocks.json for the app's charts board (only when something changed)
   3. SUDDEN DIP alert for a picked stock that fell `sudden_drop_day_pct` in a day
      or `sudden_drop_5day_pct` in 5 trading days: says its all-time high and its
-     30-day high and low (one alert per stock per `cooldown_hours`, unless it
-     falls another `realert_extra_drop_pct`)
-  4. WEEKLY message, Sunday 08:30 Israel time: the current price of the picked
-     stocks and nothing else
+     30-day high and low. After a message about a stock, the next one about it comes
+     only when `dip_repeat_days` (14) have passed and it is in a sudden dip then, or
+     when its price is `realert_extra_drop_pct` (7%) below the price in that message
 
 State between runs lives in data/alert_state.json (committed by the workflow).
 worker/loop.py calls this script: once per run outside trading hours, and on every quarter
-hour while the US market is open and around the weekly message time.
+hour while the US market is open and before the daily demo message.
 
     python worker/run.py            normal run
     python worker/run.py --dry      compute and write stocks.json only, send nothing
-    python worker/run.py --weekly   also send the weekly message right now
     python worker/run.py --demo     also send the daily demo message right now
 """
 
@@ -390,22 +388,42 @@ def build_results(settings, cfg, closes, ohl=None):
 
 
 # ------------------------------------------------------------------ alerts ---
-def sudden_alert_due(r, state, cfg):
-    if not r["sudden"]:
-        return False
+def last_dip_message(r, state, cfg, now=None):
+    """The last dip message about this stock, if it was sent in the last `dip_repeat_days`."""
     prev = state.get("sudden", {}).get(r["ticker"])
     if not prev:
-        return True
-    hours = (dt.datetime.now() - dt.datetime.fromisoformat(prev["time"])).total_seconds() / 3600
-    if hours >= float(cfg["cooldown_hours"]):
-        return True
-    return (r["price"] / prev["price"] - 1) * 100 <= -float(cfg["realert_extra_drop_pct"])
+        return None
+    try:
+        days = ((now or dt.datetime.now()) - dt.datetime.fromisoformat(prev["time"])).total_seconds() / 86400
+        return prev if days < float(cfg["dip_repeat_days"]) and float(prev["price"]) > 0 else None
+    except (KeyError, TypeError, ValueError):
+        return None
 
 
-def sudden_message(r):
+def sudden_alert_due(r, state, cfg, now=None):
+    """Is a dip message about this stock due now?
+
+    For `dip_repeat_days` (14) after a message about a stock, another one is sent only when
+    the price is `realert_extra_drop_pct` (7%) or more below the price in that message. A
+    stock that simply stays down, or keeps counting as "down 10% in 5 days" for a few days,
+    is not repeated. After those days the stock starts fresh: a message when it is in a
+    sudden dip."""
+    last = last_dip_message(r, state, cfg, now)
+    if last:
+        fell = round((r["price"] / float(last["price"]) - 1) * 100, 6)      # rounded: exactly 7% counts
+        return fell <= -float(cfg["realert_extra_drop_pct"])
+    return bool(r["sudden"])
+
+
+def sudden_message(r, last=None):
+    """`last`: the earlier message this one follows (a further fall), or None."""
     title = f"Sudden dip: {r['name']} ({r['ticker']})"
+    reasons = list(r["sudden_reasons"])
+    if last:
+        fell = abs((r["price"] / float(last["price"]) - 1) * 100)
+        reasons.insert(0, f"down {fell:.1f}% since the last alert (${float(last['price']):,.2f})")
     body = "\n".join([
-        "; ".join(r["sudden_reasons"]).capitalize() + ".",
+        "; ".join(reasons).capitalize() + ".",
         f"Now ${r['price']:,.2f}",
         f"All-time high ${r['ath']:,.2f} ({r['ath_date']})",
         f"30-day high ${r['high30']:,.2f}",
@@ -416,7 +434,9 @@ def sudden_message(r):
 
 def weekly_due(state, cfg, now, spec=None, key="_weekly"):
     """True once per week, from `time` on `weekday` (Monday is 0, Sunday is 6)."""
-    w = spec or cfg["weekly"]
+    w = spec or cfg.get("weekly")
+    if not w:
+        return False
     hh, mm = (int(x) for x in w["time"].split(":"))
     if now.weekday() != int(w["weekday"]):
         return False
@@ -454,12 +474,6 @@ INSTAGRAM_REMINDER = ("Weekly Instagram check",
                       "1. In Instagram, request your export: Followers and following, format JSON.\n"
                       "2. When the file is ready, open the Instagram tab here, press Check and load it.\n"
                       "The steps are listed inside Check.")
-
-
-def weekly_message(results, now):
-    title = f"Your stocks - {now:%A %d %b}"
-    body = "\n".join(f"{r['name']} ({r['ticker']})  ${r['price']:,.2f}" for r in results)
-    return title, body
 
 
 def same_board(old, new, cents=0.011):
@@ -565,7 +579,6 @@ def main(argv):
         "rules": {k: cfg[k] for k in ("longterm_years", "drop_from_longterm_high_pct", "lookback_days",
                                       "drop_from_high_pct", "daily_drop_pct",
                                       "sudden_drop_day_pct", "sudden_drop_5day_pct")},
-        "weekly": cfg["weekly"],
         "stocks": results,
     }
     old = old_board
@@ -584,20 +597,12 @@ def main(argv):
 
     for r in mine:
         if sudden_alert_due(r, state, cfg):
-            title, body = sudden_message(r)
+            title, body = sudden_message(r, last_dip_message(r, state, cfg))
             res, ch = cn.notify(title, body, project="Stocks", priority="high", cfg=app_cfg, state=devices)
             devices_changed |= ch
             if res["feed"] or res["pushed"]:
                 state.setdefault("sudden", {})[r["ticker"]] = {
                     "time": dt.datetime.now().isoformat(timespec="seconds"), "price": r["price"]}
-
-    now = dt.datetime.now(ZoneInfo(cfg["weekly"].get("timezone", "Asia/Jerusalem")))
-    if mine and ("--weekly" in argv or weekly_due(state, cfg, now)):
-        title, body = weekly_message(mine, now)
-        res, ch = cn.notify(title, body, project="Stocks", cfg=app_cfg, state=devices)
-        devices_changed |= ch
-        if res["feed"] or res["pushed"]:
-            state["_weekly"] = {"date": now.date().isoformat()}
 
     # The daily demo message, only while the app says a demo account exists.
     dd = cfg.get("demo_daily")

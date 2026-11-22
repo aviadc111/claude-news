@@ -6,10 +6,9 @@ GitHub is asked to start the job every 15 minutes, but in practice it starts it 
 itself on every quarter hour:
   - Monday to Friday, 06:00 to 16:20 New York time. The US market is open 09:30 to 16:00;
     the early start makes sure a run is already alive when it opens.
-  - the weekly-message day, from 3.5 hours before the message time until 10 minutes after
-    it, so the Sunday 08:30 message leaves at 08:30.
-  - every day, the same 3.5 hours before the daily demo message (20:00 Israel time), while
-    the app has a demo account. On working days the market hours already cover it.
+  - every day, from 3.5 hours before the daily demo message (20:00 Israel time) until 10
+    minutes after it, while the app has a demo account, so that message leaves on time. On
+    working days the market hours already cover it.
 Outside busy hours a run checks once and ends, as before.
 
 Between two checks the run does not sleep: it listens on the app's settings channel. When a
@@ -50,8 +49,8 @@ MAX_HOURS = 5.3                   # GitHub stops a job at 6 hours
 MARKET_TZ = "America/New_York"
 MARKET_FROM = dt.time(6, 0)       # 3.5 hours before the open: GitHub can take 2.5 hours to start a run
 MARKET_UNTIL = dt.time(16, 20)    # the close is 16:00; the 16:15 and 16:30 checks pick up the final price
-WEEKLY_LEAD = dt.timedelta(hours=3, minutes=30)
-WEEKLY_TAIL = dt.timedelta(minutes=10)
+MESSAGE_LEAD = dt.timedelta(hours=3, minutes=30)   # awake this long before a timed message
+MESSAGE_TAIL = dt.timedelta(minutes=10)
 SETTLE_SECONDS = 4                # the app saves a moment after the last tap: wait for quick changes to finish
 LISTEN_SECONDS = 40               # one listening connection; a new one follows straight away
 MAX_EARLY_CHECKS = 80             # per run, so a flood of changes cannot keep the job checking nonstop
@@ -71,24 +70,16 @@ def demo_on():
 
 
 def busy(now, cfg, demo=None):
-    """Why this moment is inside busy hours ("market" / "weekly" / "demo"), or "" when it is not."""
+    """Why this moment is inside busy hours ("market" / "demo"), or "" when it is not."""
     ny = now.astimezone(ZoneInfo(MARKET_TZ))
     if ny.weekday() < 5 and MARKET_FROM <= ny.time() < MARKET_UNTIL:
         return "market"
-    w = cfg.get("weekly") or {}
-    if w.get("time"):
-        local = now.astimezone(ZoneInfo(w.get("timezone", "Asia/Jerusalem")))
-        if local.weekday() == int(w.get("weekday", 6)):
-            hh, mm = (int(x) for x in w["time"].split(":"))
-            target = local.replace(hour=hh, minute=mm, second=0, microsecond=0)
-            if target - WEEKLY_LEAD <= local <= target + WEEKLY_TAIL:
-                return "weekly"
     d = cfg.get("demo_daily") or {}
     if d.get("time") and (demo_on() if demo is None else demo):
         local = now.astimezone(ZoneInfo(d.get("timezone", "Asia/Jerusalem")))
         hh, mm = (int(x) for x in d["time"].split(":"))
         target = local.replace(hour=hh, minute=mm, second=0, microsecond=0)
-        if target - WEEKLY_LEAD <= local <= target + WEEKLY_TAIL:
+        if target - MESSAGE_LEAD <= local <= target + MESSAGE_TAIL:
             return "demo"
     return ""
 
