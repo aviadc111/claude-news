@@ -231,7 +231,7 @@ async function connect(onUpdate, onMessages) {
   // While pairing, the library's own log helps to see where linking fails. The job's log is
   // public, so every long run of digits (phone numbers, ids) is masked before it is written.
   const masked = { write: (s) => process.stdout.write(String(s).replace(/\d{7,}/g, '***')) };
-  const logger = MODE === 'login' ? pino({ level: 'info', base: null }, masked) : pino({ level: 'error' });
+  const logger = MODE.startsWith('login') ? pino({ level: 'info', base: null }, masked) : pino({ level: 'error' });
   const { version } = await fetchLatestBaileysVersion();
   const sock = makeWASocket({
     version,
@@ -269,9 +269,23 @@ async function findGroup(sock) {
 }
 
 // ----------------------------------------------------------------------------- login
+function appChannel() {                       // the app's ntfy server and topic, from config.js
+  const text = fs.readFileSync(path.join(ROOT, 'config.js'), 'utf8');
+  return JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1));
+}
+
+async function publishQR(qr) {
+  const cfg = appChannel();
+  const r = await fetch(`${cfg.ntfy.replace(/\/$/, '')}/${cfg.topic}-qr`, {
+    method: 'POST', body: qr, headers: { Title: 'WhatsApp login QR', Priority: 'low' }, signal: AbortSignal.timeout(20_000),
+  });
+  return r.ok;
+}
+
 async function login() {
+  const QR = MODE === 'login-qr';
   const phone = (process.env.WA_PHONE || '').replace(/\D/g, '');
-  if (!phone) { console.error('WA_PHONE (the WhatsApp number, digits only, with country code) is not set'); process.exit(1); }
+  if (!QR && !phone) { console.error('WA_PHONE (the WhatsApp number, digits only, with country code) is not set'); process.exit(1); }
   for (const f of [AUTH_FILE, LOGIN_NEEDED]) if (fs.existsSync(f)) fs.rmSync(f);   // a new login replaces the old one
   await commitState('login: replacing the login');
   const fresh = () => { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); fs.mkdirSync(AUTH_DIR, { recursive: true }); };
@@ -280,8 +294,13 @@ async function login() {
   const MAX_CODES = 2;
   const deadline = Date.now() + 22 * MIN;
 
+  let qrs = 0;
   const run = () => connect(async (sock, u) => {
-    if (u.qr && !asked) {
+    if (u.qr && QR) {                                           // every new or refreshed QR goes to the app's channel
+      qrs++;
+      try { log((await publishQR(u.qr)) ? `QR ${qrs} published to the channel; scan it with the phone` : `could not publish QR ${qrs}`); }
+      catch (e) { log('could not publish the QR:', e.message); }
+    } else if (u.qr && !asked) {
       asked = true;
       if (++codes > MAX_CODES) { log('three codes were sent and none was typed in; giving up'); process.exit(1); }
       try {
@@ -306,9 +325,10 @@ async function login() {
       const code = closeReason(u);
       if (code === DisconnectReason.restartRequired || paired) { log('reconnecting after pairing (code', code, ')'); await sleep(2000); run(); return; }
       if (Date.now() > deadline) { log('login timed out'); process.exit(1); }
-      // the pairing was dropped (nobody typed the code in time): start over with a new code
-      log('connection closed while pairing (code', code, '); asking for a new code');
-      fresh(); asked = false;
+      // the pairing was dropped (nobody typed the code or scanned in time): start over
+      log('connection closed while pairing (code', code, QR ? '); new QRs follow' : '); asking for a new code');
+      if (!QR || code === DisconnectReason.loggedOut) fresh();   // a QR session keeps its keys; the server just hands out new refs
+      asked = false;
       await sleep(3000); run();
     }
   });

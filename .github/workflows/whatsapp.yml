@@ -10,10 +10,10 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "watch (normal) or login (pair with the phone; the code is pushed to the phone)"
+        description: "watch (normal), login-qr (the QR goes to the Claude News channel; show it with whatsapp/qr_show.py) or login (a pairing code is pushed to the phone)"
         type: choice
         default: watch
-        options: [watch, login]
+        options: [watch, login-qr, login]
 
 permissions:
   contents: write

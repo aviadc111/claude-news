@@ -10,11 +10,25 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const LIB = path.join(HERE, 'node_modules', '@whiskeysockets', 'baileys', 'lib');
+const PKG = path.join(HERE, 'node_modules', '@whiskeysockets', 'baileys');
+const LIB = path.join(PKG, 'lib');
 const MARK = '/* claude-news: pairing fix applied */';
+
+// QR pairing: the server now sends `companion_reg_refresh` while the QR is on screen and the
+// released library ignores it, so the phone scans a retired secret and the link fails. The
+// patch is the one Evolution API ships for the same release (their pull request 2727), made
+// from Baileys pull requests 2765 and 2602. Its paths say node_modules/baileys/..., so -p3.
+const QR_PATCH = path.join(HERE, 'patches', 'baileys-7.0.0-rc14-qr-pairing.patch');
+if (!fs.readFileSync(path.join(LIB, 'Socket', 'socket.js'), 'utf8').includes('handleCompanionRegRefresh')) {
+  execFileSync('patch', ['-p3', '-N', '-i', QR_PATCH], { cwd: PKG, stdio: 'inherit' });
+  console.log('applied', path.basename(QR_PATCH));
+} else {
+  console.log('QR patch already applied');
+}
 
 const edits = [
   {
