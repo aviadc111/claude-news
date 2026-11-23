@@ -645,7 +645,7 @@
     <span id="kTicker" class="sub"></span>
   </div>
   <div class="khead"><div class="big" id="kPrice"></div><div class="chg" id="kChange"></div><div class="kstate" id="kState"></div></div>
-  <div class="periods" id="kPeriods"></div>
+  <div class="periods" id="kPeriods" role="group" aria-label="What one candle is"></div>
   <div class="chartwrap">
     <canvas id="kChart" data-noswipe></canvas>
     <div class="scrub" id="kScrub"><span>Touch the chart for a candle's prices</span><span></span></div>
@@ -786,7 +786,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "4.8";
+  const APP_VERSION = "4.9";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -2195,7 +2195,29 @@
   let demo = null, tradeT = null, tradeSide = "buy", resetArmed = false;
   try { demo = JSON.parse(ls.get("cn.demo", "null")); } catch { demo = null; }
   if (demo && !(demo.start > 0 && demo.cash >= 0 && demo.pos && typeof demo.pos === "object" && Array.isArray(demo.trades))) demo = null;
-  const saveDemo = () => ls.set("cn.demo", JSON.stringify(demo));
+  const saveDemo = () => { ls.set("cn.demo", JSON.stringify(demo)); tellLinesSoon(); };
+  // The checker is told where your lines are, so it can send a message the moment the price reaches
+  // one, also while the app is closed (worker/lines.py). It gets the lines' prices and directions,
+  // which stocks with a Sell line you hold, and whether there is cash to buy with. No amounts.
+  var linesTimer = 0;
+  function linesPayload() {
+    const lines = demo && Array.isArray(demo.lines) ? demo.lines : [];
+    const sells = [...new Set(lines.filter((L) => L.side === "sell").map((L) => L.t))];
+    return { lines: lines.map((L) => ({ id: L.id, t: L.t, side: L.side, dir: L.dir, price: L.price, until: L.until })),
+             own: sells.filter((t) => demo.pos[t] && demo.pos[t].shares > 0).sort(), cash: !!demo && demo.cash >= 1 };
+  }
+  const linesSign = (p) => (p.lines.length ? JSON.stringify([p.lines.map((L) => [L.id, L.t, L.side, L.dir, L.price]), p.own, p.cash]) : "none");
+  async function tellLines() {
+    if (!C.topic) return;
+    const p = linesPayload(), sign = linesSign(p);
+    if (ls.get("cn.linesTold", "none") === sign) return;      // the checker already knows exactly this
+    try {
+      const r = await fetch(`${C.ntfy}/${C.topic}-settings`, { method: "POST", headers: { "Title": "lines" },
+        body: JSON.stringify(Object.assign({ type: "lines", time: Date.now() }, p)) });
+      if (r.ok) ls.set("cn.linesTold", sign);
+    } catch {}
+  }
+  function tellLinesSoon() { clearTimeout(linesTimer); linesTimer = setTimeout(tellLines, 1500); }
   const cents = (v) => Math.round(v * 100) / 100;
   const floor4 = (v) => Math.floor(v * 10000 + 1e-6) / 10000;
   const signed = (v) => { v = cents(v) || 0; return (v >= 0 ? "+" : "−") + money(Math.abs(v)); };   // a hair under zero is zero
@@ -2882,7 +2904,7 @@
     }
     if (!events.length) return false;
     events.sort((a, b) => a.c.time - b.c.time || (a.L.side === "sell" ? -1 : 1) - (b.L.side === "sell" ? -1 : 1));
-    const done = new Set();
+    const done = new Set(), said = [];
     for (const { L, c, s } of events) {
       if (done.has(L.id)) continue;
       L.until = c.time;
@@ -2895,12 +2917,14 @@
         const total = p.shares * price;
         demo.trades.push({ t: L.t, side: "sell", shares: p.shares, price, total, gain: total - p.cost, time: c.time, line: true });
         demo.cash += total; delete demo.pos[L.t];
+        said.push(`sold ${s.name} at ${money(price)}`);
       } else {
         const total = Math.min(L.amount, demo.cash);
         if (total >= 1) {
           const p = demo.pos[L.t] || (demo.pos[L.t] = { shares: 0, cost: 0, name: s.name, last: price });
           p.shares += total / price; p.cost += total; demo.cash -= total;
           demo.trades.push({ t: L.t, side: "buy", shares: total / price, price, total, gain: null, time: c.time, line: true });
+          said.push(`bought ${money(total)} of ${s.name} at ${money(price)}`);
         }
       }
       done.add(L.id);
@@ -2908,6 +2932,7 @@
     demo.lines = demo.lines.filter((L) => !done.has(L.id));
     if (demo.trades.length > 500) demo.trades = demo.trades.slice(-500);
     saveDemo();
+    if (said.length) toast("Your line " + said.join(", and ") + ".");
     return true;
   }
   const lineWords = (L, name) => `${L.side === "buy" ? "Buy " + money(L.amount) + " of " + name : "Sell all your " + name} when it ${L.dir === "above" ? "rises" : "drops"} to ${money(L.price)}`;
@@ -2986,26 +3011,145 @@
   });
 
   // ---- the candles chart: a window of its own that works like a trading account's chart -------
-  // Opened with "Candles chart" on a stock's screen. With your demo account you buy and sell at the
-  // price now, and you draw lines at a price that buy or sell by themselves when the price gets
-  // there (the box idea: a Buy line above the price catches a break upward, a Sell line below gets
-  // you out). B and S on the candles show where the account bought and sold. Opened from one of
-  // Claude's accounts, the window only shows that account. My shares (real ones) are not here.
-  let kTicker = null, kStock0 = null, kFrom = "board", kPeriod = 0.25, kGeom = null, kReveal = 1, kAnim = 0;
+  // Opened with "Candles chart" on a stock's screen. You choose what one candle is: 1 minute,
+  // 5 minutes, 15 minutes, 1 hour, 4 hours or a day, and the chart shows the newest candles of
+  // that size. While the market is open it refreshes every minute. With your demo account you buy
+  // and sell at the price now, and you draw lines at a price that buy or sell by themselves when
+  // the price gets there (the box idea: a Buy line above the price catches a break upward, a Sell
+  // line below gets you out). B and S on the candles show where the account bought and sold.
+  // Opened from one of Claude's accounts, the window only shows that account. My shares are not here.
+  let kTicker = null, kStock0 = null, kFrom = "board", kSize = "m5", kGeom = null, kReveal = 1, kAnim = 0;
   let kPlacing = false, kPrice = null, kCross = null;
-  try { const p = JSON.parse(ls.get("cn.deskPeriod", "null")); if (PERIODS.some(([, y]) => y === p)) kPeriod = p; } catch {}
+  const SIZES = [["1m", "m1", "1 minute"], ["5m", "m5", "5 minutes"], ["15m", "m15", "15 minutes"], ["1h", "h1", "1 hour"], ["4h", "h4", "4 hours"], ["1D", "d1", "one day"]];
+  const DESK_SHOWN = 80;                                       // candles on the screen
+  { const z = ls.get("cn.deskSize", ""); if (SIZES.some((x) => x[1] === z)) kSize = z; }
   const DESK_NAMES = { claude: "Claude's account", charts: "Claude's chart account (strict)", charts2: "Claude's chart account (loose)" };
   const deskView = () => kFrom in DESK_NAMES;                 // one of Claude's accounts: look only
   const deskStock = () => (kTicker && (kFrom === "claude" ? (claudeStock(kTicker) || listStock(kTicker)) : listStock(kTicker))) || kStock0;
   const deskAcct = () => (!demo ? null : deskView() ? (demo[kFrom] || null) : demo);
   const shortPrice = (v) => v >= 1000 ? Number(v).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : Number(v).toFixed(2);
+
+  // The intraday candles come from the repository's `live` branch (worker/live.py), as rows of
+  // [minute, open, high, low, close]:  h/<TICKER>.json has 5-minute and 1-hour candles, refreshed
+  // every 15 minutes;  m/<TICKER>.json has the last 120 one-minute candles;  t/<MINUTE>/<TICKER>.json
+  // is that same minute file under the number of the minute it was published in. GitHub's file
+  // server keeps an address for 5 minutes, so only an address that is new every minute is fresh.
+  const LIVE_BASE = (() => {
+    const m = location.hostname.match(/^([a-z0-9-]+)\.github\.io$/i), repo = location.pathname.split("/")[1];
+    return m && repo ? `https://raw.githubusercontent.com/${m[1]}/${repo}/live` : (ls.get("cn.liveBase", "") || null);
+  })();
+  const kLive = {};                                            // ticker -> { h, m1, hAt, mAt, minute }
+  async function liveGet(path) {
+    try { const r = await fetch(`${LIVE_BASE}/${path}`, { cache: "no-store" }); return r.ok ? await r.json() : null; } catch { return null; }
+  }
+  // Fetch what is due for one stock. True when something new arrived.
+  async function liveLoad(t) {
+    if (!LIVE_BASE || !t || navigator.onLine === false) return false;
+    const L = kLive[t] || (kLive[t] = { h: null, m1: null, hAt: 0, mAt: 0, minute: 0 });
+    const file = encodeURIComponent(t) + ".json", now = Date.now();
+    let changed = false;
+    if (!L.h || now - L.hAt > 5 * 60000) {                     // the 5-minute and 1-hour candles
+      L.hAt = now;
+      const h = await liveGet("h/" + file);
+      if (h && Array.isArray(h.m5) && Array.isArray(h.h1)) { L.h = h; changed = true; }
+    }
+    const got = (m) => { if (m && Array.isArray(m.m1) && m.m1.length) { const last = L.m1 && L.m1[L.m1.length - 1]; const end = m.m1[m.m1.length - 1]; if (!last || end[0] > last[0] || (end[0] === last[0] && end.join() !== last.join())) { L.m1 = m.m1; changed = true; } return true; } return false; };
+    if (marketOpen()) {
+      // The minute's own address. It is published at about second 45 of its minute, and an address that
+      // is asked for before it exists answers "not found" for 5 minutes. So only the minute that has
+      // just ended is asked for, a few seconds into the next one.
+      const sec = Math.floor(now / 1000) % 60, n = Math.floor(now / 60000) - 1;
+      if (sec >= 3 && n > L.minute) { L.minute = n; if (got(await liveGet(`t/${n}/${file}`))) L.mAt = now; }
+    }
+    if (!L.m1 || (now - L.mAt > 5 * 60000)) { L.mAt = now; got(await liveGet("m/" + file)); }   // the address that is up to 5 minutes old
+    return changed;
+  }
+  // The newest one-minute candle is newer than the 15-minute stock data: the stock's price follows it.
+  function applyLive(t) {
+    const L = kLive[t], s = t && listStock(t);
+    if (!L || !L.m1 || !L.m1.length || !s || !stocks || !stocks.updated) return;
+    const last = L.m1[L.m1.length - 1];
+    if ((last[0] + 1) * 60000 < Date.parse(stocks.updated)) return;       // the stock data is the newer one
+    const b = s._base || (s._base = { price: s.price, prev: s.prev });
+    const prev = nyDay(last[0]) === s.as_of ? b.prev : b.price;           // a new day the stock data has not seen yet: from its last close
+    s.price = last[4];
+    if (prev > 0) s.day_pct = Math.round((last[4] / prev - 1) * 10000) / 100;
+  }
+  // Fine candles put together into bigger ones. start(minute) is the minute at which its bigger candle begins.
+  function rollUp(rows, start) {
+    const out = [];
+    for (const r of rows) {
+      const k = start(r[0]), last = out[out.length - 1];
+      if (last && last[0] === k) { if (r[2] > last[2]) last[2] = r[2]; if (r[3] < last[3]) last[3] = r[3]; last[4] = r[4]; }
+      else out.push([k, r[1], r[2], r[3], r[4]]);
+    }
+    return out;
+  }
+  // Newer candles built from finer ones replace the end of the older list. When the finer data began
+  // in the middle of a candle, that first one is only a part and is left out.
+  function withFresh(older, built, partFirst) {
+    if (partFirst) built = built.slice(1);
+    if (!built.length) return older;
+    return older.filter((r) => r[0] < built[0][0]).concat(built);
+  }
+  const hourStart = (x) => x - (((x - 30) % 60) + 60) % 60;    // the market opens at half past, so its hours begin at half past
+  function fourHours(h1) {                                     // per day: the first four hours, then the rest
+    const out = [];
+    let day = null, k = 0;
+    for (const r of h1) {
+      const d = Math.floor(r[0] / 1440);
+      if (d !== day) { day = d; k = 0; }
+      const last = out[out.length - 1];
+      if (k % 4 === 0) out.push(r.slice());
+      else { if (r[2] > last[2]) last[2] = r[2]; if (r[3] < last[3]) last[3] = r[3]; last[4] = r[4]; }
+      k++;
+    }
+    return out;
+  }
+  const fromPts = (pts, ohl) => (Array.isArray(pts) && Array.isArray(ohl) && pts.length === ohl.length ? pts.map((p, k) => [p[0], ohl[k][0], ohl[k][1], ohl[k][2], p[1]]) : []);
+  // A stock's candles of one size, oldest first: [minute, open, high, low, close] ([day, ...] for one day).
+  function deskRows(s, size) {
+    if (size === "d1") {
+      const n = s.series.length, real = Array.isArray(s.candles) && s.candles.length === n;
+      const rows = s.series.map((p, k) => { const r = real ? s.candles[k] : null, c = p[1], o = r ? r[0] : (k ? s.series[k - 1][1] : c); return [p[0], o, Math.max(r ? r[1] : o, o, c), Math.min(r ? r[2] : o, o, c), c]; });
+      const last = rows[n - 1];
+      if (last && String(dayToDate(last[0]).toISOString().slice(0, 10)) === s.as_of) { last[4] = s.price; last[2] = Math.max(last[2], s.price); last[3] = Math.min(last[3], s.price); }
+      return rows;
+    }
+    const L = kLive[s.ticker], m1 = (L && L.m1) || [], h = (L && L.h) || null;
+    if (size === "m1") return m1;
+    const five = m1.length ? rollUp(m1, (x) => x - x % 5) : [], part = m1.length > 0 && m1[0][0] % 5 !== 0;
+    const m5 = h ? withFresh(h.m5, five, part) : (five.length > 1 ? five.slice(part ? 1 : 0) : fromPts(s.today, s.today_c));
+    if (size === "m5") return m5;
+    if (size === "m15") return h || m1.length ? rollUp(m5, (x) => x - x % 15) : fromPts(s.week, s.week_c);
+    if (!h || !h.h1.length) return [];
+    const h1 = withFresh(h.h1, rollUp(m5, hourStart), m5.length > 0 && m5[0][0] !== hourStart(m5[0][0]));
+    return size === "h1" ? h1 : fourHours(h1);
+  }
+  // Which candle a moment falls in, or -1 when it is before the chart begins.
+  function deskBarAt(rows, size, time) {
+    if (!rows.length || time == null) return -1;
+    if (size === "d1") {
+      const d = Math.floor(Date.parse(nyDay(time / 60000) + "T00:00:00Z") / 86400000);
+      if (!(d >= rows[0][0])) return -1;
+      const k = rows.findIndex((r) => r[0] >= d);
+      return k < 0 ? rows.length - 1 : k;
+    }
+    const m = time / 60000;
+    if (m < rows[0][0]) return -1;
+    let k = 0;
+    while (k + 1 < rows.length && rows[k + 1][0] <= m) k++;
+    return k;
+  }
   function openDesk(s, from) {
     kTicker = s.ticker; kStock0 = s; kFrom = from || "board"; kPlacing = false; kPrice = null; kCross = null;
     openScreen("desk");
+    applyLive(kTicker);
     renderDesk();
     requestAnimationFrame(animateDesk);
+    liveLoad(kTicker).then((got) => { if (got) refreshDesk(); });
   }
-  function refreshDesk() { if ($("desk").hidden) return; renderDesk(); drawDesk(); }
+  function refreshDesk() { if ($("desk").hidden) return; applyLive(kTicker); renderDesk(); drawDesk(); }
   function animateDesk() {
     cancelAnimationFrame(kAnim);
     if (calmMotion) { kReveal = 1; drawDesk(); return; }
@@ -3029,12 +3173,14 @@
     $("kName").textContent = s.name; $("kTicker").textContent = s.ticker;
     $("kPrice").textContent = money(s.price);
     $("kChange").textContent = pct(s.day_pct) + " today"; $("kChange").className = "chg " + (s.day_pct >= 0 ? "up" : "down");
-    $("kState").textContent = (marketOpen() ? "Market open" : "Market closed: last price") + (stocks && stocks.updated ? " · price from " + priceTime(stocks) : "");
-    const periods = PERIODS.filter(([, y]) => typeof y !== "string" || (Array.isArray(s[y]) && s[y].length > 1));
-    if (!periods.some(([, y]) => y === kPeriod)) kPeriod = 0.25;
-    $("kPeriods").innerHTML = periods.map(([l, y], i) => `<button data-i="${i}" class="${y === kPeriod ? "active" : ""}">${l}</button>`).join("");
+    const L = kLive[s.ticker], lastMin = L && L.m1 && L.m1.length ? L.m1[L.m1.length - 1][0] : 0;
+    const fresh = lastMin && Date.now() - (lastMin + 1) * 60000 < 3 * 60000;
+    $("kState").textContent = marketOpen()
+      ? (fresh ? "Market open · refreshed every minute, last at " + fmtClock(lastMin + 1) : "Market open" + (stocks && stocks.updated ? " · price from " + priceTime(stocks) : ""))
+      : "Market closed: last price";
+    $("kPeriods").innerHTML = SIZES.map(([label, id, words]) => `<button data-z="${id}" class="${id === kSize ? "active" : ""}" aria-label="Each candle is ${words}">${label}</button>`).join("");
     $("kPeriods").querySelectorAll("button").forEach((b) => b.onclick = () => {
-      kPeriod = periods[Number(b.dataset.i)][1]; ls.set("cn.deskPeriod", JSON.stringify(kPeriod)); kCross = null;
+      kSize = b.dataset.z; ls.set("cn.deskSize", kSize); kCross = null;
       $("kPeriods").querySelectorAll("button").forEach((x) => x.classList.toggle("active", x === b));
       animateDesk();
     });
@@ -3079,12 +3225,12 @@
     const ll = $("kLines");
     ll.hidden = !mine;
     if (mine) {
-      const lines = (demo.lines || []).filter((L) => L.t === s.ticker);
+      const lines = (demo.lines || []).filter((x) => x.t === s.ticker);
       ll.innerHTML = `<div class="k">Lines that trade for you</div>`
-        + lines.map((L) => `<div class="lrow"><span>${esc(lineWords(L, s.name))}</span><button type="button" class="ghost small" data-line="${esc(L.id)}">Delete</button></div>`).join("")
-        + `<div class="d">Draw a line at a price. When the price reaches it, the demo buys or sells by itself, once. Like the box idea: a Buy line above the price catches a break upward, and a Sell line below it gets you out when the price falls.</div>`;
+        + lines.map((x) => `<div class="lrow"><span>${esc(lineWords(x, s.name))}</span><button type="button" class="ghost small" data-line="${esc(x.id)}">Delete</button></div>`).join("")
+        + `<div class="d">Draw a line at a price. When the price reaches it, the demo buys or sells by itself, once, and you get a message. Like the box idea: a Buy line above the price catches a break upward, and a Sell line below it gets you out when the price falls.</div>`;
       ll.querySelectorAll("[data-line]").forEach((b) => b.onclick = () => {
-        demo.lines = (demo.lines || []).filter((L) => L.id !== b.dataset.line); saveDemo();
+        demo.lines = (demo.lines || []).filter((x) => x.id !== b.dataset.line); saveDemo();
         refreshDesk(); if (dStock && !$("detail").hidden) { renderLines(dStock); drawDetail(); }
         toast("Line deleted");
       });
@@ -3093,20 +3239,28 @@
   function drawDesk() {
     const s = deskStock(), c = $("kChart");
     if (!s || $("desk").hidden) return;
-    const intra = typeof kPeriod === "string", today = kPeriod === "today";
-    const pts = intra ? (s[kPeriod] || []) : sliceSeries(s.series, kPeriod);
+    const intra = kSize !== "d1", words = SIZES.find((x) => x[1] === kSize)[2];
+    const rows = deskRows(s, kSize).slice(-DESK_SHOWN);
     const sc = $("kScrub");
-    if (pts.length < 2) { kGeom = null; sc.innerHTML = "<span>No prices for this period yet</span><span></span>"; return; }
-    const cb = candleBars(s, pts, kPeriod), bars = cb.bars;
+    if (rows.length < 2) {
+      kGeom = null;
+      const { ctx, w, h } = setupCanvas(c); ctx.clearRect(0, 0, w, h);
+      sc.innerHTML = `<span><b>No ${words === "one day" ? "daily" : words.replace(/s$/, "")} candles here yet.</b> ${LIVE_BASE ? "They arrive within a minute or two while the market is open." : ""}</span><span></span>`;
+      $("kNote").innerHTML = "";
+      return;
+    }
+    const bars = rows.map((r, k) => ({ x: r[0], x1: r[0], o: r[1], h: r[2], l: r[3], c: r[4], i0: k, i1: k }));
     const acct = deskAcct(), mine = !!acct && !deskView(), pos = acct && acct.pos ? acct.pos[s.ticker] : null;
-    const first = pts[0], last = pts[pts.length - 1];
-    const base = today ? ((nyDay(last[0]) === s.as_of ? s.prev : s.price) || first[1]) : first[1];
-    const opt = Object.assign({ reveal: kReveal, room: kPlacing ? 0.15 : 0.07 }, !intra ? {} : today
-      ? { base, axis: (p) => fmtClock(p[0]) }
-      : { axis: (p) => minToDate(p[0]).toLocaleDateString([], { weekday: "short", day: "numeric" }) });
+    const first = rows[0], last = rows[rows.length - 1];
+    const sameDay = intra && minToDate(first[0]).toDateString() === minToDate(last[0]).toDateString();
+    const axis = !intra ? (p) => dayToDate(p[0]).toLocaleDateString([], { day: "numeric", month: "short" })
+      : sameDay ? (p) => fmtClock(p[0])
+      : kSize === "h1" || kSize === "h4" ? (p) => minToDate(p[0]).toLocaleDateString([], { day: "numeric", month: "short" })
+      : (p) => minToDate(p[0]).toLocaleDateString([], { weekday: "short" }) + " " + fmtClock(p[0]);
+    const opt = { reveal: kReveal, room: kPlacing ? 0.15 : 0.07, axis };
     if (mine) {
-      opt.lines = (demo.lines || []).filter((L) => L.t === s.ticker).map((L) => ({ price: L.price, color: L.side === "buy" ? "#22c55e" : "#ef4444",
-        label: `${L.side === "buy" ? "Buy " + money(L.amount) : "Sell all"} at ${money(L.price)}` }));
+      opt.lines = (demo.lines || []).filter((x) => x.t === s.ticker).map((x) => ({ price: x.price, color: x.side === "buy" ? "#22c55e" : "#ef4444",
+        label: `${x.side === "buy" ? "Buy " + money(x.amount) : "Sell all"} at ${money(x.price)}` }));
       if (kPlacing && kPrice != null) opt.preview = kPrice;
     }
     if (kCross && kCross.i >= bars.length) kCross = null;
@@ -3144,10 +3298,8 @@
     if (acct && Array.isArray(acct.trades)) {
       const at = new Map();
       acct.trades.forEach((x) => {
-        if (x.t !== s.ticker || x.time == null) return;
-        const i = markIndex(pts, intra, { time: x.time });
-        if (i < 0) return;
-        const b = bars.findIndex((q) => i >= q.i0 && i <= q.i1);
+        if (x.t !== s.ticker) return;
+        const b = deskBarAt(rows, kSize, x.time);
         if (b < 0) return;
         const m = at.get(b) || { buy: 0, sell: 0 };
         m[x.side === "sell" ? "sell" : "buy"]++; at.set(b, m);
@@ -3171,20 +3323,18 @@
       level(price, fg, [3, 4]); tag(price, fg, bg);
     }
     const num = (v) => Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const when = (x) => intra ? `${fmtDayShort(x)}, ${fmtClock(x)}` : dayToDate(x).toLocaleDateString([], { day: "numeric", month: "short", year: "2-digit" });
     if (kPlacing) {
       sc.innerHTML = kPrice != null
         ? `<span><b>Line at ${money(kPrice)}</b></span><span>${pct((kPrice / s.price - 1) * 100)} from the price now</span>`
         : `<span><b>Slide on the chart to place the line</b></span><span></span>`;
     } else if (kCross) {
       const b = bars[kCross.i];
-      const dayText = (d) => dayToDate(d).toLocaleDateString([], { day: "numeric", month: "short", year: "2-digit" });
-      const when = intra ? `${fmtDayShort(b.x)}, ${fmtClock(b.x)}` : (b.x1 !== b.x ? `${dayText(b.x)} → ${dayText(b.x1)}` : dayText(b.x));
-      sc.innerHTML = `<span><b>${when}</b></span><span>open <b>${num(b.o)}</b> · high <b>${num(b.h)}</b> · low <b>${num(b.l)}</b> · close <b>${num(b.c)}</b></span>`;
+      sc.innerHTML = `<span><b>${when(b.x)}</b></span><span>open <b>${num(b.o)}</b> · high <b>${num(b.h)}</b> · low <b>${num(b.l)}</b> · close <b>${num(b.c)}</b></span>`;
     } else {
-      const range = today ? fmtDayShort(first[0]) : intra ? `${fmtDayShort(first[0])} → ${fmtDayShort(last[0])}` : `${fmtDate(first[0])} → ${fmtDate(last[0])}`;
-      sc.innerHTML = `<span>${range}</span><span class="${last[1] >= base ? "up" : "down"}"><b>${pct((last[1] / base - 1) * 100)}</b> ${today ? "since previous close" : "over this period"}</span>`;
+      sc.innerHTML = `<span>${when(first[0])} → ${when(last[0])}</span><span class="${last[4] >= first[1] ? "up" : "down"}"><b>${pct((last[4] / first[1] - 1) * 100)}</b> over these candles</span>`;
     }
-    $("kNote").innerHTML = `<span>Each candle is <b>${cb.unit}</b>: green closed higher than it opened, red lower.${cb.real ? "" : " Until the checker's next run they are drawn from closing prices only."}`
+    $("kNote").innerHTML = `<span>Each candle is <b>${words}</b>: green closed higher than it opened, red lower.`
       + (marked ? ` <b>B</b> and <b>S</b>: where ${mine ? "you" : "Claude"} bought and sold.` : "") + `</span>`;
   }
   {
@@ -3225,6 +3375,14 @@
     window.addEventListener("resize", () => { if (!$("desk").hidden) drawDesk(); });
     window.addEventListener("online", () => { if (!$("desk").hidden) loadStocks(true).then(refreshDesk); });
     window.addEventListener("offline", refreshDesk);
+    // The candles: every few seconds, see whether something is due (a new minute's file a little after
+    // each minute while the market is open). Nothing is fetched when nothing is due.
+    let kBusy = false;
+    setInterval(async () => {
+      if (document.hidden || $("desk").hidden || !kTicker || kBusy) return;
+      kBusy = true;
+      try { if (await liveLoad(kTicker)) refreshDesk(); } finally { kBusy = false; }
+    }, 5000);
     // While the window is open the newest prices are fetched every minute, and your lines are checked.
     // (When the Demo is open underneath, its own minute timer does this.)
     setInterval(async () => {

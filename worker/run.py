@@ -15,6 +15,8 @@ Every run:
   4. MARKET OPEN message, once on every trading day: when the first prices of the day are in
      after the 09:30 New York open (16:30 in Israel in winter). On a market holiday no prices
      come, so nothing is sent
+  5. LINE message: when the price reaches a line the user drew in the app's candles window
+     (worker/lines.py). The app says where the lines are; nothing else about the demo account
 
 State between runs lives in data/alert_state.json (committed by the workflow).
 worker/loop.py calls this script: once per run outside trading hours, and on every quarter
@@ -93,6 +95,9 @@ def clean_tickers(raw):
     return out[:MAX_TICKERS]
 
 
+LINES_INBOX = []                                             # "lines" messages from the app, read by sync_settings
+
+
 def sync_settings(app_cfg, cfg, settings=None):
     """Apply the stock list and picks chosen in the app. Returns (settings, changed)."""
     settings = settings or load_settings(cfg)
@@ -120,6 +125,9 @@ def sync_settings(app_cfg, cfg, settings=None):
         try:
             data = json.loads(m.get("message", ""))
         except ValueError:
+            continue
+        if data.get("type") == "lines":                      # where the demo's lines are (worker/lines.py)
+            LINES_INBOX.append(data)
             continue
         if data.get("type") != "stocks":
             continue
@@ -552,6 +560,19 @@ def main(argv):
     app_cfg = cn.load_app_config()
     settings, settings_changed = sync_settings(app_cfg, cfg)
 
+    # The demo's lines: take the app's newest list now. They are checked once the prices are in.
+    lstate, demo_lines = None, None
+    if not dry:
+        try:
+            import lines as demo_lines
+            lstate = demo_lines.load()
+            if LINES_INBOX and demo_lines.merge(lstate, LINES_INBOX[-1]):
+                demo_lines.save(lstate)
+                print("lines: took the app's list:", len(lstate["lines"]))
+        except Exception as e:
+            lstate = None
+            print("lines skipped:", type(e).__name__, e)
+
     # Claude's demo account follows a few stocks of its own (worker/claude_demo.py). Their prices
     # come in the same downloads as the list's. Whatever goes wrong there, the stock check goes on.
     cdemo, cdemo_changed, extra = None, False, []
@@ -662,6 +683,20 @@ def main(argv):
         devices_changed |= ch
         if res["feed"] or res["pushed"]:
             state["_open"] = {"date": now_ny.date().isoformat()}
+
+    # A line of the demo that the price has reached: tell the phone.
+    if lstate is not None and lstate["lines"]:
+        try:
+            fired = demo_lines.check(lstate, results)
+            for f in fired:
+                title, body = demo_lines.message(f)
+                res, ch = cn.notify(title, body, project="Stocks", priority="high", url=demo_url(cfg), cfg=app_cfg, state=devices)
+                devices_changed |= ch
+            if fired:
+                demo_lines.save(lstate)
+                print("lines: reached", len(fired))
+        except Exception as e:
+            print("lines: check failed:", type(e).__name__, e)
 
     # Instagram: the follow-back check needs a fresh export from the user, so this is a reminder.
     # (Instagram offers no approved way for a program to read follower lists by itself.)

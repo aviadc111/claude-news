@@ -13,6 +13,9 @@ on:
     # sends a sudden-dip alert when one happens (per stock: at most one in 14 days, unless it
     # falls another 7% since that message), and sends "The US market is open" once on every
     # trading day when the day's first prices are in.
+    # While the market is open a run also publishes one-minute candles every minute for the app's
+    # candles window, on the `live` branch (worker/live.py), and it sends a message when the price
+    # reaches a line drawn in the app (worker/lines.py).
     - cron: "*/15 * * * *"
   workflow_dispatch:
 

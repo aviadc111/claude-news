@@ -23,6 +23,9 @@ newer one carries on. A run also ends by itself after MAX_HOURS, which is under 
 
 Every check: fetch the newest data files, run worker/run.py, commit data/ if it changed.
 
+Candles for the app's candles window (worker/live.py) are published after every check, and also
+once a minute between the checks while the US market is open (09:30 to 16:05 New York time).
+
     python worker/loop.py            used by the workflow
     python worker/loop.py --once     one check, then end
     python worker/loop.py --dry      checks send nothing and nothing is committed
@@ -54,6 +57,9 @@ MESSAGE_TAIL = dt.timedelta(minutes=10)
 SETTLE_SECONDS = 4                # the app saves a moment after the last tap: wait for quick changes to finish
 LISTEN_SECONDS = 40               # one listening connection; a new one follows straight away
 MAX_EARLY_CHECKS = 80             # per run, so a flood of changes cannot keep the job checking nonstop
+LIVE_FROM = dt.time(9, 30)        # minute candles are published once a minute between these New York times
+LIVE_UNTIL = dt.time(16, 5)
+LIVE_OFFSET_SECONDS = 35          # late in the minute: the app fetches a minute's file just after that minute ends
 
 
 def utc_now():
@@ -92,6 +98,45 @@ def next_tick(now):
     while tick <= now:
         tick += dt.timedelta(minutes=STEP_MINUTES)
     return tick
+
+
+def live_due(now):
+    """True while the US market is open (holidays are not known here; then nothing new is published)."""
+    ny = now.astimezone(ZoneInfo(MARKET_TZ))
+    return ny.weekday() < 5 and LIVE_FROM <= ny.time() < LIVE_UNTIL
+
+
+def next_minute(now):
+    t = now.replace(second=LIVE_OFFSET_SECONDS, microsecond=0)
+    while t <= now:
+        t += dt.timedelta(minutes=1)
+    return t
+
+
+def run_live(dry):
+    """Publish the candles for the app's candles window. Whatever goes wrong there, the checks go on."""
+    try:
+        cmd = [sys.executable, os.path.join(HERE, "live.py")] + (["--dry"] if dry else [])
+        return subprocess.run(cmd, cwd=ROOT, timeout=120).returncode
+    except Exception as e:
+        print("live candles skipped:", type(e).__name__, flush=True)
+        return 1
+
+
+def wait_with_live(url, since, tick, dry, wait=None, live=None, now=utc_now, due=live_due):
+    """Wait until `tick`, listening for a change made in the app (returned at once, like
+    wait_for_change). On every minute of market hours in between, the minute candles are published."""
+    wait, live = wait or wait_for_change, live or run_live
+    while True:
+        t = now()
+        if t >= tick:
+            return None
+        stop = min(tick, next_minute(t)) if due(t) else tick
+        change = wait(url, since, stop)
+        if change:
+            return change
+        if stop < tick:
+            live(dry)
 
 
 def newer_run_waiting(env=None):
@@ -269,6 +314,7 @@ def main(argv):
         if not dry:
             if save_data() and applied:
                 tell_app()
+        run_live(dry)                 # the candles window gets its 5-minute and 1-hour candles after every check
         now = utc_now()
         why = busy(now, cfg)
         if once:
@@ -285,7 +331,7 @@ def main(argv):
         if tick is None or check_began >= tick:           # after an early check the planned one is still owed
             tick = next_tick(now)
         print(f"busy hours ({why}): next check at {tick:%H:%M:%S} UTC, or sooner when the app changes the list", flush=True)
-        change = wait_for_change(settings_url if early < MAX_EARLY_CHECKS else None, seen, tick)
+        change = wait_with_live(settings_url if early < MAX_EARLY_CHECKS else None, seen, tick, dry)
         if change:
             early += 1
             seen = change
