@@ -44,6 +44,7 @@ BRANCH = "live"
 KEEP_M1 = 120                          # one-minute candles kept: two hours
 HISTORY_MAX_AGE = 14 * 60              # seconds: the 5-minute and 1-hour candles are fetched again after this
 CACHE_PATH = os.path.join(tempfile.gettempdir(), "claude_news_live_history.json")
+PREV_PATH = os.path.join(tempfile.gettempdir(), "claude_news_live_minutes.json")   # the minute folders published last
 NY = ZoneInfo("America/New_York")
 OPEN_MIN, CLOSE_MIN = 9 * 60 + 30, 16 * 60
 
@@ -165,7 +166,27 @@ def publish(h_files, m_files, minute=None):
     """One commit with no parent, pushed over the `live` branch. Files that did not change are not sent again."""
     minute = int(time.time() // 60) if minute is None else minute
     m_tree = files_tree(m_files)
-    rows = [("040000", "tree", m_tree, "m"), ("040000", "tree", tree([("040000", "tree", m_tree, str(minute))]), "t")]
+    # The folder of the minute before stays for one more round: the app asks for a minute's folder
+    # during the minute after it, and must still find it when this publish has already happened.
+    folders = [("040000", "tree", m_tree, str(minute))]
+    try:
+        with open(PREV_PATH, encoding="utf-8") as f:
+            before = {int(k): v for k, v in json.load(f).items() if minute - 3 <= int(k) < minute}
+    except (OSError, ValueError):
+        before = {}
+    if before:
+        last = max(before)
+        try:
+            git("cat-file", "-e", before[last])
+            folders.append(("040000", "tree", before[last], str(last)))
+        except RuntimeError:
+            before = {}
+    try:
+        with open(PREV_PATH, "w", encoding="utf-8") as f:
+            json.dump({**({max(before): before[max(before)]} if before else {}), minute: m_tree}, f)
+    except OSError:
+        pass
+    rows = [("040000", "tree", m_tree, "m"), ("040000", "tree", tree(sorted(folders, key=lambda r: r[3])), "t")]
     if h_files:
         rows.append(("040000", "tree", files_tree(h_files), "h"))
     root = tree(sorted(rows, key=lambda r: r[3]))

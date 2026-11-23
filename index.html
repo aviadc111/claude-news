@@ -786,7 +786,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "4.9";
+  const APP_VERSION = "5.0";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -1849,17 +1849,22 @@
     const span = hi - lo || 1;
     const dec = span >= 20 ? 0 : span >= 2 ? 1 : 2;
     const axis = opt.axis || ((p) => dayToDate(p[0]).toLocaleDateString([], { month: "short", year: "2-digit" }));
-    const pitch = (w - padL - padR) / n;
+    const pitch = (w - padL - padR) / (n + (opt.gap || 0));      // opt.gap: empty places to the right of the newest candle
     const X = (i) => padL + (i + 0.5) * pitch, Y = (v) => padT + (hi - v) / span * (h - padT - padB);
     ctx.font = "11px -apple-system, Segoe UI, Roboto, sans-serif"; ctx.fillStyle = muted; ctx.strokeStyle = line; ctx.lineWidth = 1;
     for (let k = 0; k <= 4; k++) { const v = lo + span * k / 4, y = Y(v); ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke(); ctx.textAlign = "left"; ctx.fillText("$" + v.toLocaleString(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec }), w - padR + 6, y + 4); }
     ctx.textAlign = "center";
-    [...new Set([0, Math.floor((n - 1) / 2), n - 1])].forEach((i) => ctx.fillText(axis([bars[i].x]), Math.min(Math.max(X(i), 28), w - padR - 28), h - 6));
+    let labelAt = -1e9;
+    [...new Set([0, Math.floor((n - 1) / 2), n - 1])].forEach((i) => {
+      const x = Math.min(Math.max(X(i), 28), w - padR - 28);
+      if (x - labelAt < 70) return;                            // too close to the label before it
+      ctx.fillText(axis([bars[i].x]), x, h - 6); labelAt = x;
+    });
     if (showBase) { const y = Y(base); ctx.save(); ctx.strokeStyle = fg; ctx.globalAlpha = 0.55; ctx.setLineDash([2, 4]); ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke(); ctx.restore(); }
     const reveal = opt.reveal == null ? 1 : opt.reveal;
     ctx.save();
     if (reveal < 1) { ctx.beginPath(); ctx.rect(0, 0, padL + (w - padL - padR) * reveal + 1, h); ctx.clip(); }
-    const bw = Math.max(1.5, Math.min(14, pitch * 0.66));
+    const bw = Math.max(1.5, Math.min(22, pitch * 0.72));
     bars.forEach((b, i) => {                                 // green closed above its open, red below
       const col = b.c >= b.o ? "#22c55e" : "#ef4444", x = X(i);
       ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 1;
@@ -1884,7 +1889,7 @@
       const x = X(scrubIndex);
       ctx.strokeStyle = muted; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(x, padT - 6); ctx.lineTo(x, h - padB); ctx.stroke(); ctx.setLineDash([]);
     }
-    return { X, Y, n, padL, padR, padT, padB, w, h, lo, hi, toIndex: (x) => Math.floor((x - padL) / pitch), yToPrice: (y) => hi - (y - padT) / (h - padT - padB) * span };
+    return { X, Y, n, pitch, padL, padR, padT, padB, w, h, lo, hi, toIndex: (x) => Math.floor((x - padL) / pitch), yToPrice: (y) => hi - (y - padT) / (h - padT - padB) * span };
   }
   // Which of a chart's points a purchase belongs to, or -1 when it was before the chart begins.
   // `when` is { day: "YYYY-MM-DD" } (My shares keeps the date only) or { time: milliseconds }.
@@ -3021,7 +3026,30 @@
   let kTicker = null, kStock0 = null, kFrom = "board", kSize = "m5", kGeom = null, kReveal = 1, kAnim = 0;
   let kPlacing = false, kPrice = null, kCross = null;
   const SIZES = [["1m", "m1", "1 minute"], ["5m", "m5", "5 minutes"], ["15m", "m15", "15 minutes"], ["1h", "h1", "1 hour"], ["4h", "h4", "4 hours"], ["1D", "d1", "one day"]];
-  const DESK_SHOWN = 80;                                       // candles on the screen
+  // The screen has room for kShown candles (pinch changes it). kOff says where the newest candle is:
+  // 0 puts it at the right edge, a positive number hides that many of the newest candles beyond the
+  // edge (back in time), a negative number leaves that many empty places to its right. Dragging
+  // sideways changes it, in both directions: at least three candles always stay in view.
+  // While kHome is true the chart keeps its starting position by itself (deskHome).
+  let kShown = 40, kOff = -6, kTotal = 0, kHome = true;
+  { const n = Number(ls.get("cn.deskShown", "")); if (n >= 15 && n <= 160) kShown = Math.round(n); }
+  const setOff = (n) => { const lo = -(kShown - 3), hi = kTotal - kShown; kOff = hi < lo ? hi : Math.round(Math.min(hi, Math.max(lo, n))); };
+  const setShown = (n) => { kShown = Math.round(Math.min(160, Math.max(15, n))); setOff(kOff); };
+  // Where the chart starts. Like other trading charts, the newest candle stops short of the right edge.
+  // With 1-, 5- and 15-minute candles the chart begins at the first candle of the newest trading day
+  // (once that day has three candles, and until it fills the screen): the jump from the day before
+  // would otherwise stretch the price scale and make every candle tiny. Drag to the right to see the
+  // days before.
+  function deskHome(all, size) {
+    const room = Math.max(3, Math.round(kShown * 0.15));
+    if (size === "m1" || size === "m5" || size === "m15") {
+      const n = all.length, day = n ? Math.floor(all[n - 1][0] / 1440) : 0;
+      let today = 0;
+      while (today < n && Math.floor(all[n - 1 - today][0] / 1440) === day) today++;
+      if (today >= 3 && today <= kShown - room) return -(kShown - today);
+    }
+    return -room;
+  }
   { const z = ls.get("cn.deskSize", ""); if (SIZES.some((x) => x[1] === z)) kSize = z; }
   const DESK_NAMES = { claude: "Claude's account", charts: "Claude's chart account (strict)", charts2: "Claude's chart account (loose)" };
   const deskView = () => kFrom in DESK_NAMES;                 // one of Claude's accounts: look only
@@ -3142,7 +3170,7 @@
     return k;
   }
   function openDesk(s, from) {
-    kTicker = s.ticker; kStock0 = s; kFrom = from || "board"; kPlacing = false; kPrice = null; kCross = null;
+    kTicker = s.ticker; kStock0 = s; kFrom = from || "board"; kPlacing = false; kPrice = null; kCross = null; kHome = true;
     openScreen("desk");
     applyLive(kTicker);
     renderDesk();
@@ -3180,7 +3208,7 @@
       : "Market closed: last price";
     $("kPeriods").innerHTML = SIZES.map(([label, id, words]) => `<button data-z="${id}" class="${id === kSize ? "active" : ""}" aria-label="Each candle is ${words}">${label}</button>`).join("");
     $("kPeriods").querySelectorAll("button").forEach((b) => b.onclick = () => {
-      kSize = b.dataset.z; ls.set("cn.deskSize", kSize); kCross = null;
+      kSize = b.dataset.z; ls.set("cn.deskSize", kSize); kCross = null; kHome = true;
       $("kPeriods").querySelectorAll("button").forEach((x) => x.classList.toggle("active", x === b));
       animateDesk();
     });
@@ -3240,7 +3268,10 @@
     const s = deskStock(), c = $("kChart");
     if (!s || $("desk").hidden) return;
     const intra = kSize !== "d1", words = SIZES.find((x) => x[1] === kSize)[2];
-    const rows = deskRows(s, kSize).slice(-DESK_SHOWN);
+    const all = deskRows(s, kSize);
+    kTotal = all.length;
+    setOff(kHome ? deskHome(all, kSize) : kOff);                 // also keeps it inside what there is
+    const rows = all.slice(Math.max(0, kTotal - kOff - kShown), kTotal - Math.max(0, kOff));
     const sc = $("kScrub");
     if (rows.length < 2) {
       kGeom = null;
@@ -3257,7 +3288,8 @@
       : sameDay ? (p) => fmtClock(p[0])
       : kSize === "h1" || kSize === "h4" ? (p) => minToDate(p[0]).toLocaleDateString([], { day: "numeric", month: "short" })
       : (p) => minToDate(p[0]).toLocaleDateString([], { weekday: "short" }) + " " + fmtClock(p[0]);
-    const opt = { reveal: kReveal, room: kPlacing ? 0.15 : 0.07, axis };
+    // every candle keeps its place and width: the places that have no candle stay empty, at the right
+    const opt = { reveal: kReveal, room: kPlacing ? 0.15 : 0.07, axis, gap: Math.max(0, kShown - rows.length) };
     if (mine) {
       opt.lines = (demo.lines || []).filter((x) => x.t === s.ticker).map((x) => ({ price: x.price, color: x.side === "buy" ? "#22c55e" : "#ef4444",
         label: `${x.side === "buy" ? "Buy " + money(x.amount) : "Sell all"} at ${money(x.price)}` }));
@@ -3335,43 +3367,73 @@
       sc.innerHTML = `<span>${when(first[0])} → ${when(last[0])}</span><span class="${last[4] >= first[1] ? "up" : "down"}"><b>${pct((last[4] / first[1] - 1) * 100)}</b> over these candles</span>`;
     }
     $("kNote").innerHTML = `<span>Each candle is <b>${words}</b>: green closed higher than it opened, red lower.`
-      + (marked ? ` <b>B</b> and <b>S</b>: where ${mine ? "you" : "Claude"} bought and sold.` : "") + `</span>`;
+      + (marked ? ` <b>B</b> and <b>S</b>: where ${mine ? "you" : "Claude"} bought and sold.` : "") + `</span>`
+      + `<span>Drag the chart sideways to move in time (also past the newest candle), pinch to make the candles bigger or smaller, tap a candle for its prices.</span>`
+      + (kHome ? "" : `<button type="button" class="ghost small" id="kNow">Back to where it started</button>`);
+    if (!kHome) $("kNow").onclick = () => { kHome = true; kCross = null; drawDesk(); };
   }
   {
     const kc = $("kChart");
     const kAt = (x, y) => { if (!kGeom) return null; const r = kc.getBoundingClientRect(); return { i: Math.min(Math.max(kGeom.toIndex(x - r.left), 0), kGeom.n - 1), y: y - r.top }; };
-    let kFrame = 0, kNext = null, kDown = false;
-    const kMove = (e, x, y) => {
+    let kSoon = 0, kDown = false;
+    const redraw = () => { if (!kSoon) kSoon = requestAnimationFrame(() => { kSoon = 0; drawDesk(); }); };   // at most one drawing per screen frame
+    // While a line is being placed the finger sets its price, and letting go keeps it.
+    const placeAt = (x, y) => { const a = kAt(x, y); if (a) { kPrice = Math.max(0.01, Math.round(kGeom.yToPrice(a.y) * 100) / 100); drawDesk(); } };
+    const placeDone = (e) => {
+      if (kPrice == null) return;
+      if (e && e.cancelable) e.preventDefault();
+      const price = kPrice;
+      kPlacing = false; kPrice = null; refreshDesk();
+      openLineSheet(kTicker, price);
+    };
+    // Otherwise the chart moves like other trading charts:
+    //   drag sideways      go back in time, and forward again
+    //   two fingers        pinch: more, smaller candles or fewer, bigger ones
+    //   tap                that candle's prices (open, high, low, close); tap again to put them away
+    //   touch and hold     the same, and it follows the finger
+    let ge = null;                                               // the gesture under way
+    const spread = (e) => Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    kc.addEventListener("touchstart", (e) => {
       if (e.cancelable) e.preventDefault();
       cancelAnimationFrame(kAnim); kReveal = 1;
-      if (kPlacing) {                                          // the finger is placing a line: it follows at once
-        const a = kAt(x, y);
-        if (a) { kPrice = Math.max(0.01, Math.round(kGeom.yToPrice(a.y) * 100) / 100); drawDesk(); }
+      const t = e.touches[0];
+      if (kPlacing) { placeAt(t.clientX, t.clientY); return; }
+      if (ge && ge.hold) clearTimeout(ge.hold);
+      if (e.touches.length >= 2) { ge = { mode: "pinch", spread: spread(e), shown: kShown }; kCross = null; redraw(); return; }
+      const now = { mode: "wait", x: t.clientX, y: t.clientY, off: kOff, had: !!kCross };
+      now.hold = setTimeout(() => { if (ge === now && now.mode === "wait") { now.mode = "cross"; kCross = kAt(now.x, now.y); redraw(); } }, 260);
+      ge = now;
+    }, { passive: false });
+    kc.addEventListener("touchmove", (e) => {
+      if (e.cancelable) e.preventDefault();
+      const t = e.touches[0];
+      if (kPlacing) { placeAt(t.clientX, t.clientY); return; }
+      if (!ge) return;
+      if (ge.mode === "pinch") { if (e.touches.length >= 2 && ge.spread > 0) { setShown(ge.shown * ge.spread / Math.max(1, spread(e))); redraw(); } return; }
+      if (ge.mode === "wait" && Math.hypot(t.clientX - ge.x, t.clientY - ge.y) > 8) { clearTimeout(ge.hold); ge.mode = "pan"; kCross = null; kHome = false; }
+      if (ge.mode === "pan") { if (kGeom) { setOff(ge.off + (t.clientX - ge.x) / kGeom.pitch); redraw(); } }
+      else if (ge.mode === "cross") { kCross = kAt(t.clientX, t.clientY); redraw(); }
+    }, { passive: false });
+    kc.addEventListener("touchend", (e) => {
+      if (kPlacing) { placeDone(e); return; }
+      if (!ge) return;
+      clearTimeout(ge.hold);
+      if (ge.mode === "pinch") ls.set("cn.deskShown", String(kShown));
+      if (e.touches.length) {                                    // one finger of a pinch stays down: it drags from here
+        const t = e.touches[0];
+        ge = { mode: "pan", x: t.clientX, y: t.clientY, off: kOff }; kHome = false;
         return;
       }
-      kNext = { x, y };                                        // reading the chart: at most one drawing per screen frame
-      if (!kFrame) kFrame = requestAnimationFrame(() => { kFrame = 0; if (!kNext) return; const a = kAt(kNext.x, kNext.y); if (a) { kCross = a; drawDesk(); } });
-    };
-    const kEnd = (e) => {
-      kNext = null; cancelAnimationFrame(kFrame); kFrame = 0;
-      if (kPlacing) {
-        if (kPrice == null) return;
-        if (e && e.cancelable) e.preventDefault();
-        const price = kPrice;
-        kPlacing = false; kPrice = null; refreshDesk();
-        openLineSheet(kTicker, price);
-        return;
-      }
-      kCross = null; drawDesk();
-    };
-    kc.addEventListener("touchstart", (e) => kMove(e, e.touches[0].clientX, e.touches[0].clientY), { passive: false });
-    kc.addEventListener("touchmove", (e) => kMove(e, e.touches[0].clientX, e.touches[0].clientY), { passive: false });
-    kc.addEventListener("touchend", kEnd, { passive: false });
-    kc.addEventListener("touchcancel", () => { if (kPlacing) { kPrice = null; drawDesk(); } else kEnd(); }, { passive: true });
-    kc.addEventListener("mousedown", (e) => { kDown = true; kMove(e, e.clientX, e.clientY); });
-    kc.addEventListener("mousemove", (e) => { if (!kPlacing || kDown) kMove(e, e.clientX, e.clientY); });
-    kc.addEventListener("mouseup", (e) => { kDown = false; if (kPlacing) kEnd(e); });
-    kc.addEventListener("mouseleave", () => { kDown = false; if (!kPlacing) kEnd(); });
+      if (ge.mode === "wait") { kCross = ge.had ? null : kAt(ge.x, ge.y); redraw(); }      // a tap
+      ge = null;
+    }, { passive: false });
+    kc.addEventListener("touchcancel", () => { if (kPlacing) { kPrice = null; drawDesk(); } else if (ge) { clearTimeout(ge.hold); ge = null; } }, { passive: true });
+    // a mouse: move over the chart for a candle's prices, turn the wheel to zoom, press and move to place a line
+    kc.addEventListener("mousedown", (e) => { kDown = true; if (kPlacing) placeAt(e.clientX, e.clientY); });
+    kc.addEventListener("mousemove", (e) => { if (kPlacing) { if (kDown) placeAt(e.clientX, e.clientY); } else { cancelAnimationFrame(kAnim); kReveal = 1; kCross = kAt(e.clientX, e.clientY); redraw(); } });
+    kc.addEventListener("mouseup", (e) => { kDown = false; if (kPlacing) placeDone(e); });
+    kc.addEventListener("mouseleave", () => { kDown = false; if (!kPlacing && kCross) { kCross = null; redraw(); } });
+    kc.addEventListener("wheel", (e) => { if (kPlacing) return; e.preventDefault(); setShown(kShown * (e.deltaY > 0 ? 1.15 : 1 / 1.15)); ls.set("cn.deskShown", String(kShown)); redraw(); }, { passive: false });
     window.addEventListener("resize", () => { if (!$("desk").hidden) drawDesk(); });
     window.addEventListener("online", () => { if (!$("desk").hidden) loadStocks(true).then(refreshDesk); });
     window.addEventListener("offline", refreshDesk);
