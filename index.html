@@ -332,8 +332,8 @@
 
   /* v4.2: lines that trade in the demo; press and hold a stock for its menu */
   #dLines, #kLines { justify-items: stretch; }
-  #dLines .lrow, #kLines .lrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--bg); border-radius: 10px; padding: 8px 10px; font-size: 13px; }
-  #dLines .lrow span, #kLines .lrow span { min-width: 0; }
+  #dLines .lrow, #kLines .lrow, #kOrders .lrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--bg); border-radius: 10px; padding: 8px 10px; font-size: 13px; }
+  #dLines .lrow span, #kLines .lrow span, #kOrders .lrow span { min-width: 0; }
   #dLines button, #kLines button { justify-self: start; }
   /* v4.8: the candles chart, a window of its own that works like a trading account's chart */
   .kinds button svg { width: 15px; height: 15px; vertical-align: -2px; margin-right: 6px; }
@@ -653,6 +653,7 @@
   </div>
   <div class="ktools" id="kTools" hidden></div>
   <div id="kAcct" class="holdcard"></div>
+  <div id="kOrders" class="holdcard" hidden></div>
   <div id="kLines" class="holdcard" hidden></div>
   <p class="note" style="margin-top:12px;">Practice only: pretend money, real prices, which can be some minutes old. This is not advice.</p>
 </section>
@@ -786,7 +787,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "5.1";
+  const APP_VERSION = "5.2";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -2651,6 +2652,7 @@
       return `<div class="drow${pinnedHere(t) ? " pin" : ""}" role="button" tabindex="0" data-row="${esc(t)}" data-side="sell">${q.live ? chartBtn(t, q.name) : ""}<div class="mid"><div class="nm">${pinnedHere(t) ? PIN_ICON : ""}${esc(q.name)} <span class="tk">${esc(t)}</span></div>
         <div class="sub">${fmtShares(p.shares)} shares · bought for ${money(p.cost)}${claudeView ? ` · ${(worth / tot.value * 100).toFixed(0)}% of the account` : (q.live ? "" : " · off your list, last known price")}</div></div>
         <div class="px"><b>${money(worth)}</b><span class="${upDown(gain)}">${signed(gain)} (${pct1(p.cost > 0 && Math.abs(gain) >= 0.005 ? gain / p.cost * 100 : 0)})</span></div></div>`; }).join("");
+    if (mineView) { $("demoPos").insertAdjacentHTML("afterbegin", demoOrdersHtml()); wireOrders($("demoPos")); }
     $("demoBuyHead").textContent = isBox ? "What it is watching" : "Buy a stock";
     if (isBox) {                                 // every stock of your list, and what the rules wait for
       const mine = have ? listTickers(data).map(listStock).filter(Boolean) : [];
@@ -2674,7 +2676,7 @@
         : waiting.length ? "" : `<div class="empty"><strong>${have ? "No stocks on your list yet" : "No prices right now"}</strong>${have ? "Add a stock in the box above to practise with it." : "Check your connection and open the demo again."}</div>`);
     }
     $("demoHist").innerHTML = a.trades.length ? `<div class="ighead">${claudeView ? "What Claude did" : "What you did"} (${a.trades.length})</div>` + a.trades.slice(-40).reverse().map((x) => `
-      <div class="drow flat"><div class="mid"><div class="nm">${x.side === "buy" ? "Bought" : "Sold"} ${fmtShares(x.shares)} ${esc(x.t)}</div><div class="sub">at ${money(x.price)} · ${fmtWhen(x.time)}${x.line ? " · by a line" : ""}</div></div>
+      <div class="drow flat"><div class="mid"><div class="nm">${x.side === "buy" ? "Bought" : "Sold"} ${fmtShares(x.shares)} ${esc(x.t)}</div><div class="sub">at ${money(x.price)} · ${fmtWhen(x.time)}${x.line ? " · by a line" : x.order ? " · the next real price" : ""}</div></div>
         <div class="px"><b>${money(x.total)}</b>${x.side === "sell" ? `<span class="${upDown(x.gain)}">${signed(x.gain)}</span>` : ""}</div></div>`).join("") : "";
     $("demoBuy").querySelectorAll("canvas[data-dspark]").forEach((c) => {
       const s = listStock(c.dataset.dspark);
@@ -3257,6 +3259,15 @@
         + `<div class="d">Cash: ${money(acct.cash)}</div>`
         + (mine && !live.ok ? `<div class="paused" role="status">Trading is paused. ${esc(live.why)}</div>` : "");
     }
+    // your orders on this stock that wait for the next real price
+    const oo = $("kOrders"), waitingHere = mine ? ordersOf(s.ticker) : [];
+    oo.hidden = !waitingHere.length;
+    if (waitingHere.length) {
+      oo.innerHTML = `<div class="k">Orders waiting for the next real price</div>`
+        + waitingHere.map((o) => `<div class="lrow"><span>${esc(orderWords(o))}</span><button type="button" class="ghost small" data-order="${esc(o.id)}">Cancel</button></div>`).join("")
+        + `<div class="d">${marketOpen() ? "An order goes through at the first deal made in the real market after you placed it, usually within two or three minutes." : "The market is closed. An order goes through at the first real price when it opens."}</div>`;
+      wireOrders(oo);
+    } else oo.innerHTML = "";
     // your lines on this stock
     const ll = $("kLines");
     ll.hidden = !mine;
@@ -3264,7 +3275,7 @@
       const lines = (demo.lines || []).filter((x) => x.t === s.ticker);
       ll.innerHTML = `<div class="k">Lines that trade for you</div>`
         + lines.map((x) => `<div class="lrow"><span>${esc(lineWords(x, s.name))}</span><button type="button" class="ghost small" data-line="${esc(x.id)}">Delete</button></div>`).join("")
-        + `<div class="d">Draw a line at a price. When the price reaches it, the demo buys or sells by itself, once, and you get a message. Like the box idea: a Buy line above the price catches a break upward, and a Sell line below it gets you out when the price falls.</div>`;
+        + `<div class="d">Draw a line at a price. When the price reaches it, the demo buys or sells by itself, once, and you get a message. Like the box idea: a Buy line above the price catches a break upward, and a Sell line below it gets you out when the price falls. A line is an offer at your own price: it goes through only when a real deal was made at that price.</div>`;
       ll.querySelectorAll("[data-line]").forEach((b) => b.onclick = () => {
         demo.lines = (demo.lines || []).filter((x) => x.id !== b.dataset.line); saveDemo();
         refreshDesk(); if (dStock && !$("detail").hidden) { renderLines(dStock); drawDetail(); }
@@ -3478,6 +3489,106 @@
     demo = null; demoView = "mine"; ls.set("cn.demo", "null"); renderDemo(); tellDemo(); toast("Demo account erased");
   };
 
+  // ---- orders: Buy and Sell go through at the next real price -------------------
+  // The app cannot see the offers that wait in the real market (no free source gives them), but it
+  // can see the deals that were made: every candle is made of real deals. So Buy and Sell place an
+  // order that waits, and it goes through at the first deal made in the real market after it was
+  // placed: the opening price of the first one-minute candle that starts after that moment. When
+  // the one-minute candles do not reach back that far (the app was closed for over two hours), the
+  // 15-minute steps of the stock data are used the same way. While the market is closed the order
+  // waits for the opening. An order: { id, t, name, side, by, amount, shares, all, est, placed }.
+  const MAX_ORDERS = 10;
+  const ordersOf = (t) => (demo && Array.isArray(demo.orders) ? demo.orders.filter((o) => !t || o.t === t) : []);
+  const orderWords = (o) => (o.side === "buy" ? "Buy " + (o.by === "amount" ? money(o.amount) + " of " : fmtShares(o.shares) + " shares of ")
+    : "Sell " + (o.all ? "all your " : fmtShares(o.shares) + " shares of ")) + (o.name || o.t);
+  function firstDealAfter(t, placed) {                      // { price, time } or null while there is none yet
+    const m0 = Math.ceil(placed / 60000);                    // candles start on whole minutes
+    const L = kLive[t];
+    if (L && L.m1 && L.m1.length && L.m1[0][0] < m0) {       // the one-minute candles reach back to the order
+      const r = L.m1.find((x) => x[0] >= m0);
+      return r ? { price: r[1], time: r[0] * 60000 } : null;
+    }
+    const st = listStock(t);
+    if (st && Array.isArray(st.week) && Array.isArray(st.week_c) && st.week.length === st.week_c.length) {
+      const k = st.week.findIndex((p) => p[0] >= m0);
+      if (k >= 0) return { price: st.week_c[k][0], time: st.week[k][0] * 60000 };
+    }
+    return null;
+  }
+  function fillOrder(o, deal) {                              // carries the order out; returns the words for the note
+    const price = deal.price, st = listStock(o.t), name = (st && st.name) || o.name || o.t;
+    if (o.side === "buy") {
+      const want = o.by === "shares" ? o.shares * price : o.amount;
+      const shares = o.by === "shares" && want <= demo.cash ? o.shares : floor4(Math.min(want, demo.cash) / price);
+      const total = shares * price;
+      if (!(shares > 0) || total < 0.01) return `Your order to buy ${name} was dropped: no cash was left for it`;
+      const p = demo.pos[o.t] || (demo.pos[o.t] = { shares: 0, cost: 0, name, last: price });
+      p.shares = Math.round((p.shares + shares) * 1e6) / 1e6; p.cost = p.cost + total; demo.cash = Math.max(0, demo.cash - total);
+      demo.trades.push({ t: o.t, side: "buy", shares, price, total, gain: null, time: deal.time, order: true });
+      return `Your order bought ${fmtShares(shares)} ${o.t} at ${money(price)}`;
+    }
+    const p = demo.pos[o.t], own = p ? p.shares : 0;
+    if (!(own > 0)) return `Your order to sell ${name} was dropped: you hold none of it`;
+    let shares = o.all ? own : Math.min(o.shares, own);
+    if (Math.abs(shares - own) < 1e-6) shares = own;
+    const total = shares * price, part = p.cost * shares / own;
+    p.shares = Math.round((p.shares - shares) * 1e6) / 1e6; p.cost = Math.max(0, p.cost - part); demo.cash = demo.cash + total;
+    if (p.shares < 1e-6) delete demo.pos[o.t];
+    demo.trades.push({ t: o.t, side: "sell", shares, price, total, gain: total - part, time: deal.time, order: true });
+    return `Your order sold ${fmtShares(shares)} ${o.t} at ${money(price)}`;
+  }
+  function ordersSync() {                                    // carry out every order whose real price has arrived. True when something changed.
+    if (!ordersOf().length) return false;
+    const keep = [], said = [];
+    for (const o of demo.orders.slice().sort((a, b) => a.placed - b.placed)) {
+      const deal = firstDealAfter(o.t, o.placed);
+      if (deal) said.push(fillOrder(o, deal)); else keep.push(o);
+    }
+    if (!said.length) return false;
+    demo.orders = keep;
+    if (demo.trades.length > 500) demo.trades = demo.trades.slice(-500);
+    saveDemo();
+    toast(said.join(". ") + ".");
+    return true;
+  }
+  function afterTrade() {                                    // the screens that show the account
+    if (!$("demo").hidden) renderDemo();
+    if (!$("detail").hidden && dStock) { renderDetailExtras(dStock); drawDetail(); }
+    refreshDesk();
+    if (!$("trade").hidden) renderTrade();
+  }
+  // While an order waits: every few seconds see whether its stock's newest minute has arrived.
+  let oBusy = false, oStocksAt = 0;
+  async function ordersTick() {
+    if (oBusy || document.hidden || !ordersOf().length) return;
+    oBusy = true;
+    try {
+      await Promise.all([...new Set(demo.orders.map((o) => o.t))].map((t) => liveLoad(t)));
+      // the stock data is the fallback: keep it fresh when no open screen does that already
+      if (marketOpen() && $("demo").hidden && $("desk").hidden && Date.now() - oStocksAt > 60000) { oStocksAt = Date.now(); await loadStocks(true); }
+      if (ordersSync()) afterTrade();
+    } finally { oBusy = false; }
+  }
+  setInterval(ordersTick, 5000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) ordersTick(); });
+  function demoOrdersHtml() {                                // the waiting orders, at the top of My demo
+    const list = ordersOf();
+    if (!list.length) return "";
+    const when = marketOpen() ? "goes through at the next real price, within two or three minutes" : "goes through at the first real price when the market opens";
+    return `<div class="ighead">Orders waiting</div>` + list.map((o) => `<div class="drow flat"><div class="mid"><div class="nm">${esc(orderWords(o))}</div>
+      <div class="sub">placed ${fmtWhen(o.placed)} · ${when}</div></div><div class="px"><button type="button" class="ghost small" data-order="${esc(o.id)}">Cancel</button></div></div>`).join("");
+  }
+  function wireOrders(root) {
+    root.querySelectorAll("[data-order]").forEach((b) => b.onclick = () => {
+      demo.orders = ordersOf().filter((o) => o.id !== b.dataset.order); saveDemo(); afterTrade(); toast("Order cancelled");
+    });
+  }
+  // What the waiting orders already use: that cash and those shares cannot be ordered twice.
+  const heldCash = () => ordersOf().reduce((sum, o) => sum + (o.side === "buy" ? (o.by === "shares" ? o.shares * o.est : o.amount) : 0), 0);
+  const heldShares = (t) => ordersOf(t).reduce((sum, o) => sum + (o.side === "sell" ? o.shares : 0), 0);
+  const freeCash = () => Math.max(0, cents(demo.cash - heldCash()));
+  const freeShares = (t) => { const p = demo.pos[t]; return p ? Math.max(0, Math.round((p.shares - heldShares(t)) * 1e6) / 1e6) : 0; };
+
   async function openTrade(t, side) {
     if (!demo || demoView !== "mine") return;                 // only your own account trades by hand
     let live = pricesLive();
@@ -3495,15 +3606,18 @@
     $("trade").hidden = false; $("tradeBg").hidden = false; $("trade").scrollTop = 0;
   }
   function closeTrade() { $("tAmount").blur(); $("tShares").blur(); $("trade").hidden = true; $("tradeBg").hidden = true; }
+  let tradeBy = "amount";                                    // the box typed in last: a buy order keeps that number
   function renderTrade() {
     const s = stockOf(tradeT);
     if (!s) return;
-    const p = demo.pos[tradeT], own = p ? p.shares : 0;
+    const own = freeShares(tradeT), cash = freeCash(), held = ordersOf().length > 0;
     if (tradeSide === "sell" && !(own > 0)) tradeSide = "buy";
     $("tradeTitle").textContent = `${s.name} (${s.ticker})`;
-    $("tradeInfo").innerHTML = `<b>${money(s.price)}</b> per share · price from ${esc(priceTime(stocks))}`
-      + (marketOpen() ? "" : `<br>The market is closed now, so this is its last price.`)
-      + `<br>You have ${money(demo.cash)} in cash` + (own > 0 ? ` and ${fmtShares(own)} shares, worth ${money(own * s.price)}` : "") + ".";
+    $("tradeInfo").innerHTML = `<b>${money(s.price)}</b> per share now`
+      + `<br>` + (marketOpen()
+        ? `Your order goes through at the <b>next real price</b>: the first deal made in the real market after you press the button. That takes two or three minutes.`
+        : `The market is closed now. Your order waits, and goes through at the <b>first real price when the market opens</b>.`)
+      + `<br>You have ${money(cash)} in cash` + (own > 0 ? ` and ${fmtShares(own)} shares, worth about ${money(own * s.price)}` : "") + (held ? ", not counting what your waiting orders use" : "") + ".";
     $("tradeSide").querySelectorAll("button").forEach((b) => { b.classList.toggle("on", b.dataset.side === tradeSide); b.disabled = b.dataset.side === "sell" && !(own > 0); });
     $("tradeQuick").innerHTML = [25, 50, 100].map((n) => `<button type="button" class="chip" data-part="${n}">${n === 100 ? (tradeSide === "buy" ? "All my cash" : "All my shares") : n + "%"}</button>`).join("");
     $("tradeQuick").querySelectorAll("button").forEach((b) => b.onclick = () => fillPart(Number(b.dataset.part)));
@@ -3511,32 +3625,34 @@
     renderAfter();
   }
   function fillPart(n) {
-    const s = stockOf(tradeT), p = demo.pos[tradeT], own = p ? p.shares : 0;
+    const s = stockOf(tradeT), own = freeShares(tradeT);
     if (!s) return;
-    const shares = tradeSide === "buy" ? floor4(demo.cash * n / 100 / s.price) : (n === 100 ? own : floor4(own * n / 100));
+    const shares = tradeSide === "buy" ? floor4(freeCash() * n / 100 / s.price) : (n === 100 ? own : floor4(own * n / 100));
     $("tShares").value = shares > 0 ? shares : ""; $("tAmount").value = shares > 0 ? cents(shares * s.price).toFixed(2) : "";
+    tradeBy = tradeSide === "buy" ? "amount" : "shares";
     renderAfter();
   }
   function readTrade() {
-    const s = stockOf(tradeT), p = demo.pos[tradeT], own = p ? p.shares : 0;
+    const s = stockOf(tradeT), p = demo.pos[tradeT], own = freeShares(tradeT), cash = freeCash();
     let shares = parseFloat($("tShares").value);
     if (!s || !(shares > 0)) return { empty: !$("tShares").value && !$("tAmount").value, error: "Enter an amount or a number of shares" };
-    if (tradeSide === "sell" && Math.abs(shares - own) < 1e-6) shares = own;
+    const all = tradeSide === "sell" && Math.abs(shares - own) < 1e-6;
+    if (all) shares = own;
     const total = shares * s.price;
     if (total < 0.01) return { error: "That is less than one cent" };
-    if (tradeSide === "buy" && total > demo.cash + 0.005) return { error: `You only have ${money(demo.cash)} in cash` };
+    if (tradeSide === "buy" && total > cash + 0.005) return { error: `You only have ${money(cash)} in cash` };
     if (tradeSide === "sell" && shares > own) return { error: `You only have ${fmtShares(own)} shares` };
-    return { s, shares, total, part: tradeSide === "sell" ? p.cost * shares / own : 0 };
+    return { s, shares, total, all, part: tradeSide === "sell" && p ? p.cost * shares / p.shares : 0 };
   }
   function renderAfter() {
     const r = readTrade(), el = $("tradeAfter");
     el.classList.toggle("bad", !!r.error && !r.empty);
     el.textContent = r.error ? (r.empty ? "" : r.error)
-      : tradeSide === "buy" ? `Cash left after buying: ${money(Math.max(0, demo.cash - r.total))}`
-      : `Cash after selling: ${money(demo.cash + r.total)} · ${r.total - r.part >= 0 ? "gain" : "loss"} on these shares: ${signed(r.total - r.part)}`;
+      : tradeSide === "buy" ? `Cash left after buying: about ${money(Math.max(0, freeCash() - r.total))}`
+      : `At the price now you would get about ${money(r.total)} · ${r.total - r.part >= 0 ? "gain" : "loss"} on these shares: about ${signed(r.total - r.part)}`;
   }
-  $("tAmount").addEventListener("input", () => { const s = stockOf(tradeT), a = parseFloat($("tAmount").value); $("tShares").value = s && a > 0 ? floor4(a / s.price) : ""; renderAfter(); });
-  $("tShares").addEventListener("input", () => { const s = stockOf(tradeT), n = parseFloat($("tShares").value); $("tAmount").value = s && n > 0 ? cents(n * s.price).toFixed(2) : ""; renderAfter(); });
+  $("tAmount").addEventListener("input", () => { const s = stockOf(tradeT), a = parseFloat($("tAmount").value); $("tShares").value = s && a > 0 ? floor4(a / s.price) : ""; tradeBy = "amount"; renderAfter(); });
+  $("tShares").addEventListener("input", () => { const s = stockOf(tradeT), n = parseFloat($("tShares").value); $("tAmount").value = s && n > 0 ? cents(n * s.price).toFixed(2) : ""; tradeBy = "shares"; renderAfter(); });
   $("tradeSide").querySelectorAll("button").forEach((b) => b.onclick = () => { tradeSide = b.dataset.side; $("tAmount").value = ""; $("tShares").value = ""; renderTrade(); });
   $("tradeForm").addEventListener("submit", (e) => {
     e.preventDefault();
@@ -3544,22 +3660,17 @@
     if (!live.ok) { toast(live.why + " Trading is paused until they are."); tradeSwipe.out(); if (!$("demo").hidden) renderDemo(); return; }
     const r = readTrade();
     if (r.error) { toast(r.error); return; }
-    const t = tradeT, p = demo.pos[t] || (demo.pos[t] = { shares: 0, cost: 0, name: r.s.name, last: r.s.price });
-    let gain = null;
-    if (tradeSide === "buy") {
-      p.shares = Math.round((p.shares + r.shares) * 1e6) / 1e6; p.cost = p.cost + r.total; demo.cash = Math.max(0, demo.cash - r.total);
-    } else {
-      gain = r.total - r.part;
-      p.shares = Math.round((p.shares - r.shares) * 1e6) / 1e6; p.cost = Math.max(0, p.cost - r.part); demo.cash = demo.cash + r.total;
-      if (p.shares < 1e-6) delete demo.pos[t];
-    }
-    demo.trades.push({ t, side: tradeSide, shares: r.shares, price: r.s.price, total: r.total, gain, time: Date.now() });
-    if (demo.trades.length > 500) demo.trades = demo.trades.slice(-500);
-    saveDemo(); renderDemo();
-    if (!$("detail").hidden && dStock) { renderDetailExtras(dStock); drawDetail(); }
-    refreshDesk();
-    toast(`${tradeSide === "buy" ? "Bought" : "Sold"} ${fmtShares(r.shares)} ${t} for ${money(r.total)}`);
+    if (ordersOf().length >= MAX_ORDERS) { toast("You have " + MAX_ORDERS + " orders waiting already. Cancel one first."); return; }
+    // Nothing is bought or sold yet: the order waits for the next real price (ordersSync).
+    const buy = tradeSide === "buy", typed = parseFloat($("tAmount").value);
+    const byAmount = buy && tradeBy === "amount" && typed > 0;
+    if (!Array.isArray(demo.orders)) demo.orders = [];
+    demo.orders.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), t: tradeT, name: r.s.name, side: tradeSide,
+      by: byAmount ? "amount" : "shares", amount: byAmount ? Math.min(typed, freeCash()) : cents(r.total), shares: r.shares, all: !!r.all, est: r.s.price, placed: Date.now() });
+    saveDemo(); afterTrade();
+    toast(marketOpen() ? `Order placed. It ${buy ? "buys" : "sells"} at the next real price, in two or three minutes.` : `Order placed. It ${buy ? "buys" : "sells"} at the first real price when the market opens.`);
     tradeSwipe.out();
+    ordersTick();
   });
 
   // ---- settings sheet -----------------------------------------------------
