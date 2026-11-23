@@ -787,7 +787,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "5.2";
+  const APP_VERSION = "5.3";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -1230,9 +1230,66 @@
       if (bar) s.today_c = [[o, o, o], bar];
     });
   }
+  // ---- the newest price of every stock, every minute ----------------------------
+  // The stock data (data/stocks.json) is saved every 15 minutes. In between, worker/live.py
+  // publishes every stock's newest one-minute price in one small file on the `live` branch:
+  // t/<MINUTE>/_all.json, {"p": {ticker: [minute, close]}}. The list, the demo and the candles
+  // window show that price while the market is open. Everything else (the charts, the alerts,
+  // the lines) stays with the stock data.
+  const kAll = { p: {}, minute: 0, at: 0 };
+  function applyPrice(s, last) {                             // last: [minute, price]. True when the stock's price changed.
+    if (!s || !last || !stocks || !stocks.updated) return false;
+    if ((last[0] + 1) * 60000 < Date.parse(stocks.updated)) return false;      // the stock data is the newer one
+    if (s._min > last[0]) return false;                      // never back to an older minute
+    const b = s._base || (s._base = { price: s.price, prev: s.prev });
+    const prev = nyDay(last[0]) === s.as_of ? b.prev : b.price;                // a new day the stock data has not seen yet: from its last close
+    const was = s.price;
+    s._min = last[0]; s.price = last[1];
+    if (prev > 0) s.day_pct = Math.round((last[1] / prev - 1) * 10000) / 100;
+    return s.price !== was;
+  }
+  function applyAll() {                                      // put the minute prices on the stocks. True when one changed.
+    let changed = false;
+    const each = (list) => (list || []).forEach((x) => { if (applyPrice(x, kAll.p[x.ticker])) changed = true; });
+    if (stocks) each(stocks.stocks);
+    if (claudeData) each(claudeData.stocks);
+    return changed;
+  }
+  // The moment the newest minute price on the list is from (milliseconds), or 0 when there is none.
+  const liveStamp = () => { let m = 0; if (stocks && stocks.stocks) for (const x of stocks.stocks) if (x._min > m) m = x._min; return m ? (m + 1) * 60000 : 0; };
+  async function liveAllLoad() {                             // fetch what is due. True when a price changed.
+    if (!LIVE_BASE || navigator.onLine === false || !stocks) return false;
+    const now = Date.now(), open = marketOpen();
+    let j = null;
+    if (open) {                                              // the folder of the minute that has just ended (see liveLoad)
+      const sec = Math.floor(now / 1000) % 60, n = Math.floor(now / 60000) - 1;
+      if (sec >= 3 && n > kAll.minute) { kAll.minute = n; j = await liveGet(`t/${n}/_all.json`); if (j) kAll.at = now; }
+    }
+    if (!j && now - kAll.at > (open ? 5 : 30) * 60000) { kAll.at = now; j = await liveGet("m/_all.json"); }
+    if (!j || !j.p) return false;
+    for (const t of Object.keys(j.p)) { const x = j.p[t], old = kAll.p[t]; if (Array.isArray(x) && x[1] > 0 && (!old || x[0] >= old[0])) kAll.p[t] = [x[0], x[1]]; }
+    return applyAll();
+  }
+  // Every few seconds: is a new minute's file due? Then the screens that show prices are drawn again.
+  // Not while a finger is on the screen or a row's menu is open: that would pull the row away.
+  let fingers = 0, allBusy = false, allDirty = false;
+  ["touchstart", "touchend", "touchcancel"].forEach((n) => document.addEventListener(n, (e) => { fingers = e.touches.length; }, { passive: true, capture: true }));
+  setInterval(async () => {
+    if (document.hidden || allBusy || ($("board").hidden && $("demo").hidden && $("desk").hidden)) return;
+    allBusy = true;
+    try {
+      if (await liveAllLoad()) allDirty = true;
+      if (!allDirty || fingers > 0 || !$("pop").hidden) return;
+      allDirty = false;
+      if (!$("board").hidden) renderBoard(stocks);
+      if (!$("demo").hidden) renderDemo();
+      refreshDesk();
+    } finally { allBusy = false; }
+  }, 5000);
+
   function keepNewer(data) {               // the website copy can lag behind the repository: never step back
     if (data && data.stocks) firstMinutes(data.stocks);
-    if (data && data.stocks && (!stocks || !stocks.updated || String(data.updated) >= String(stocks.updated))) stocks = data;
+    if (data && data.stocks && (!stocks || !stocks.updated || String(data.updated) >= String(stocks.updated))) { stocks = data; applyAll(); }
     if (data && data.stocks) stocksAt = Date.now();
     return stocks;
   }
@@ -1592,7 +1649,7 @@
     }
     $("boardEmpty").hidden = true;
     const at = new Date(data.updated);
-    $("boardUpdated").textContent = "prices " + at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + (at.toDateString() === new Date().toDateString() ? "" : " " + at.toLocaleDateString([], { day: "numeric", month: "short" }));
+    $("boardUpdated").textContent = "prices " + priceTime(data);
     const tickers = listTickers(data), mine = currentPicked(data), srv = serverTickers(data), rejected = data.rejected || {};
     const synced = inSync(data), soon = checkerOnDuty();
     $("boardHint").innerHTML = `Stocks with a <b class="glowtxt">green glow</b> send you a sudden-dip alert (<b>${mine.length} of ${tickers.length}</b>). Tap the circle to turn it on or off. Press and hold a stock to pin it to the top or delete it.`
@@ -2236,7 +2293,7 @@
   const pctz = (v) => pct(Math.abs(v) < 0.005 ? 0 : v);
   const upDown = (v) => (cents(v) >= 0 ? "up" : "down");
   const fmtWhen = (ms) => { const d = new Date(ms); return d.toLocaleDateString([], { day: "numeric", month: "short" }) + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }); };
-  const priceTime = (data) => { const at = new Date(data.updated); return at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + (at.toDateString() === new Date().toDateString() ? "" : " " + at.toLocaleDateString([], { day: "numeric", month: "short" })); };
+  const priceTime = (data) => { const at = new Date(Math.max(Date.parse(data.updated) || 0, data === stocks ? liveStamp() : 0)); return at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + (at.toDateString() === new Date().toDateString() ? "" : " " + at.toLocaleDateString([], { day: "numeric", month: "short" })); };
   // Are the prices live? Trading by hand in your demo is only allowed with current prices:
   //   - the phone is online, and
   //   - the data is as new as the market allows: at most 40 minutes old while the market is open
@@ -2333,7 +2390,7 @@
     if (claudeData && !force && Date.now() - claudeAt < 60000) return claudeData;
     try {
       const r = await fetch("data/claude_demo.json", { cache: "no-store" });
-      if (r.ok) { const d = await r.json(); if (d && Array.isArray(d.holdings) && Array.isArray(d.stocks) && d.report) { firstMinutes(d.stocks); claudeData = d; claudeAt = Date.now(); } }
+      if (r.ok) { const d = await r.json(); if (d && Array.isArray(d.holdings) && Array.isArray(d.stocks) && d.report) { firstMinutes(d.stocks); claudeData = d; claudeAt = Date.now(); applyAll(); } }
     } catch {}
     return claudeData;
   }
@@ -3107,11 +3164,7 @@
     const L = kLive[t], s = t && listStock(t);
     if (!L || !L.m1 || !L.m1.length || !s || !stocks || !stocks.updated) return;
     const last = L.m1[L.m1.length - 1];
-    if ((last[0] + 1) * 60000 < Date.parse(stocks.updated)) return;       // the stock data is the newer one
-    const b = s._base || (s._base = { price: s.price, prev: s.prev });
-    const prev = nyDay(last[0]) === s.as_of ? b.prev : b.price;           // a new day the stock data has not seen yet: from its last close
-    s.price = last[4];
-    if (prev > 0) s.day_pct = Math.round((last[4] / prev - 1) * 10000) / 100;
+    applyPrice(s, [last[0], last[4]]);
   }
   // Fine candles put together into bigger ones. start(minute) is the minute at which its bigger candle begins.
   function rollUp(rows, start) {
