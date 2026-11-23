@@ -786,7 +786,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "5.0";
+  const APP_VERSION = "5.1";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -1294,7 +1294,10 @@
     let lo = showBase ? Math.min(sLo, base) : sLo, hi = showBase ? Math.max(sHi, base) : sHi;
     // a line of yours that is a little outside the prices shown widens the chart to include it
     (opt.lines || []).forEach((L) => { if (L.price > hi && L.price <= sHi + 0.6 * sSpan) hi = L.price; if (L.price < lo && L.price >= sLo - 0.6 * sSpan) lo = L.price; });
-    if (opt.room) { const r = (hi - lo || 1) * opt.room; hi += r; lo -= r; }      // room above and below while a line is being placed
+    // opt.minSpan: the least the chart shows from top to bottom, in dollars. Without it a quiet
+    // stretch is blown up to the full height and a move of a few cents looks like a big swing.
+    if (opt.minSpan > 0 && hi - lo < opt.minSpan) { const mid = (hi + lo) / 2; lo = mid - opt.minSpan / 2; hi = mid + opt.minSpan / 2; }
+    if (opt.room) { const r = (hi - lo || 1) * opt.room; hi += r; lo -= r; }      // room above and below the candles
     const span = hi - lo || 1;
     const dec = span >= 20 ? 0 : span >= 2 ? 1 : 2;          // small moves need cents on the price labels
     const axis = opt.axis || ((p) => dayToDate(p[0]).toLocaleDateString([], { month: "short", year: "2-digit" }));
@@ -1845,7 +1848,10 @@
     let lo = showBase ? Math.min(sLo, base) : sLo, hi = showBase ? Math.max(sHi, base) : sHi;
     // a line of yours that is a little outside the prices shown widens the chart to include it
     (opt.lines || []).forEach((L) => { if (L.price > hi && L.price <= sHi + 0.6 * sSpan) hi = L.price; if (L.price < lo && L.price >= sLo - 0.6 * sSpan) lo = L.price; });
-    if (opt.room) { const r = (hi - lo || 1) * opt.room; hi += r; lo -= r; }      // room above and below while a line is being placed
+    // opt.minSpan: the least the chart shows from top to bottom, in dollars. Without it a quiet
+    // stretch is blown up to the full height and a move of a few cents looks like a big swing.
+    if (opt.minSpan > 0 && hi - lo < opt.minSpan) { const mid = (hi + lo) / 2; lo = mid - opt.minSpan / 2; hi = mid + opt.minSpan / 2; }
+    if (opt.room) { const r = (hi - lo || 1) * opt.room; hi += r; lo -= r; }      // room above and below the candles
     const span = hi - lo || 1;
     const dec = span >= 20 ? 0 : span >= 2 ? 1 : 2;
     const axis = opt.axis || ((p) => dayToDate(p[0]).toLocaleDateString([], { month: "short", year: "2-digit" }));
@@ -1864,13 +1870,13 @@
     const reveal = opt.reveal == null ? 1 : opt.reveal;
     ctx.save();
     if (reveal < 1) { ctx.beginPath(); ctx.rect(0, 0, padL + (w - padL - padR) * reveal + 1, h); ctx.clip(); }
-    const bw = Math.max(1.5, Math.min(22, pitch * 0.72));
+    const bw = Math.max(1.5, Math.min(34, pitch * 0.78)), wick = pitch >= 9 ? 1.6 : 1;
     bars.forEach((b, i) => {                                 // green closed above its open, red below
       const col = b.c >= b.o ? "#22c55e" : "#ef4444", x = X(i);
-      ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 1;
+      ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = wick;
       ctx.beginPath(); ctx.moveTo(x, Y(b.h)); ctx.lineTo(x, Y(b.l)); ctx.stroke();
       const top = Y(Math.max(b.o, b.c)), bottom = Y(Math.min(b.o, b.c));
-      ctx.fillRect(x - bw / 2, top, bw, Math.max(1, bottom - top));
+      ctx.fillRect(x - bw / 2, top, bw, Math.max(wick + 0.4, bottom - top));
     });
     const iHi = bars.findIndex((b) => b.h === sHi), iLo = bars.findIndex((b) => b.l === sLo);
     ctx.fillStyle = fg; ctx.textAlign = "center"; ctx.font = "bold 11px -apple-system, Segoe UI, Roboto, sans-serif";
@@ -3031,10 +3037,12 @@
   // edge (back in time), a negative number leaves that many empty places to its right. Dragging
   // sideways changes it, in both directions: at least three candles always stay in view.
   // While kHome is true the chart keeps its starting position by itself (deskHome).
-  let kShown = 40, kOff = -6, kTotal = 0, kHome = true;
-  { const n = Number(ls.get("cn.deskShown", "")); if (n >= 15 && n <= 160) kShown = Math.round(n); }
+  let kShown = 24, kOff = -4, kTotal = 0, kHome = true;
+  { const n = Number(ls.get("cn.deskShown2", "")); if (n >= 8 && n <= 160) kShown = Math.round(n); }
+  // The least the price scale shows from top to bottom, as a share of the price, per candle size.
+  const MIN_SPAN = { m1: 0.008, m5: 0.012, m15: 0.016, h1: 0.025, h4: 0.04, d1: 0.06 };
   const setOff = (n) => { const lo = -(kShown - 3), hi = kTotal - kShown; kOff = hi < lo ? hi : Math.round(Math.min(hi, Math.max(lo, n))); };
-  const setShown = (n) => { kShown = Math.round(Math.min(160, Math.max(15, n))); setOff(kOff); };
+  const setShown = (n) => { kShown = Math.round(Math.min(160, Math.max(8, n))); setOff(kOff); };
   // Where the chart starts. Like other trading charts, the newest candle stops short of the right edge.
   // With 1-, 5- and 15-minute candles the chart begins at the first candle of the newest trading day
   // (once that day has three candles, and until it fills the screen): the jump from the day before
@@ -3289,7 +3297,7 @@
       : kSize === "h1" || kSize === "h4" ? (p) => minToDate(p[0]).toLocaleDateString([], { day: "numeric", month: "short" })
       : (p) => minToDate(p[0]).toLocaleDateString([], { weekday: "short" }) + " " + fmtClock(p[0]);
     // every candle keeps its place and width: the places that have no candle stay empty, at the right
-    const opt = { reveal: kReveal, room: kPlacing ? 0.15 : 0.07, axis, gap: Math.max(0, kShown - rows.length) };
+    const opt = { reveal: kReveal, room: kPlacing ? 0.18 : 0.12, axis, gap: Math.max(0, kShown - rows.length), minSpan: s.price * (MIN_SPAN[kSize] || 0.012) };
     if (mine) {
       opt.lines = (demo.lines || []).filter((x) => x.t === s.ticker).map((x) => ({ price: x.price, color: x.side === "buy" ? "#22c55e" : "#ef4444",
         label: `${x.side === "buy" ? "Buy " + money(x.amount) : "Sell all"} at ${money(x.price)}` }));
@@ -3418,7 +3426,7 @@
       if (kPlacing) { placeDone(e); return; }
       if (!ge) return;
       clearTimeout(ge.hold);
-      if (ge.mode === "pinch") ls.set("cn.deskShown", String(kShown));
+      if (ge.mode === "pinch") ls.set("cn.deskShown2", String(kShown));
       if (e.touches.length) {                                    // one finger of a pinch stays down: it drags from here
         const t = e.touches[0];
         ge = { mode: "pan", x: t.clientX, y: t.clientY, off: kOff }; kHome = false;
@@ -3433,7 +3441,7 @@
     kc.addEventListener("mousemove", (e) => { if (kPlacing) { if (kDown) placeAt(e.clientX, e.clientY); } else { cancelAnimationFrame(kAnim); kReveal = 1; kCross = kAt(e.clientX, e.clientY); redraw(); } });
     kc.addEventListener("mouseup", (e) => { kDown = false; if (kPlacing) placeDone(e); });
     kc.addEventListener("mouseleave", () => { kDown = false; if (!kPlacing && kCross) { kCross = null; redraw(); } });
-    kc.addEventListener("wheel", (e) => { if (kPlacing) return; e.preventDefault(); setShown(kShown * (e.deltaY > 0 ? 1.15 : 1 / 1.15)); ls.set("cn.deskShown", String(kShown)); redraw(); }, { passive: false });
+    kc.addEventListener("wheel", (e) => { if (kPlacing) return; e.preventDefault(); setShown(kShown * (e.deltaY > 0 ? 1.15 : 1 / 1.15)); ls.set("cn.deskShown2", String(kShown)); redraw(); }, { passive: false });
     window.addEventListener("resize", () => { if (!$("desk").hidden) drawDesk(); });
     window.addEventListener("online", () => { if (!$("desk").hidden) loadStocks(true).then(refreshDesk); });
     window.addEventListener("offline", refreshDesk);
