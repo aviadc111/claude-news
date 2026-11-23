@@ -38,7 +38,8 @@ const CONFIG = {
   pollMinutesAfter: 70,                           // an hour and ten minutes after the training starts
   pollTitle: (date) => `ציוד בתאריך ${date}`,     // date as 24.11.2026
   pollOptions: ['כרית', 'שתי כריות', 'כרית ותיק'],
-  sendTo: 'group',                                // 'group': into the group. 'me': to your own chat (for testing)
+  sendTo: 'me',                                   // 'group': into the group. 'me': to your own chat (trial period, from 2026-11-24)
+  tellClaudeNews: true,                           // also tell the phone (Claude News) about every training noted and every send
   timeZone: 'Asia/Jerusalem',
   pollLateHours: 3,                               // a poll more than this late is not sent
   messageMaxAgeHours: 36,                         // older group messages are ignored (history, not news)
@@ -356,6 +357,9 @@ async function watch() {
     if (!open || !targetJid()) { log('cannot send', what, '(not connected or no target)'); return false; }
     await sock.sendMessage(targetJid(), content);
     log('sent', what);
+    if (CONFIG.tellClaudeNews) {
+      tellPhone('WhatsApp watcher', `Sent ${what} to ${CONFIG.sendTo === 'me' ? 'your own chat' : 'the group'}.`).catch(() => {});
+    }
     return true;
   };
 
@@ -412,13 +416,17 @@ async function watch() {
       if (!found) continue;
       const same = state.trainings.find(t => t.date === found.date);
       if (same && same.time === found.time) continue;
+      let note = null;
       if (same && same.reminder === 'pending' && same.poll === 'pending') {
         Object.assign(same, found, { msgId: msg.key.id });
         log('training on', found.date, 'moved to', found.time);
+        note = `The training on ${found.display} moved to ${found.time}.`;
       } else if (!same) {
         state.trainings.push({ ...found, msgId: msg.key.id, reminder: 'pending', poll: 'pending' });
         log('training announced for', found.date, 'at', found.time);
+        note = `Training noted: ${found.display} at ${found.time}. Reminder ${CONFIG.reminderMinutesBefore} min before, poll ${CONFIG.pollMinutesAfter} min after.`;
       }
+      if (note && CONFIG.tellClaudeNews) tellPhone('WhatsApp watcher', note).catch(() => {});
     }
     if (changed) await saveState(state, 'schedule: group read');
   };
