@@ -235,7 +235,7 @@ async function connect(onUpdate, onMessages) {
   const { version } = await fetchLatestBaileysVersion();
   const sock = makeWASocket({
     version,
-    auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, logger) },
+    auth: { creds: state.creds, keys: makeCacheableSignalKeyStore ? makeCacheableSignalKeyStore(state.keys, logger) : state.keys },
     logger,
     browser: Browsers.ubuntu('Chrome'),
     markOnlineOnConnect: false,          // otherwise the phone stops showing WhatsApp notifications

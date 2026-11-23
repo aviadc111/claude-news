@@ -4,7 +4,11 @@
   "type": "module",
   "description": "Watches one WhatsApp group for tomorrow's training and sends the reminder and the equipment poll (runs on GitHub)",
   "dependencies": {
-    "@whiskeysockets/baileys": "6.7.24",
+    "@whiskeysockets/baileys": "7.0.0-rc14",
     "pino": "^9.0.0"
-  }
+  },
+  "scripts": {
+    "postinstall": "node patch-baileys.mjs"
+  },
+  "comment": "patch-baileys.mjs fixes pairing in the installed release (see the comment at its top). Drop it once a release contains the fix."
 }
