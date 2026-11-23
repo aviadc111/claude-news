@@ -1,0 +1,10 @@
+{
+  "name": "claude-news-whatsapp",
+  "private": true,
+  "type": "module",
+  "description": "Watches one WhatsApp group for tomorrow's training and sends the reminder and the equipment poll (runs on GitHub)",
+  "dependencies": {
+    "@whiskeysockets/baileys": "6.7.24",
+    "pino": "^9.0.0"
+  }
+}

@@ -1,0 +1,64 @@
+name: WhatsApp training watcher
+
+on:
+  schedule:
+    # Like the stock checks: a run stays connected to WhatsApp for up to 5.5 hours, and when
+    # GitHub starts a newer run, the working one hands over to it. So the group is watched
+    # around the clock with a gap of a minute or two between runs (messages sent in the gap
+    # arrive when the next run connects).
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "watch (normal) or login (pair with the phone; the code is pushed to the phone)"
+        type: choice
+        default: watch
+        options: [watch, login]
+
+permissions:
+  contents: write
+  actions: read          # lets a run see that a newer run is waiting, so it can hand over
+
+concurrency:
+  group: whatsapp
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get the login and the schedule (whatsapp-state branch)
+        uses: actions/checkout@v4
+        with:
+          ref: whatsapp-state
+          path: state
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: worker/requirements.txt
+
+      - run: pip install -q -r worker/requirements.txt
+
+      - name: Install the WhatsApp library
+        run: npm install --prefix whatsapp --no-audit --no-fund --loglevel=error
+
+      - name: Watch the group (or pair with the phone)
+        env:
+          MODE: ${{ inputs.mode || 'watch' }}
+          WA_AUTH_KEY: ${{ secrets.WA_AUTH_KEY }}            # encrypts the WhatsApp login kept in the state branch
+          WA_PHONE: ${{ secrets.WA_PHONE }}                  # the WhatsApp number, for login only
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          DEVICES_KEY: ${{ secrets.DEVICES_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+          STATE_DIR: ${{ github.workspace }}/state
+          TZ: Asia/Jerusalem
+        run: node whatsapp/bot.mjs
