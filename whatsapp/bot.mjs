@@ -236,6 +236,7 @@ async function connect(onUpdate, onMessages) {
     logger,
     browser: Browsers.ubuntu('Chrome'),
     markOnlineOnConnect: false,          // otherwise the phone stops showing WhatsApp notifications
+    qrTimeout: 10 * MIN,                 // while pairing: keep the code valid for a while instead of dropping the link after 2.5 minutes
     syncFullHistory: false,
     generateHighQualityLinkPreview: false,
   });
@@ -268,8 +269,8 @@ async function login() {
   const fresh = () => { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); fs.mkdirSync(AUTH_DIR, { recursive: true }); };
   fresh();
   let asked = false, done = false, codes = 0, paired = false;
-  const MAX_CODES = 3;
-  const deadline = Date.now() + 12 * MIN;
+  const MAX_CODES = 2;
+  const deadline = Date.now() + 22 * MIN;
 
   const run = () => connect(async (sock, u) => {
     if (u.qr && !asked) {
@@ -279,7 +280,7 @@ async function login() {
         const code = await sock.requestPairingCode(phone);
         const pretty = code.length === 8 ? `${code.slice(0, 4)}-${code.slice(4)}` : code;
         const ok = await tellPhone(`WhatsApp code: ${pretty}`,
-          `Type it within 3 minutes in WhatsApp > Linked devices > Link a device > Link with phone number.${codes > 1 ? ` (code ${codes} of ${MAX_CODES})` : ''}`);
+          `Type it within 10 minutes in WhatsApp > Linked devices > Link a device > Link with phone number. Older codes no longer work.${codes > 1 ? ` (code ${codes} of ${MAX_CODES})` : ''}`);
         log(ok ? `pairing code ${codes} sent to the phone; waiting for it to be typed in` : 'could not send the pairing code to the phone');
       } catch (e) { log('could not get a pairing code:', e.message); process.exit(1); }
     }
@@ -304,7 +305,7 @@ async function login() {
     }
   });
   await run();
-  setTimeout(() => { if (!done) { log('nobody typed a code in time'); process.exit(1); } }, 12 * MIN);
+  setTimeout(() => { if (!done) { log('nobody typed a code in time'); process.exit(1); } }, 22 * MIN);
 }
 
 // ----------------------------------------------------------------------------- watch
