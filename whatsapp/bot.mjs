@@ -239,7 +239,7 @@ async function connect(onUpdate, onMessages) {
     syncFullHistory: false,
     generateHighQualityLinkPreview: false,
   });
-  sock.ev.on('creds.update', async () => { await saveCreds(); saveAuth('keys updated'); });
+  sock.ev.on('creds.update', async () => { await saveCreds(); if (state.creds.registered) saveAuth('keys updated'); });
   sock.ev.on('connection.update', (u) => onUpdate(sock, u));
   if (onMessages) sock.ev.on('messages.upsert', (u) => onMessages(sock, u));
   return sock;
@@ -263,21 +263,27 @@ async function findGroup(sock) {
 async function login() {
   const phone = (process.env.WA_PHONE || '').replace(/\D/g, '');
   if (!phone) { console.error('WA_PHONE (the WhatsApp number, digits only, with country code) is not set'); process.exit(1); }
-  fs.rmSync(AUTH_DIR, { recursive: true, force: true });
-  fs.mkdirSync(AUTH_DIR, { recursive: true });
-  let asked = false, done = false;
-  const deadline = Date.now() + 6 * MIN;
+  for (const f of [AUTH_FILE, LOGIN_NEEDED]) if (fs.existsSync(f)) fs.rmSync(f);   // a new login replaces the old one
+  await commitState('login: replacing the login');
+  const fresh = () => { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); fs.mkdirSync(AUTH_DIR, { recursive: true }); };
+  fresh();
+  let asked = false, done = false, codes = 0, paired = false;
+  const MAX_CODES = 3;
+  const deadline = Date.now() + 12 * MIN;
 
   const run = () => connect(async (sock, u) => {
     if (u.qr && !asked) {
       asked = true;
+      if (++codes > MAX_CODES) { log('three codes were sent and none was typed in; giving up'); process.exit(1); }
       try {
         const code = await sock.requestPairingCode(phone);
         const pretty = code.length === 8 ? `${code.slice(0, 4)}-${code.slice(4)}` : code;
-        const ok = await tellPhone('WhatsApp pairing code', `Open WhatsApp > Linked devices > Link a device > Link with phone number, and type: ${pretty}`);
-        log(ok ? 'pairing code sent to the phone; waiting for it to be typed in' : 'could not send the pairing code to the phone');
+        const ok = await tellPhone(`WhatsApp pairing code${codes > 1 ? ` (new, ${codes}/${MAX_CODES})` : ''}`,
+          `Within 3 minutes: WhatsApp > Linked devices > Link a device > Link with phone number instead, and type ${pretty}`);
+        log(ok ? `pairing code ${codes} sent to the phone; waiting for it to be typed in` : 'could not send the pairing code to the phone');
       } catch (e) { log('could not get a pairing code:', e.message); process.exit(1); }
     }
+    if (u.isNewLogin) paired = true;
     if (u.connection === 'open') {
       log('logged in');
       await sleep(8000);                                        // let the first key exchange settle
@@ -289,14 +295,16 @@ async function login() {
     }
     if (u.connection === 'close' && !done) {
       const code = closeReason(u);
-      if (code === DisconnectReason.restartRequired) { log('restart after pairing'); run(); return; }
+      if (code === DisconnectReason.restartRequired || paired) { log('restart after pairing'); await sleep(2000); run(); return; }
       if (Date.now() > deadline) { log('login timed out'); process.exit(1); }
-      log('connection closed while pairing (code', code, '); trying again');
+      // the pairing was dropped (nobody typed the code in time): start over with a new code
+      log('connection closed while pairing (code', code, '); asking for a new code');
+      fresh(); asked = false;
       await sleep(3000); run();
     }
   });
   await run();
-  setTimeout(() => { if (!done) { log('nobody typed the code in time'); process.exit(1); } }, 6 * MIN);
+  setTimeout(() => { if (!done) { log('nobody typed a code in time'); process.exit(1); } }, 12 * MIN);
 }
 
 // ----------------------------------------------------------------------------- watch
