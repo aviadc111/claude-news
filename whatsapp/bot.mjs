@@ -239,7 +239,9 @@ async function connect(onUpdate, onMessages) {
     logger,
     browser: Browsers.ubuntu('Chrome'),
     markOnlineOnConnect: false,          // otherwise the phone stops showing WhatsApp notifications
-    qrTimeout: 10 * MIN,                 // while pairing: keep the code valid for a while instead of dropping the link after 2.5 minutes
+    // pairing code: keep the code valid for a while instead of dropping the link after 2.5 minutes.
+    // QR: a fresh one every 45 seconds, like WhatsApp Web (the server's refs do not live long)
+    qrTimeout: MODE === 'login-qr' ? 45_000 : 10 * MIN,
     syncFullHistory: false,
     generateHighQualityLinkPreview: false,
   });
@@ -476,6 +478,6 @@ async function watch() {
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   if (process.argv[2] === 'parse') {                            // node bot.mjs parse "מחר ב-17:00"  (a test)
     console.log(parseTraining(process.argv[3], Date.now()));
-  } else if (MODE === 'login') login().catch(e => { console.error(e); process.exit(1); });
+  } else if (MODE === 'login' || MODE === 'login-qr') login().catch(e => { console.error(e); process.exit(1); });
   else watch().catch(e => { console.error(e); process.exit(1); });
 }
