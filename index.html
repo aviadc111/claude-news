@@ -3773,6 +3773,7 @@
     if (urlOpen === "demo") { goToTab("Stocks", false); openDemo(); }
     tellDemo();
     checkPendingTab();
+    tellLinesSoon();                  // lines drawn before, or a note that did not get through: the checker hears about them now
     // The first data: the messages, the stock prices and Claude's demo data. When they are in (or have
     // failed), the opening may end. Charts and the Demo then open without waiting.
     const openingMayEnd = () => { if (window.__splashReady) window.__splashReady(); };
