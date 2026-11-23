@@ -11,10 +11,11 @@
   "VOO",
   "TTWO",
   "ASML",
-  "PLTR"
+  "PLTR",
+  "ESLT"
  ],
- "since": "RxrL7SrMNHHd",
- "updated": "2026-11-22T14:03:21+00:00",
+ "since": "D1W0zbr6kRBX",
+ "updated": "2026-11-23T17:03:21+00:00",
  "tickers": {
   "AAPL": "Apple",
   "MSFT": "Microsoft",
@@ -27,7 +28,8 @@
   "VOO": "Vanguard S&P 500 ETF",
   "TTWO": "Take-Two Interactive Software",
   "ASML": "ASML Holding N.V. - New York Re",
-  "PLTR": "Palantir Technologies (Class A)"
+  "PLTR": "Palantir Technologies (Class A)",
+  "ESLT": "Elbit Systems"
  },
  "known": [
   "NVDA",
@@ -44,7 +46,8 @@
   "VOO",
   "TTWO",
   "ASML",
-  "PLTR"
+  "PLTR",
+  "ESLT"
  ],
  "rejected": {},
  "name_tried": [
