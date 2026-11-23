@@ -11,6 +11,8 @@ the one before it (the branch has no history and the website is not rebuilt):
     m/<TICKER>.json     {"t", "at", "m1": [...]}                 the last 120 one-minute candles
     t/<MINUTE>/<TICKER>.json                                     the same m files, under the number of
                         the minute they were published in (minutes since 1970)
+    m/_all.json and t/<MINUTE>/_all.json   {"at", "p": {ticker: [minute, close]}}   every stock's newest
+                        price in one file: the app's list and demo follow it every minute
 
 A candle is [minute, open, high, low, close]; the minute is its start, in minutes since 1970 (UTC).
 Only regular trading hours, 09:30 to 16:00 New York time.
@@ -41,6 +43,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 DATA_DIR = os.path.join(ROOT, "data")
 BRANCH = "live"
+ALL_FILE = "_all.json"                 # next to the stocks' own files in m/ and in t/<MINUTE>/
 KEEP_M1 = 120                          # one-minute candles kept: two hours
 HISTORY_MAX_AGE = 14 * 60              # seconds: the 5-minute and 1-hour candles are fetched again after this
 CACHE_PATH = os.path.join(tempfile.gettempdir(), "claude_news_live_history.json")
@@ -140,6 +143,8 @@ def build(tickers, force_history=False):
             m_files[t + ".json"] = dump({"t": t, "at": at, "m1": m1[t][-KEEP_M1:]})
         if t in hist.get("m5", {}):
             h_files[t + ".json"] = dump({"t": t, "at": at, "m5": hist["m5"][t], "h1": hist.get("h1", {}).get(t, [])})
+    # every stock's newest price in one small file, for the app's list and demo: {ticker: [minute, close]}
+    m_files[ALL_FILE] = dump({"at": at, "p": {t: [m1[t][-1][0], m1[t][-1][4]] for t in tickers if t in m1}})
     return h_files, m_files
 
 
@@ -227,7 +232,7 @@ def main(argv):
     except Exception as e:
         print("live: could not publish:", type(e).__name__, e, flush=True)
         return 1
-    print(f"live: published minute {minute} for {len(m_files)} stocks in {time.time() - began:.1f}s", flush=True)
+    print(f"live: published minute {minute} for {len(m_files) - 1} stocks in {time.time() - began:.1f}s", flush=True)
     return 0
 
 
