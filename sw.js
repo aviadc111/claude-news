@@ -1,5 +1,5 @@
 /* Claude News service worker: offline shell + push notifications. */
-const CACHE = "claude-news-v45";
+const CACHE = "claude-news-v46";
 const STATE = "claude-news-state";          // small notes shared with the page; kept across updates
 const SHELL = ["./", "./index.html", "./config.js", "./manifest.webmanifest",
                "./icons/icon-192.png", "./icons/icon-512.png", "./icons/logo.svg"];
@@ -99,6 +99,8 @@ self.addEventListener("push", (event) => {
     time, received: Date.now(), title: data.title || "Claude News", body: data.body || "",
     project: data.project || "General", url: data.url || "",
   };
+  // A question from Claude carries what the app needs to send the answer back (see "answering Claude" in the page).
+  if (data.ask && typeof data.ask.id === "string" && typeof data.ask.key === "string") msg.ask = data.ask;
   // A self-deleting message (a new app version, Claude waiting for an answer) is only a
   // notification: it is not kept in the app, belongs to no category, and is closed when the
   // app is opened. Its link carries "sys=1".

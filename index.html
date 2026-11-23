@@ -272,6 +272,21 @@
   .drow .px { text-align: right; font-variant-numeric: tabular-nums; flex: 0 0 auto; }
   .drow .px b { display: block; font-size: 15px; }
   .drow .px span { font-size: 12px; font-weight: 700; }
+  .chartsbtn.notes { background: #f59e0b; color: #241a00; box-shadow: 0 4px 14px rgba(245, 158, 11, .3); }
+  .noteform { display: grid; gap: 8px; margin-top: 6px; }
+  .noteform textarea, .askbox textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--surface); color: var(--fg); font: inherit; font-size: 16px; line-height: 1.4; resize: vertical; }
+  .noterow { background: var(--surface); border-radius: 14px; padding: 12px; margin-top: 10px; display: grid; gap: 6px; }
+  .noterow.editing { outline: 2px solid #f59e0b; }
+  .noterow .when { font-size: 12px; color: var(--muted); }
+  .noterow .text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; line-height: 1.45; -webkit-user-select: text; user-select: text; }
+  #notes .note { margin-top: 14px; }
+  .askbox { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; display: grid; gap: 8px; }
+  .askbox .k { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .askbox .d { font-size: 12px; color: var(--muted); }
+  .askbox .said { font-size: 15px; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--surface-2); border-radius: 10px; padding: 8px 10px; }
+  .askbox .chip { padding: 10px 14px; font-size: 14px; font-weight: 700; background: #6366f1; color: #fff; }
+  .askbox form { display: grid; gap: 8px; }
+  .msg .asktag { margin-top: 6px; font-size: 13px; font-weight: 700; color: #f59e0b; }
   .chips { display: flex; gap: 8px; flex-wrap: wrap; }
   .chip { padding: 7px 13px; font-size: 13px; border-radius: 999px; background: var(--surface-2); color: var(--fg); }
   .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: var(--bg); border-radius: 12px; padding: 4px; }
@@ -534,6 +549,10 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="17.5" cy="9" r="2.5"/><path d="M17 14.2c2.6.2 4.5 2 4.5 4.8"/></svg>
     Check
   </button>
+  <button id="notesBtn" class="chartsbtn notes" aria-label="Open my notes" hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+    Notes
+  </button>
   <button id="settingsBtn" class="iconbtn" aria-label="Settings">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
   </button>
@@ -658,6 +677,20 @@
   <p class="note" style="margin-top:12px;">Practice only: pretend money, real prices, which can be some minutes old. This is not advice.</p>
 </section>
 
+<section id="notes" class="screen" hidden aria-label="My notes">
+  <div class="bar">
+    <button class="iconbtn" data-close="notes" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <h2>My notes</h2>
+    <span id="notesCount" class="sub"></span>
+  </div>
+  <form id="noteForm" class="noteform">
+    <textarea id="noteText" rows="3" maxlength="4000" placeholder="Write a note about the app: an idea, something that is broken, something to ask Claude" aria-label="A new note"></textarea>
+    <div class="row"><button type="submit" id="noteSave">Save the note</button><button type="button" id="noteCancel" class="ghost" hidden>Cancel</button></div>
+  </form>
+  <div id="notesList"></div>
+  <p class="note">Your notes stay on this phone only. Nobody else can read them, Claude included.</p>
+</section>
+
 <section id="ig" class="screen" hidden aria-label="Instagram follow-back check">
   <div class="bar">
     <button class="iconbtn" data-close="ig" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -752,6 +785,7 @@
     <div class="when"><b id="msgExact"></b><span id="msgAgo"></span></div>
     <div class="text" id="msgText"></div>
     <a id="msgLink" target="_blank" rel="noopener" hidden>Open link</a>
+    <div id="msgAsk" class="askbox" hidden></div>
     <div id="msgSpace" aria-hidden="true"></div>
   </div>
   <button type="button" id="msgClose" class="ghost">Close</button>
@@ -787,7 +821,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "5.3";
+  const APP_VERSION = "5.4";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -922,6 +956,108 @@
       })).catch(() => {});
     } catch {}
   }
+  // ---- answering Claude from the app ----------------------------------------------
+  // When Claude, working on the PC, needs an answer to go on, it sends its question as a push
+  // message (claude_news.py ask). That message carries ask = { id, key, options }. The answer is
+  // posted to "<topic>-answers" with a signature made from the key. The key came inside the push,
+  // which is encrypted for this phone, so only this phone can sign an answer; the key itself is
+  // never sent. The PC takes the first correctly signed answer, while its chat is still waiting.
+  let answers = {};
+  try { answers = JSON.parse(ls.get("cn.answers", "{}")) || {}; } catch { answers = {}; }
+  const askOf = (m) => (m && m.ask && typeof m.ask.id === "string" && typeof m.ask.key === "string" ? m.ask : null);
+  async function signAnswer(key, text) {                     // HMAC-SHA256, as hex
+    const enc = new TextEncoder();
+    const k = await crypto.subtle.importKey("raw", enc.encode(key), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+    return [...new Uint8Array(await crypto.subtle.sign("HMAC", k, enc.encode(text)))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  async function sendAnswer(m, text) {
+    const a = askOf(m);
+    text = String(text || "").trim().slice(0, 500);
+    if (!a || !text) throw new Error("Write an answer first");
+    if (!C.topic) throw new Error("The app is not set up to send");
+    const sig = await signAnswer(a.key, a.id + "\n" + text);
+    const r = await fetch(`${C.ntfy}/${C.topic}-answers`, { method: "POST", headers: { "Title": "answer" }, body: JSON.stringify({ id: a.id, answer: text, sig, time: Date.now() }) });
+    if (!r.ok) throw new Error("Could not send the answer (" + r.status + ")");
+    answers[a.id] = { text, time: Date.now() };
+    Object.keys(answers).forEach((id) => { if (Date.now() - answers[id].time > 7 * 86400000) delete answers[id]; });
+    ls.set("cn.answers", JSON.stringify(answers));
+  }
+  function renderAsk(m) {                                    // the answer box inside an opened message
+    const box = $("msgAsk"), a = askOf(m);
+    box.hidden = !a;
+    if (!a) { box.innerHTML = ""; return; }
+    const done = answers[a.id];
+    if (done) {
+      box.innerHTML = `<div class="k">Your answer</div><div class="said">${esc(done.text)}</div>
+        <div class="d">Sent ${fmtExact(done.time)}. Claude gets it if its chat on your PC is still open and waiting.</div>`;
+      return;
+    }
+    const opts = Array.isArray(a.options) ? a.options.filter((o) => typeof o === "string" && o.trim()).slice(0, 6) : [];
+    box.innerHTML = `<div class="k">Answer Claude</div>`
+      + (opts.length ? `<div class="chips">${opts.map((o, i) => `<button type="button" class="chip" data-opt="${i}">${esc(o)}</button>`).join("")}</div>` : "")
+      + `<form id="askForm"><textarea id="askText" rows="2" maxlength="500" placeholder="${opts.length ? "Or write your own answer" : "Write your answer"}" aria-label="Your answer"></textarea>
+          <div class="row"><button type="submit">Send</button></div></form>
+        <div class="d">The answer goes to Claude's chat on your PC, if that chat is still open and waiting.</div>`;
+    const go = async (text) => {
+      box.querySelectorAll("button").forEach((b) => { b.disabled = true; });
+      try { await sendAnswer(m, text); toast("Answer sent"); render(); }
+      catch (e) { toast(e.message || "Could not send the answer"); }
+      if (openMsgId === m.id) { renderAsk(m); sizeMsg(); }
+    };
+    box.querySelectorAll("[data-opt]").forEach((b) => b.onclick = () => go(opts[Number(b.dataset.opt)]));
+    $("askForm").addEventListener("submit", (e) => { e.preventDefault(); go($("askText").value); });
+  }
+
+  // ---- my notes ---------------------------------------------------------------------
+  // The user's own notes about the app. They are kept on this phone only (cn.notes) and are
+  // never sent anywhere.
+  let notes = [], noteEdit = null;
+  try { const n = JSON.parse(ls.get("cn.notes", "[]")); if (Array.isArray(n)) notes = n.filter((x) => x && typeof x.id === "string" && typeof x.text === "string"); } catch { notes = []; }
+  const saveNotes = () => ls.set("cn.notes", JSON.stringify(notes));
+  function renderNotes() {
+    $("notesCount").textContent = notes.length ? `${notes.length} note${notes.length === 1 ? "" : "s"}` : "";
+    $("noteSave").textContent = noteEdit ? "Save the change" : "Save the note";
+    $("noteCancel").hidden = !noteEdit;
+    $("notesList").innerHTML = notes.length ? notes.slice().sort((a, b) => b.time - a.time).map((n) => `
+      <div class="noterow${n.id === noteEdit ? " editing" : ""}">
+        <div class="when">${fmtExact(n.time)}${n.edited ? " · changed " + fmtExact(n.edited) : ""}</div>
+        <div class="text">${esc(n.text)}</div>
+        <div class="row"><button type="button" class="ghost small" data-note-edit="${esc(n.id)}">Change</button><button type="button" class="ghost small" data-note-del="${esc(n.id)}">Delete</button></div>
+      </div>`).join("") : `<div class="empty"><strong>No notes yet</strong>Write your first one in the box above.</div>`;
+    $("notesList").querySelectorAll("[data-note-edit]").forEach((b) => b.onclick = () => {
+      const n = notes.find((x) => x.id === b.dataset.noteEdit);
+      if (!n) return;
+      noteEdit = n.id; $("noteText").value = n.text; renderNotes();
+      $("notes").scrollTop = 0; $("noteText").focus();
+    });
+    $("notesList").querySelectorAll("[data-note-del]").forEach((b) => b.onclick = () => {
+      if (!b.dataset.armed) { b.dataset.armed = "1"; b.textContent = "Tap again to delete"; setTimeout(() => { if (b.isConnected) { delete b.dataset.armed; b.textContent = "Delete"; } }, 4000); return; }
+      notes = notes.filter((x) => x.id !== b.dataset.noteDel);
+      if (noteEdit === b.dataset.noteDel) { noteEdit = null; $("noteText").value = ""; }
+      saveNotes(); renderNotes(); toast("Note deleted");
+    });
+  }
+  function openNotes() { noteEdit = null; $("noteText").value = ls.get("cn.noteDraft", ""); openScreen("notes"); renderNotes(); }
+  $("notesBtn").onclick = openNotes;
+  $("noteText").addEventListener("input", () => { if (!noteEdit) ls.set("cn.noteDraft", $("noteText").value); });      // a half-written note survives closing the app
+  $("noteCancel").onclick = () => { noteEdit = null; $("noteText").value = ls.get("cn.noteDraft", ""); renderNotes(); };
+  $("noteForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const text = $("noteText").value.trim();
+    if (!text) { toast("Write something first"); return; }
+    if (noteEdit) {
+      const n = notes.find((x) => x.id === noteEdit);
+      if (n && n.text !== text) { n.text = text; n.edited = Date.now(); }
+      noteEdit = null; $("noteText").value = ls.get("cn.noteDraft", "");
+      toast("Note changed");
+    } else {
+      notes.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), text, time: Date.now() });
+      $("noteText").value = ""; ls.set("cn.noteDraft", "");
+      toast("Note saved");
+    }
+    saveNotes(); renderNotes();
+  });
+
   function deduped() {
     const out = new Map();
     for (const m of [...messages.values()].sort((a, b) => b.time - a.time)) {
@@ -948,6 +1084,7 @@
     $("boardBtn").hidden = $("demoBtn").hidden = current !== "Stocks";
     document.querySelector("header").classList.toggle("three", current === "Stocks");
     $("igBtn").hidden = current !== "Instagram";
+    $("notesBtn").hidden = current !== "Claude News";
     const head = $("tabTitle");                              // a long name gets smaller letters instead of being cut
     head.style.fontSize = "";
     for (let f = 23; head.scrollWidth > head.clientWidth && f >= 15; f--) head.style.fontSize = f + "px";
@@ -960,6 +1097,7 @@
         <div class="meta"><span><span class="dot" style="--pc:${projectColor(m.project)}"></span>${esc(label(m.project))}</span><span data-ago="${m.time}">${fmtAgo(m.time)}</span></div>
         <div class="title">${esc(m.title)}</div>
         ${m.body ? `<div class="body">${esc(m.body)}</div>` : ""}
+        ${askOf(m) ? `<div class="asktag">${answers[m.ask.id] ? "You answered: " + esc(answers[m.ask.id].text) : "Claude is waiting: tap to answer"}</div>` : ""}
         ${m.url ? `<a href="${esc(m.url)}" target="_blank" rel="noopener">Open link</a>` : ""}
       </li>`;
     }
@@ -997,6 +1135,7 @@
     if (m.url) { $("msgLink").href = m.url; $("msgLink").hidden = false; } else { $("msgLink").removeAttribute("href"); $("msgLink").hidden = true; }
     $("msgLink").textContent = isDemoMsg(m) ? "Open the demo account" : "Open link";
     $("msgLink").onclick = isDemoMsg(m) ? (e) => { e.preventDefault(); closeMsg(); openDemo(); } : null;
+    renderAsk(m);
     freshStart($("msgSheet"));
     $("msgSheet").hidden = false; $("msgBg").hidden = false;
     sizeMsg();
@@ -1047,6 +1186,7 @@
     try {
       if (!m && id) m = messages.get(id) || (await dbAll()).find((x) => x.id === id);
       if (isDemoMsg(m)) openDemo();
+      else if (askOf(m) && !answers[m.ask.id]) { addMessages([m]); render(); openMsg(m.id); }      // a question: straight to the answer box
     } catch {}
   }
   // ---- which category to open after a notification is tapped ------------------
