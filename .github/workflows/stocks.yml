@@ -11,7 +11,8 @@ on:
     # is added shows up about a minute later instead of at the next quarter hour.
     # Each check picks up stocks added or picked in the app, refreshes the charts data, and
     # sends a sudden-dip alert when one happens (per stock: at most one in 14 days, unless it
-    # falls another 7% since that message).
+    # falls another 7% since that message), and sends "The US market is open" once on every
+    # trading day when the day's first prices are in.
     - cron: "*/15 * * * *"
   workflow_dispatch:
 

@@ -331,10 +331,26 @@
   #claudeNote a { color: var(--accent); }
 
   /* v4.2: lines that trade in the demo; press and hold a stock for its menu */
-  #dLines { justify-items: stretch; }
-  #dLines .lrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--bg); border-radius: 10px; padding: 8px 10px; font-size: 13px; }
-  #dLines .lrow span { min-width: 0; }
-  #dLines button { justify-self: start; }
+  #dLines, #kLines { justify-items: stretch; }
+  #dLines .lrow, #kLines .lrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--bg); border-radius: 10px; padding: 8px 10px; font-size: 13px; }
+  #dLines .lrow span, #kLines .lrow span { min-width: 0; }
+  #dLines button, #kLines button { justify-self: start; }
+  /* v4.8: the candles chart, a window of its own that works like a trading account's chart */
+  .kinds button svg { width: 15px; height: 15px; vertical-align: -2px; margin-right: 6px; }
+  #desk .khead { display: flex; align-items: baseline; gap: 4px 10px; flex-wrap: wrap; margin: 2px 0 10px; }
+  #desk .khead .big { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  #desk .khead .chg { font-weight: 700; }
+  #desk .khead .kstate { flex-basis: 100%; font-size: 12px; color: var(--muted); }
+  #kChart { height: min(52vh, 460px); touch-action: none; }
+  .ktools { display: grid; grid-template-columns: 1fr 1fr 1.35fr; gap: 8px; margin-top: 10px; }
+  .ktools button { padding: 13px 6px; font-size: 15px; font-weight: 800; border-radius: 12px; }
+  .ktools .kbuy { background: #22c55e; color: #052e16; }
+  .ktools .ksell { background: #ef4444; color: #fff; }
+  .ktools .ksell:disabled { opacity: .4; }
+  .ktools .kline { background: #6366f1; color: #fff; }
+  .ktools.placing { grid-template-columns: 1fr auto; align-items: center; }
+  .ktools .khint { font-size: 13px; color: var(--muted); }
+  .ktools .khint b { color: var(--fg); }
   .menu { display: grid; gap: 8px; }
   .menu button { width: 100%; }
   .menu .danger { color: var(--danger); }
@@ -610,7 +626,7 @@
   <div class="stats" id="dStats"></div>
   <div class="reason" id="dReason" hidden></div>
   <div class="periods" id="dPeriods"></div>
-  <div class="kinds" id="dKind" role="group" aria-label="Kind of chart"><button type="button" data-kind="line">Line</button><button type="button" data-kind="candles">Candles</button></div>
+  <div class="kinds"><button type="button" id="dCandles" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="7" y1="3" x2="7" y2="21"/><rect x="4.5" y="7" width="5" height="9" rx="1" fill="currentColor"/><line x1="17" y1="3" x2="17" y2="21"/><rect x="14.5" y="9" width="5" height="8" rx="1"/></svg>Candles chart</button></div>
   <div class="chartwrap">
     <canvas id="dChart" data-noswipe></canvas>
     <div class="scrub" id="dScrub"><span>Touch the chart for a date</span><span></span></div>
@@ -620,6 +636,25 @@
   <div id="dHold" class="holdcard"></div>
   <div id="dDemo" class="holdcard" hidden></div>
   <div id="dLines" class="holdcard" hidden></div>
+</section>
+
+<section id="desk" class="screen" hidden aria-label="Candles chart for trading">
+  <div class="bar">
+    <button class="iconbtn" data-close="desk" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <h2 id="kName"></h2>
+    <span id="kTicker" class="sub"></span>
+  </div>
+  <div class="khead"><div class="big" id="kPrice"></div><div class="chg" id="kChange"></div><div class="kstate" id="kState"></div></div>
+  <div class="periods" id="kPeriods"></div>
+  <div class="chartwrap">
+    <canvas id="kChart" data-noswipe></canvas>
+    <div class="scrub" id="kScrub"><span>Touch the chart for a candle's prices</span><span></span></div>
+    <div class="marknote" id="kNote"></div>
+  </div>
+  <div class="ktools" id="kTools" hidden></div>
+  <div id="kAcct" class="holdcard"></div>
+  <div id="kLines" class="holdcard" hidden></div>
+  <p class="note" style="margin-top:12px;">Practice only: pretend money, real prices, which can be some minutes old. This is not advice.</p>
 </section>
 
 <section id="ig" class="screen" hidden aria-label="Instagram follow-back check">
@@ -751,7 +786,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "4.7";
+  const APP_VERSION = "4.8";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -1182,7 +1217,20 @@
   const dayToDate = (d) => new Date(d * 86400000);
   const fmtDate = (d) => dayToDate(d).toLocaleDateString([], { day: "numeric", month: "short", year: "2-digit" });
 
+  // Right after the market opens, the new day has one price only, and a chart needs two. Until the
+  // next check brings more, the day is drawn from its opening price to the price now, so the Today
+  // chart and today's change do not vanish for the first quarter of an hour.
+  function firstMinutes(list) {
+    (Array.isArray(list) ? list : []).forEach((s) => {
+      if (!s || !Array.isArray(s.today) || s.today.length !== 1) return;
+      const [t, c] = s.today[0], bar = Array.isArray(s.today_c) && s.today_c.length === 1 ? s.today_c[0] : null;
+      const o = bar ? bar[0] : (nyDay(t) === s.as_of && s.prev ? s.prev : c);
+      s.today = [[t, o], [t + 5, c]];
+      if (bar) s.today_c = [[o, o, o], bar];
+    });
+  }
   function keepNewer(data) {               // the website copy can lag behind the repository: never step back
+    if (data && data.stocks) firstMinutes(data.stocks);
     if (data && data.stocks && (!stocks || !stocks.updated || String(data.updated) >= String(stocks.updated))) stocks = data;
     if (data && data.stocks) stocksAt = Date.now();
     return stocks;
@@ -1733,23 +1781,21 @@
   let placing = false, placePrice = null;                    // a line is being placed on the chart with a finger
   // Your lines (and the one being placed) across a chart: a price level, drawn as a dashed line with its label.
   function drawLevels(ctx, opt, g) {
-    const one = (price, label, strong) => {
+    const one = (price, label, strong, color) => {
       if (!(price >= g.lo && price <= g.hi)) return;
       const y = g.Y(price);
       ctx.save();
-      ctx.strokeStyle = DEMO_COLOR; ctx.lineWidth = strong ? 2 : 1.5; ctx.setLineDash(strong ? [] : [6, 4]);
+      ctx.strokeStyle = color || DEMO_COLOR; ctx.lineWidth = strong ? 2 : 1.5; ctx.setLineDash(strong ? [] : [6, 4]);
       ctx.beginPath(); ctx.moveTo(g.padL, y); ctx.lineTo(g.w - g.padR, y); ctx.stroke();
-      ctx.font = "bold 11px -apple-system, Segoe UI, Roboto, sans-serif"; ctx.textAlign = "left"; ctx.fillStyle = DEMO_COLOR;
+      ctx.font = "bold 11px -apple-system, Segoe UI, Roboto, sans-serif"; ctx.textAlign = "left"; ctx.fillStyle = color || DEMO_COLOR;
       ctx.fillText(label, g.padL + 4, y - 5 < 12 ? y + 13 : y - 5);
       ctx.restore();
     };
-    (opt.lines || []).forEach((L) => one(L.price, L.label, false));
+    (opt.lines || []).forEach((L) => one(L.price, L.label, false, L.color));
     if (opt.preview != null) one(opt.preview, money(opt.preview), true);
   }
-  let dKind = ls.get("cn.chartKind", "line") === "candles" ? "candles" : "line";
-  function showKind() { $("dKind").querySelectorAll("button").forEach((b) => { const on = b.dataset.kind === dKind; b.classList.toggle("active", on); b.setAttribute("aria-pressed", String(on)); }); }
-  $("dKind").querySelectorAll("button").forEach((b) => b.onclick = () => { if (dKind === b.dataset.kind) return; dKind = b.dataset.kind; ls.set("cn.chartKind", dKind); showKind(); animateChart(); });
-  showKind();
+  const dKind = "line";                                      // the stock's own screen shows the line chart; candles have their own window
+  $("dCandles").onclick = () => { if (dStock) openDesk(dStock, dFrom); };
   // Candles: every candle has an open, a high, a low and a close. The checker saves
   // [open, high, low] next to every closing price (candles / today_c / week_c). Where they are
   // missing, a candle is built from the closes alone: it opens where the one before closed.
@@ -1838,7 +1884,7 @@
       const x = X(scrubIndex);
       ctx.strokeStyle = muted; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(x, padT - 6); ctx.lineTo(x, h - padB); ctx.stroke(); ctx.setLineDash([]);
     }
-    return { X, n, padL, padR, w, toIndex: (x) => Math.floor((x - padL) / pitch), yToPrice: (y) => hi - (y - padT) / (h - padT - padB) * span };
+    return { X, Y, n, padL, padR, padT, padB, w, h, lo, hi, toIndex: (x) => Math.floor((x - padL) / pitch), yToPrice: (y) => hi - (y - padT) / (h - padT - padB) * span };
   }
   // Which of a chart's points a purchase belongs to, or -1 when it was before the chart begins.
   // `when` is { day: "YYYY-MM-DD" } (My shares keeps the date only) or { time: milliseconds }.
@@ -2253,7 +2299,7 @@
     if (claudeData && !force && Date.now() - claudeAt < 60000) return claudeData;
     try {
       const r = await fetch("data/claude_demo.json", { cache: "no-store" });
-      if (r.ok) { const d = await r.json(); if (d && Array.isArray(d.holdings) && Array.isArray(d.stocks) && d.report) { claudeData = d; claudeAt = Date.now(); } }
+      if (r.ok) { const d = await r.json(); if (d && Array.isArray(d.holdings) && Array.isArray(d.stocks) && d.report) { firstMinutes(d.stocks); claudeData = d; claudeAt = Date.now(); } }
     } catch {}
     return claudeData;
   }
@@ -2468,6 +2514,7 @@
     const charted = chartsSync(), lined = linesSync();
     if (!$("demo").hidden && (charted || lined || (stocks && stocks.updated) !== before || (claudeData && claudeData.updated) !== had)) renderDemo();
     if (lined && !$("detail").hidden && dStock) { renderDetailExtras(dStock); drawDetail(); }
+    if (lined || (stocks && stocks.updated) !== before) refreshDesk();
   }, 60000);
   // What the chart account is waiting for on each stock, in plain words.
   function boxStatus(s, key) {
@@ -2871,22 +2918,13 @@
     const mine = (demo.lines || []).filter((L) => L.t === s.ticker);
     el.innerHTML = `<div class="k">Lines that trade for you</div>`
       + (mine.length ? mine.map((L) => `<div class="lrow"><span>${esc(lineWords(L, s.name))}</span><button type="button" class="ghost small" data-line="${esc(L.id)}">Delete</button></div>`).join("")
-                     : `<div class="d">Draw a line on the chart at a price. When the price reaches it, the demo buys or sells by itself.</div>`)
-      + (placing ? `<div class="d"><b>Slide your finger up and down on the chart</b> and let go at the price you want.</div><button type="button" class="ghost small" id="dLineAdd">Cancel</button>`
-                 : `<button type="button" class="small" id="dLineAdd">+ Draw a line</button>`);
+                     : `<div class="d">Draw a line at a price on the candles chart. When the price reaches it, the demo buys or sells by itself.</div>`)
+      + `<button type="button" class="small" id="dLineAdd">Draw lines on the candles chart</button>`;
     el.querySelectorAll("[data-line]").forEach((b) => b.onclick = () => {
       demo.lines = (demo.lines || []).filter((L) => L.id !== b.dataset.line); saveDemo();
       renderLines(s); drawDetail(); toast("Line deleted");
     });
-    $("dLineAdd").onclick = () => {
-      if (placing) { stopPlacing(); return; }
-      const live = pricesLive();                             // a line is placed against the price now, so that has to be live
-      if (!live.ok) { toast(live.why + " Lines can be drawn when they are."); return; }
-      if ((demo.lines || []).length >= MAX_LINES) { toast("You have " + MAX_LINES + " lines already. Delete one first."); return; }
-      placing = true; placePrice = null;
-      renderLines(s); drawDetail();
-      $("dChart").scrollIntoView({ block: "center", behavior: calmMotion ? "auto" : "smooth" });
-    };
+    $("dLineAdd").onclick = () => openDesk(s, dFrom);       // lines are drawn in the candles window
   }
   function stopPlacing() { placing = false; placePrice = null; if (dStock && !$("detail").hidden) { renderLines(dStock); drawDetail(); } }
   let lineT = null, lineSide = "buy";
@@ -2942,9 +2980,261 @@
     demo.lines.push(Object.assign(r.line, { id: now.toString(36) + Math.random().toString(36).slice(2, 6), created: now, until: now + 14 * 60000 }));
     saveDemo();
     if (dStock && !$("detail").hidden) { renderLines(dStock); drawDetail(); }
+    refreshDesk();
     toast("Line saved");
     lineSwipe.out();
   });
+
+  // ---- the candles chart: a window of its own that works like a trading account's chart -------
+  // Opened with "Candles chart" on a stock's screen. With your demo account you buy and sell at the
+  // price now, and you draw lines at a price that buy or sell by themselves when the price gets
+  // there (the box idea: a Buy line above the price catches a break upward, a Sell line below gets
+  // you out). B and S on the candles show where the account bought and sold. Opened from one of
+  // Claude's accounts, the window only shows that account. My shares (real ones) are not here.
+  let kTicker = null, kStock0 = null, kFrom = "board", kPeriod = 0.25, kGeom = null, kReveal = 1, kAnim = 0;
+  let kPlacing = false, kPrice = null, kCross = null;
+  try { const p = JSON.parse(ls.get("cn.deskPeriod", "null")); if (PERIODS.some(([, y]) => y === p)) kPeriod = p; } catch {}
+  const DESK_NAMES = { claude: "Claude's account", charts: "Claude's chart account (strict)", charts2: "Claude's chart account (loose)" };
+  const deskView = () => kFrom in DESK_NAMES;                 // one of Claude's accounts: look only
+  const deskStock = () => (kTicker && (kFrom === "claude" ? (claudeStock(kTicker) || listStock(kTicker)) : listStock(kTicker))) || kStock0;
+  const deskAcct = () => (!demo ? null : deskView() ? (demo[kFrom] || null) : demo);
+  const shortPrice = (v) => v >= 1000 ? Number(v).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : Number(v).toFixed(2);
+  function openDesk(s, from) {
+    kTicker = s.ticker; kStock0 = s; kFrom = from || "board"; kPlacing = false; kPrice = null; kCross = null;
+    openScreen("desk");
+    renderDesk();
+    requestAnimationFrame(animateDesk);
+  }
+  function refreshDesk() { if ($("desk").hidden) return; renderDesk(); drawDesk(); }
+  function animateDesk() {
+    cancelAnimationFrame(kAnim);
+    if (calmMotion) { kReveal = 1; drawDesk(); return; }
+    const began = performance.now(), ms = 460;
+    const frame = (now) => {
+      const t = Math.min(1, (now - began) / ms);
+      kReveal = 1 - Math.pow(1 - t, 3);
+      drawDesk();
+      if (t < 1) kAnim = requestAnimationFrame(frame); else kReveal = 1;
+    };
+    kReveal = 0; drawDesk();
+    kAnim = requestAnimationFrame(frame);
+  }
+  function deskTrade(side) {
+    if (demoView !== "mine") demoView = "mine";               // this window trades with your own demo account
+    openTrade(kTicker, side);
+  }
+  function renderDesk() {
+    const s = deskStock();
+    if (!s) return;
+    $("kName").textContent = s.name; $("kTicker").textContent = s.ticker;
+    $("kPrice").textContent = money(s.price);
+    $("kChange").textContent = pct(s.day_pct) + " today"; $("kChange").className = "chg " + (s.day_pct >= 0 ? "up" : "down");
+    $("kState").textContent = (marketOpen() ? "Market open" : "Market closed: last price") + (stocks && stocks.updated ? " · price from " + priceTime(stocks) : "");
+    const periods = PERIODS.filter(([, y]) => typeof y !== "string" || (Array.isArray(s[y]) && s[y].length > 1));
+    if (!periods.some(([, y]) => y === kPeriod)) kPeriod = 0.25;
+    $("kPeriods").innerHTML = periods.map(([l, y], i) => `<button data-i="${i}" class="${y === kPeriod ? "active" : ""}">${l}</button>`).join("");
+    $("kPeriods").querySelectorAll("button").forEach((b) => b.onclick = () => {
+      kPeriod = periods[Number(b.dataset.i)][1]; ls.set("cn.deskPeriod", JSON.stringify(kPeriod)); kCross = null;
+      $("kPeriods").querySelectorAll("button").forEach((x) => x.classList.toggle("active", x === b));
+      animateDesk();
+    });
+    const acct = deskAcct(), mine = !!acct && !deskView(), p = acct && acct.pos ? acct.pos[s.ticker] : null;
+    const live = pricesLive();
+    // Buy, Sell, Draw a line
+    const tools = $("kTools");
+    tools.hidden = !mine;
+    tools.classList.toggle("placing", mine && kPlacing);
+    if (mine) {
+      tools.innerHTML = kPlacing
+        ? `<div class="khint"><b>Slide your finger up and down on the chart</b> and let go at the price you want.</div><button type="button" class="ghost" id="kLineAdd">Cancel</button>`
+        : `<button type="button" class="kbuy" id="kBuy">Buy</button><button type="button" class="ksell" id="kSell"${p ? "" : " disabled"}>Sell</button><button type="button" class="kline" id="kLineAdd">Draw a line</button>`;
+      if (!kPlacing) { $("kBuy").onclick = () => deskTrade("buy"); $("kSell").onclick = () => deskTrade("sell"); }
+      $("kLineAdd").onclick = () => {
+        if (kPlacing) { kPlacing = false; kPrice = null; refreshDesk(); return; }
+        const lv = pricesLive();                               // a line is placed against the price now, so that has to be live
+        if (!lv.ok) { toast(lv.why + " Lines can be drawn when they are."); return; }
+        if ((demo.lines || []).length >= MAX_LINES) { toast("You have " + MAX_LINES + " lines already. Delete one first."); return; }
+        kPlacing = true; kPrice = null; kCross = null;
+        refreshDesk();
+        $("kChart").scrollIntoView({ block: "center", behavior: calmMotion ? "auto" : "smooth" });
+      };
+    } else tools.innerHTML = "";
+    // the account
+    const el = $("kAcct");
+    if (!acct) {
+      el.innerHTML = deskView()
+        ? `<div class="k">${esc(DESK_NAMES[kFrom])}</div><div class="d">This account has not started yet.</div>`
+        : `<div class="k">Demo account</div><div class="d">To buy, sell and draw lines on this chart you need a demo account: pretend money, real prices.</div><button type="button" class="small" id="kStart">Open the Demo</button>`;
+      if (!deskView()) $("kStart").onclick = () => { closeScreen("desk"); closeScreen("detail"); openDemo(); };
+    } else {
+      const worth = p ? p.shares * s.price : 0, gain = p ? worth - p.cost : 0;
+      el.innerHTML = `<div class="k">${mine ? "Demo account" : esc(DESK_NAMES[kFrom]) + " · view only"}</div>`
+        + (p ? `<div class="v">${fmtShares(p.shares)} shares · worth ${money(worth)}</div>
+                <div class="d ${upDown(gain)}">${signed(gain)} (${pct1(p.cost > 0 && Math.abs(gain) >= 0.005 ? gain / p.cost * 100 : 0)}) · average price ${money(p.cost / p.shares)}</div>`
+             : `<div class="d">${mine ? "You hold none of this stock." : "It holds none of this stock now."}</div>`)
+        + `<div class="d">Cash: ${money(acct.cash)}</div>`
+        + (mine && !live.ok ? `<div class="paused" role="status">Trading is paused. ${esc(live.why)}</div>` : "");
+    }
+    // your lines on this stock
+    const ll = $("kLines");
+    ll.hidden = !mine;
+    if (mine) {
+      const lines = (demo.lines || []).filter((L) => L.t === s.ticker);
+      ll.innerHTML = `<div class="k">Lines that trade for you</div>`
+        + lines.map((L) => `<div class="lrow"><span>${esc(lineWords(L, s.name))}</span><button type="button" class="ghost small" data-line="${esc(L.id)}">Delete</button></div>`).join("")
+        + `<div class="d">Draw a line at a price. When the price reaches it, the demo buys or sells by itself, once. Like the box idea: a Buy line above the price catches a break upward, and a Sell line below it gets you out when the price falls.</div>`;
+      ll.querySelectorAll("[data-line]").forEach((b) => b.onclick = () => {
+        demo.lines = (demo.lines || []).filter((L) => L.id !== b.dataset.line); saveDemo();
+        refreshDesk(); if (dStock && !$("detail").hidden) { renderLines(dStock); drawDetail(); }
+        toast("Line deleted");
+      });
+    }
+  }
+  function drawDesk() {
+    const s = deskStock(), c = $("kChart");
+    if (!s || $("desk").hidden) return;
+    const intra = typeof kPeriod === "string", today = kPeriod === "today";
+    const pts = intra ? (s[kPeriod] || []) : sliceSeries(s.series, kPeriod);
+    const sc = $("kScrub");
+    if (pts.length < 2) { kGeom = null; sc.innerHTML = "<span>No prices for this period yet</span><span></span>"; return; }
+    const cb = candleBars(s, pts, kPeriod), bars = cb.bars;
+    const acct = deskAcct(), mine = !!acct && !deskView(), pos = acct && acct.pos ? acct.pos[s.ticker] : null;
+    const first = pts[0], last = pts[pts.length - 1];
+    const base = today ? ((nyDay(last[0]) === s.as_of ? s.prev : s.price) || first[1]) : first[1];
+    const opt = Object.assign({ reveal: kReveal, room: kPlacing ? 0.15 : 0.07 }, !intra ? {} : today
+      ? { base, axis: (p) => fmtClock(p[0]) }
+      : { axis: (p) => minToDate(p[0]).toLocaleDateString([], { weekday: "short", day: "numeric" }) });
+    if (mine) {
+      opt.lines = (demo.lines || []).filter((L) => L.t === s.ticker).map((L) => ({ price: L.price, color: L.side === "buy" ? "#22c55e" : "#ef4444",
+        label: `${L.side === "buy" ? "Buy " + money(L.amount) : "Sell all"} at ${money(L.price)}` }));
+      if (kPlacing && kPrice != null) opt.preview = kPrice;
+    }
+    if (kCross && kCross.i >= bars.length) kCross = null;
+    const g = kGeom = drawCandles(c, bars, kCross ? kCross.i : null, opt);
+    if (!g) return;
+    const ctx = c.getContext("2d"), css = getComputedStyle(document.documentElement);
+    const fg = css.getPropertyValue("--fg").trim(), bg = css.getPropertyValue("--bg").trim(), muted = css.getPropertyValue("--muted").trim();
+    const FONT = "bold 11px -apple-system, Segoe UI, Roboto, sans-serif";
+    const inside = (v) => v >= g.lo && v <= g.hi;
+    const level = (price, color, dash) => {                    // a thin line across the chart at a price
+      if (!inside(price)) return;
+      const y = g.Y(price);
+      ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.setLineDash(dash);
+      ctx.beginPath(); ctx.moveTo(g.padL, y); ctx.lineTo(g.w - g.padR, y); ctx.stroke(); ctx.restore();
+    };
+    const tag = (price, color, ink) => {                       // the price in a small box on the scale at the right
+      if (!inside(price)) return;
+      const y = g.Y(price), x = g.w - g.padR + 2, wide = g.padR - 4;
+      ctx.save(); ctx.fillStyle = color; ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(x, y - 9, wide, 18, 4); else ctx.rect(x, y - 9, wide, 18);
+      ctx.fill(); ctx.fillStyle = ink; ctx.font = FONT; ctx.textAlign = "center"; ctx.fillText(shortPrice(price), x + wide / 2, y + 4); ctx.restore();
+    };
+    // the account's average price for this stock
+    if (pos && pos.shares > 0) {
+      const avg = pos.cost / pos.shares;
+      level(avg, muted, [1, 4]);
+      if (inside(avg)) { ctx.save(); ctx.font = "11px -apple-system, Segoe UI, Roboto, sans-serif"; ctx.fillStyle = muted; ctx.textAlign = "right"; ctx.fillText(`${mine ? "your" : "its"} average ${money(avg)}`, g.w - g.padR - 4, g.Y(avg) - 4); ctx.restore(); }
+    }
+    // the price now
+    const nowCol = s.day_pct >= 0 ? "#22c55e" : "#ef4444";
+    level(s.price, nowCol, [2, 3]);
+    tag(s.price, nowCol, s.day_pct >= 0 ? "#052e16" : "#fff");
+    // B and S: where the account bought and sold
+    let marked = false;
+    if (acct && Array.isArray(acct.trades)) {
+      const at = new Map();
+      acct.trades.forEach((x) => {
+        if (x.t !== s.ticker || x.time == null) return;
+        const i = markIndex(pts, intra, { time: x.time });
+        if (i < 0) return;
+        const b = bars.findIndex((q) => i >= q.i0 && i <= q.i1);
+        if (b < 0) return;
+        const m = at.get(b) || { buy: 0, sell: 0 };
+        m[x.side === "sell" ? "sell" : "buy"]++; at.set(b, m);
+      });
+      const badge = (x, y, letter, color, ink) => {
+        ctx.save(); ctx.beginPath(); ctx.arc(x, y, 7, 0, 7); ctx.fillStyle = color; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = bg; ctx.stroke();
+        ctx.fillStyle = ink; ctx.font = "bold 9px -apple-system, Segoe UI, Roboto, sans-serif"; ctx.textAlign = "center"; ctx.fillText(letter, x, y + 3.2); ctx.restore();
+      };
+      for (const [b, m] of at) {
+        const x = g.X(b);
+        if (kReveal < 1 && x > g.padL + (g.w - g.padL - g.padR) * kReveal) continue;
+        if (m.buy) badge(x, g.Y(bars[b].l) + 11, "B", "#22c55e", "#052e16");
+        if (m.sell) badge(x, g.Y(bars[b].h) - 11, "S", "#ef4444", "#fff");
+        marked = true;
+      }
+    }
+    // the finger: a line at its height with the price there; while a line is placed, that line's price
+    if (kPlacing && kPrice != null) tag(kPrice, "#6366f1", "#fff");
+    else if (kCross && kCross.y != null) {
+      const price = g.yToPrice(kCross.y);
+      level(price, fg, [3, 4]); tag(price, fg, bg);
+    }
+    const num = (v) => Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (kPlacing) {
+      sc.innerHTML = kPrice != null
+        ? `<span><b>Line at ${money(kPrice)}</b></span><span>${pct((kPrice / s.price - 1) * 100)} from the price now</span>`
+        : `<span><b>Slide on the chart to place the line</b></span><span></span>`;
+    } else if (kCross) {
+      const b = bars[kCross.i];
+      const dayText = (d) => dayToDate(d).toLocaleDateString([], { day: "numeric", month: "short", year: "2-digit" });
+      const when = intra ? `${fmtDayShort(b.x)}, ${fmtClock(b.x)}` : (b.x1 !== b.x ? `${dayText(b.x)} → ${dayText(b.x1)}` : dayText(b.x));
+      sc.innerHTML = `<span><b>${when}</b></span><span>open <b>${num(b.o)}</b> · high <b>${num(b.h)}</b> · low <b>${num(b.l)}</b> · close <b>${num(b.c)}</b></span>`;
+    } else {
+      const range = today ? fmtDayShort(first[0]) : intra ? `${fmtDayShort(first[0])} → ${fmtDayShort(last[0])}` : `${fmtDate(first[0])} → ${fmtDate(last[0])}`;
+      sc.innerHTML = `<span>${range}</span><span class="${last[1] >= base ? "up" : "down"}"><b>${pct((last[1] / base - 1) * 100)}</b> ${today ? "since previous close" : "over this period"}</span>`;
+    }
+    $("kNote").innerHTML = `<span>Each candle is <b>${cb.unit}</b>: green closed higher than it opened, red lower.${cb.real ? "" : " Until the checker's next run they are drawn from closing prices only."}`
+      + (marked ? ` <b>B</b> and <b>S</b>: where ${mine ? "you" : "Claude"} bought and sold.` : "") + `</span>`;
+  }
+  {
+    const kc = $("kChart");
+    const kAt = (x, y) => { if (!kGeom) return null; const r = kc.getBoundingClientRect(); return { i: Math.min(Math.max(kGeom.toIndex(x - r.left), 0), kGeom.n - 1), y: y - r.top }; };
+    let kFrame = 0, kNext = null, kDown = false;
+    const kMove = (e, x, y) => {
+      if (e.cancelable) e.preventDefault();
+      cancelAnimationFrame(kAnim); kReveal = 1;
+      if (kPlacing) {                                          // the finger is placing a line: it follows at once
+        const a = kAt(x, y);
+        if (a) { kPrice = Math.max(0.01, Math.round(kGeom.yToPrice(a.y) * 100) / 100); drawDesk(); }
+        return;
+      }
+      kNext = { x, y };                                        // reading the chart: at most one drawing per screen frame
+      if (!kFrame) kFrame = requestAnimationFrame(() => { kFrame = 0; if (!kNext) return; const a = kAt(kNext.x, kNext.y); if (a) { kCross = a; drawDesk(); } });
+    };
+    const kEnd = (e) => {
+      kNext = null; cancelAnimationFrame(kFrame); kFrame = 0;
+      if (kPlacing) {
+        if (kPrice == null) return;
+        if (e && e.cancelable) e.preventDefault();
+        const price = kPrice;
+        kPlacing = false; kPrice = null; refreshDesk();
+        openLineSheet(kTicker, price);
+        return;
+      }
+      kCross = null; drawDesk();
+    };
+    kc.addEventListener("touchstart", (e) => kMove(e, e.touches[0].clientX, e.touches[0].clientY), { passive: false });
+    kc.addEventListener("touchmove", (e) => kMove(e, e.touches[0].clientX, e.touches[0].clientY), { passive: false });
+    kc.addEventListener("touchend", kEnd, { passive: false });
+    kc.addEventListener("touchcancel", () => { if (kPlacing) { kPrice = null; drawDesk(); } else kEnd(); }, { passive: true });
+    kc.addEventListener("mousedown", (e) => { kDown = true; kMove(e, e.clientX, e.clientY); });
+    kc.addEventListener("mousemove", (e) => { if (!kPlacing || kDown) kMove(e, e.clientX, e.clientY); });
+    kc.addEventListener("mouseup", (e) => { kDown = false; if (kPlacing) kEnd(e); });
+    kc.addEventListener("mouseleave", () => { kDown = false; if (!kPlacing) kEnd(); });
+    window.addEventListener("resize", () => { if (!$("desk").hidden) drawDesk(); });
+    window.addEventListener("online", () => { if (!$("desk").hidden) loadStocks(true).then(refreshDesk); });
+    window.addEventListener("offline", refreshDesk);
+    // While the window is open the newest prices are fetched every minute, and your lines are checked.
+    // (When the Demo is open underneath, its own minute timer does this.)
+    setInterval(async () => {
+      if (document.hidden || $("desk").hidden || (demo && !$("demo").hidden)) return;
+      const before = stocks && stocks.updated;
+      await loadStocks(true);
+      const lined = demo ? linesSync() : false;
+      if (lined || (stocks && stocks.updated) !== before) refreshDesk();
+    }, 60000);
+  }
 
   async function openDemo() {
     openScreen("demo"); loadTickers(); renderDemo(); animateDemoChart();
@@ -3039,6 +3329,7 @@
     if (demo.trades.length > 500) demo.trades = demo.trades.slice(-500);
     saveDemo(); renderDemo();
     if (!$("detail").hidden && dStock) { renderDetailExtras(dStock); drawDetail(); }
+    refreshDesk();
     toast(`${tradeSide === "buy" ? "Bought" : "Sold"} ${fmtShares(r.shares)} ${t} for ${money(r.total)}`);
     tradeSwipe.out();
   });

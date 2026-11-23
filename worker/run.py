@@ -12,6 +12,9 @@ Every run:
      30-day high and low. After a message about a stock, the next one about it comes
      only when `dip_repeat_days` (14) have passed and it is in a sudden dip then, or
      when its price is `realert_extra_drop_pct` (7%) below the price in that message
+  4. MARKET OPEN message, once on every trading day: when the first prices of the day are in
+     after the 09:30 New York open (16:30 in Israel in winter). On a market holiday no prices
+     come, so nothing is sent
 
 State between runs lives in data/alert_state.json (committed by the workflow).
 worker/loop.py calls this script: once per run outside trading hours, and on every quarter
@@ -20,6 +23,7 @@ hour while the US market is open and before the daily demo message.
     python worker/run.py            normal run
     python worker/run.py --dry      compute and write stocks.json only, send nothing
     python worker/run.py --demo     also send the daily demo message right now
+    python worker/run.py --open     also send the market-open message right now
 """
 
 import datetime as dt
@@ -469,6 +473,39 @@ def demo_url(cfg):
     return (base.rstrip("/") + "/?tab=Stocks&open=demo") if base else None
 
 
+def stocks_url(cfg):
+    base = str(cfg.get("app_url") or "").strip()
+    return (base.rstrip("/") + "/?tab=Stocks") if base else None
+
+
+MARKET_OPENS = (9, 30)                                         # New York time
+
+
+def market_open_due(state, results, cfg, now_ny):
+    """True once per trading day: in the first `late_minutes` after the 09:30 New York open, and
+    only when prices of today have arrived. On a market holiday they never do, so nothing is sent."""
+    spec = cfg.get("market_open_message")
+    if not spec or now_ny.weekday() >= 5:
+        return False
+    opened = now_ny.replace(hour=MARKET_OPENS[0], minute=MARKET_OPENS[1], second=0, microsecond=0)
+    if not opened <= now_ny <= opened + dt.timedelta(minutes=int(spec.get("late_minutes", 60))):
+        return False
+    today = now_ny.date().isoformat()
+    if state.get("_open", {}).get("date") == today:
+        return False
+    return any(r.get("as_of") == today for r in results)
+
+
+def market_open_message(cfg, now_ny, demo):
+    """The message at the market's open. It says the opening time on the user's own clock."""
+    tz = (cfg.get("market_open_message") or {}).get("timezone", "Asia/Jerusalem")
+    opened = now_ny.replace(hour=MARKET_OPENS[0], minute=MARKET_OPENS[1], second=0, microsecond=0)
+    local = opened.astimezone(ZoneInfo(tz))
+    body = (f"Trading started at {local:%H:%M}. The prices in the app are live now.\n"
+            + ("Tap to open your demo." if demo else "Tap to open your stocks."))
+    return "The US market is open", body
+
+
 INSTAGRAM_REMINDER = ("Weekly Instagram check",
                       "It's time to see who doesn't follow you back.\n"
                       "1. In Instagram, request your export: Followers and following, format JSON.\n"
@@ -614,6 +651,17 @@ def main(argv):
             devices_changed |= ch
             if res["feed"] or res["pushed"]:
                 state["_demo"] = {"date": now_d.date().isoformat()}
+
+    # The market-open message: once per trading day, when the first prices of the day are in.
+    now_ny = dt.datetime.now(ZoneInfo("America/New_York"))
+    if "--open" in argv or market_open_due(state, results, cfg, now_ny):
+        has_demo = bool(settings.get("demo"))
+        title, body = market_open_message(cfg, now_ny, has_demo)
+        res, ch = cn.notify(title, body, project="Stocks", url=demo_url(cfg) if has_demo else stocks_url(cfg),
+                            cfg=app_cfg, state=devices)
+        devices_changed |= ch
+        if res["feed"] or res["pushed"]:
+            state["_open"] = {"date": now_ny.date().isoformat()}
 
     # Instagram: the follow-back check needs a fresh export from the user, so this is a reminder.
     # (Instagram offers no approved way for a program to read follower lists by itself.)
