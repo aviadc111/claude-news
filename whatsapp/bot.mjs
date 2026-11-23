@@ -278,8 +278,8 @@ async function login() {
       try {
         const code = await sock.requestPairingCode(phone);
         const pretty = code.length === 8 ? `${code.slice(0, 4)}-${code.slice(4)}` : code;
-        const ok = await tellPhone(`WhatsApp pairing code${codes > 1 ? ` (new, ${codes}/${MAX_CODES})` : ''}`,
-          `Within 3 minutes: WhatsApp > Linked devices > Link a device > Link with phone number instead, and type ${pretty}`);
+        const ok = await tellPhone(`WhatsApp code: ${pretty}`,
+          `Type it within 3 minutes in WhatsApp > Linked devices > Link a device > Link with phone number.${codes > 1 ? ` (code ${codes} of ${MAX_CODES})` : ''}`);
         log(ok ? `pairing code ${codes} sent to the phone; waiting for it to be typed in` : 'could not send the pairing code to the phone');
       } catch (e) { log('could not get a pairing code:', e.message); process.exit(1); }
     }
