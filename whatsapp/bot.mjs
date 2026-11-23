@@ -228,7 +228,10 @@ async function newerRunWaiting() {
 // ----------------------------------------------------------------------------- WhatsApp
 async function connect(onUpdate, onMessages) {
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
-  const logger = pino({ level: 'error' });
+  // While pairing, the library's own log helps to see where linking fails. The job's log is
+  // public, so every long run of digits (phone numbers, ids) is masked before it is written.
+  const masked = { write: (s) => process.stdout.write(String(s).replace(/\d{7,}/g, '***')) };
+  const logger = MODE === 'login' ? pino({ level: 'info', base: null }, masked) : pino({ level: 'error' });
   const { version } = await fetchLatestBaileysVersion();
   const sock = makeWASocket({
     version,
@@ -240,7 +243,12 @@ async function connect(onUpdate, onMessages) {
     syncFullHistory: false,
     generateHighQualityLinkPreview: false,
   });
-  sock.ev.on('creds.update', async () => { await saveCreds(); if (state.creds.registered) saveAuth('keys updated'); });
+  let wasRegistered = !!state.creds.registered;
+  sock.ev.on('creds.update', async () => {
+    await saveCreds();
+    if (state.creds.registered && !wasRegistered) { wasRegistered = true; log('paired with the phone; waiting for WhatsApp to confirm'); }
+    if (state.creds.registered) saveAuth('keys updated');
+  });
   sock.ev.on('connection.update', (u) => onUpdate(sock, u));
   if (onMessages) sock.ev.on('messages.upsert', (u) => onMessages(sock, u));
   return sock;
@@ -284,7 +292,7 @@ async function login() {
         log(ok ? `pairing code ${codes} sent to the phone; waiting for it to be typed in` : 'could not send the pairing code to the phone');
       } catch (e) { log('could not get a pairing code:', e.message); process.exit(1); }
     }
-    if (u.isNewLogin) paired = true;
+    if (u.isNewLogin || sock.authState?.creds?.registered) paired = true;
     if (u.connection === 'open') {
       log('logged in');
       await sleep(8000);                                        // let the first key exchange settle
@@ -296,7 +304,7 @@ async function login() {
     }
     if (u.connection === 'close' && !done) {
       const code = closeReason(u);
-      if (code === DisconnectReason.restartRequired || paired) { log('restart after pairing'); await sleep(2000); run(); return; }
+      if (code === DisconnectReason.restartRequired || paired) { log('reconnecting after pairing (code', code, ')'); await sleep(2000); run(); return; }
       if (Date.now() > deadline) { log('login timed out'); process.exit(1); }
       // the pairing was dropped (nobody typed the code in time): start over with a new code
       log('connection closed while pairing (code', code, '); asking for a new code');
