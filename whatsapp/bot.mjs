@@ -80,31 +80,74 @@ function instant(y, m, d, hh, mm) {           // Israel wall-clock time -> ms si
 }
 
 // ----------------------------------------------------------------------------- reading a message
+const HEB_DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+const CANCEL_WORDS = /(מבוטל|בוטל|מתבטל|ביטול|אין אימון|לא יהיה אימון|לא יתקיים|נדחה לשבוע הבא)/;
+const heb = (word) => new RegExp(`(^|[^א-ת])${word}([^א-ת]|$)`);   // a whole Hebrew word (\b does not know Hebrew)
+
+// Reads one group message. Returns null when it says nothing about a training day, otherwise
+//   { date, display, time, at, cancel, noTime }
+// The day: an explicit date (26.11, 26/11, 26.11.2026), "יום שלישי" (the coming one), "מחרתיים",
+// "מחר", or "היום"/"הערב". The time: 17:00, 17.00, בשעה 17, ב-17. Questions (with "?") are ignored:
+// "מחר ב-17:00?" is somebody asking, not the trainer announcing.
+// cancel: the message cancels that day's training. noTime: a day and the word "אימון" but no time.
 export function parseTraining(text, sentMs) {
-  if (!text) return null;
-  const t = String(text);
-  let daysAhead = 0;
-  if (/מחרתיים/.test(t)) daysAhead = 2;
-  else if (new RegExp(`(^|[^א-ת])${CONFIG.triggerWord}([^א-ת]|$)`).test(t)) daysAhead = 1;
-  if (!daysAhead) return null;
-
-  let hh, mm;
-  let m = t.match(/(?<!\d)(\d{1,2})[:.](\d{2})(?!\d)/);            // 17:00 or 17.00
-  if (m) { hh = +m[1]; mm = +m[2]; }
-  else {
-    m = t.match(/(?:בשעה|ב-|ב)\s*(\d{1,2})(?![\d:.])/);           // בשעה 17, ב-17, ב17
-    if (m) { hh = +m[1]; mm = 0; }
-  }
-  if (hh === undefined || hh > 23 || mm > 59) return null;
-
+  const t = String(text || '').trim();
+  if (!t || t.includes('?')) return null;
   const z = zoned(sentMs);
-  const day = new Date(Date.UTC(z.y, z.m - 1, z.d + daysAhead));
+  const todayUTC = Date.UTC(z.y, z.m - 1, z.d);
+  const weekdayToday = new Date(todayUTC).getUTCDay();          // 0 = Sunday = ראשון
+
+  // the time, first with a colon
+  let hh, mm;
+  let m = t.match(/(?<!\d)(\d{1,2}):(\d{2})(?!\d)/);
+  if (m) { hh = +m[1]; mm = +m[2]; }
+
+  // the day
+  let dayUTC = null;
+  for (const d of t.matchAll(/(?<![\d.\/:])(\d{1,2})([.\/])(\d{1,2})(?:[.\/](\d{4}))?(?![\d:])/g)) {
+    const a = +d[1], b = +d[3], sep = d[2];
+    const before = t.slice(Math.max(0, d.index - 8), d.index);
+    // "17.30" with a dot is a time unless a colon time exists elsewhere, it says בתאריך, or it cannot be a time
+    const isDate = sep === '/' || hh !== undefined || /בתאריך/.test(before) || a > 23 || d[3].length === 1 || d[4];
+    if (isDate && a >= 1 && a <= 31 && b >= 1 && b <= 12) {
+      let y = d[4] ? +d[4] : z.y;
+      let u = Date.UTC(y, b - 1, a);
+      if (!d[4] && u < todayUTC - 2 * 86400_000) u = Date.UTC(y + 1, b - 1, a);   // a date that passed means next year
+      dayUTC = u;
+      break;
+    }
+  }
+  if (dayUTC === null) {
+    m = t.match(/(?:ביום|יום)\s*(ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת)/);
+    if (m) dayUTC = todayUTC + ((HEB_DAYS.indexOf(m[1]) - weekdayToday + 7) % 7) * 86400_000;
+    else if (/מחרתיים/.test(t)) dayUTC = todayUTC + 2 * 86400_000;
+    else if (heb(CONFIG.triggerWord).test(t)) dayUTC = todayUTC + 86400_000;
+    else if (heb('היום').test(t) || heb('הערב').test(t)) dayUTC = todayUTC;
+  }
+  if (dayUTC === null) return null;
+
+  // the time without a colon
+  if (hh === undefined) {
+    m = t.match(/(?<![\d.])(\d{1,2})\.(\d{2})(?![\d.])/);          // 17.30
+    if (m && +m[1] <= 23) { hh = +m[1]; mm = +m[2]; }
+    else {
+      m = t.match(/(?:בשעה|ב-|ב)\s*(\d{1,2})(?![\d:.])/);         // בשעה 17, ב-17, ב17
+      if (m) { hh = +m[1]; mm = 0; }
+    }
+  }
+  const cancel = CANCEL_WORDS.test(t);
+  const hasTime = hh !== undefined && hh <= 23 && mm <= 59;
+  if (!hasTime && !cancel && !heb('אימון').test(t)) return null;
+
+  const day = new Date(dayUTC);
   const y = day.getUTCFullYear(), mo = day.getUTCMonth() + 1, d = day.getUTCDate();
   return {
     date: `${y}-${pad(mo)}-${pad(d)}`,
     display: `${d}.${mo}.${y}`,
-    time: `${pad(hh)}:${pad(mm)}`,
-    at: instant(y, mo, d, hh, mm),
+    time: hasTime ? `${pad(hh)}:${pad(mm)}` : null,
+    at: hasTime ? instant(y, mo, d, hh, mm) : null,
+    cancel,
+    noTime: !hasTime,
   };
 }
 
@@ -415,10 +458,24 @@ async function watch() {
       const found = parseTraining(textOf(msg), sentMs);
       if (!found) continue;
       const same = state.trainings.find(t => t.date === found.date);
-      if (same && same.time === found.time) continue;
       let note = null;
-      if (same && same.reminder === 'pending' && same.poll === 'pending') {
-        Object.assign(same, found, { msgId: msg.key.id });
+      if (found.cancel) {                                        // the trainer cancelled that day
+        if (same && same.poll !== 'sent') {
+          same.reminder = same.reminder === 'sent' ? 'sent' : 'cancelled';
+          same.poll = 'cancelled';
+          log('training on', found.date, 'cancelled');
+          note = `The training on ${found.display} was cancelled: nothing more will be sent for it.`;
+        } else if (!same) {
+          note = `The group says the training on ${found.display} is cancelled (nothing was scheduled for that day).`;
+        }
+      } else if (found.noTime) {                                 // a day and "אימון" but no time: just tell the phone
+        note = same ? null : `The group mentions a training on ${found.display} without a time. Nothing scheduled yet.`;
+      } else if (same && same.time === found.time) {
+        if (same.poll === 'cancelled' && same.at > Date.now()) { same.reminder = 'pending'; same.poll = 'pending'; note = `The training on ${found.display} at ${found.time} is on again.`; }
+      } else if (same && same.poll !== 'sent') {                  // moved: a later time arms the reminder again
+        const movedLater = found.at > same.at;
+        Object.assign(same, found, { msgId: msg.key.id, poll: 'pending',
+          reminder: same.reminder === 'sent' && !movedLater ? 'sent' : 'pending' });
         log('training on', found.date, 'moved to', found.time);
         note = `The training on ${found.display} moved to ${found.time}.`;
       } else if (!same) {
