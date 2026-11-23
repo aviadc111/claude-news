@@ -136,8 +136,9 @@ export function parseTraining(text, sentMs) {
     }
   }
   const cancel = CANCEL_WORDS.test(t);
+  const lecture = /הרצאה|הרצאת/.test(t);                        // a lecture instead of a workout: nothing to bring
   const hasTime = hh !== undefined && hh <= 23 && mm <= 59;
-  if (!hasTime && !cancel && !heb('אימון').test(t)) return null;
+  if (!hasTime && !cancel && !lecture && !heb('אימון').test(t)) return null;
 
   const day = new Date(dayUTC);
   const y = day.getUTCFullYear(), mo = day.getUTCMonth() + 1, d = day.getUTCDate();
@@ -147,6 +148,7 @@ export function parseTraining(text, sentMs) {
     time: hasTime ? `${pad(hh)}:${pad(mm)}` : null,
     at: hasTime ? instant(y, mo, d, hh, mm) : null,
     cancel,
+    lecture,
     noTime: !hasTime,
   };
 }
@@ -459,7 +461,19 @@ async function watch() {
       if (!found) continue;
       const same = state.trainings.find(t => t.date === found.date);
       let note = null;
-      if (found.cancel) {                                        // the trainer cancelled that day
+      if (found.lecture) {                                       // a lecture, not a workout: no reminder, no poll
+        if (same && same.poll !== 'sent') {
+          same.reminder = same.reminder === 'sent' ? 'sent' : 'cancelled';
+          same.poll = 'cancelled';
+          same.lecture = true;
+          log('the meeting on', found.date, 'is a lecture: nothing will be sent');
+          note = `The meeting on ${found.display} is a lecture: no reminder and no poll will be sent.`;
+        } else if (!same) {
+          const [y, mo, d] = found.date.split('-').map(Number);   // kept (at noon if no time) so a later time does not turn it into a workout
+          state.trainings.push({ ...found, at: found.at ?? instant(y, mo, d, 12, 0), msgId: msg.key.id, reminder: 'cancelled', poll: 'cancelled' });
+          note = `Lecture on ${found.display}${found.time ? ` at ${found.time}` : ''}: nothing will be sent for it.`;
+        }
+      } else if (found.cancel) {                                 // the trainer cancelled that day
         if (same && same.poll !== 'sent') {
           same.reminder = same.reminder === 'sent' ? 'sent' : 'cancelled';
           same.poll = 'cancelled';
@@ -468,6 +482,8 @@ async function watch() {
         } else if (!same) {
           note = `The group says the training on ${found.display} is cancelled (nothing was scheduled for that day).`;
         }
+      } else if (same?.lecture) {                                // that day is a lecture: a time does not make it a workout
+        note = found.noTime ? null : `A time for ${found.display} (${found.time}), but that day is a lecture: nothing will be sent.`;
       } else if (found.noTime) {                                 // a day and "אימון" but no time: just tell the phone
         note = same ? null : `The group mentions a training on ${found.display} without a time. Nothing scheduled yet.`;
       } else if (same && same.time === found.time) {
