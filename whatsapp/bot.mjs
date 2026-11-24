@@ -256,20 +256,21 @@ function tellPhone(title, body) {
 }
 
 // ----------------------------------------------------------------------------- GitHub
-async function newerRunWaiting() {
+async function otherRuns() {                   // the unfinished runs of this workflow, other than this one
   const { GITHUB_REPOSITORY: repo, GITHUB_RUN_NUMBER: mine, GITHUB_TOKEN: token, GITHUB_WORKFLOW_REF: ref = '' } = process.env;
-  if (!repo || !mine) return false;
+  if (!repo || !mine) return [];
   const workflow = ref.includes('/workflows/') ? ref.split('@')[0].split('/').pop() : 'whatsapp.yml';
   try {
     const r = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/${workflow}/runs?per_page=10`, {
       headers: { Accept: 'application/vnd.github+json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       signal: AbortSignal.timeout(20_000),
     });
-    if (!r.ok) return false;
-    const runs = (await r.json()).workflow_runs || [];
-    return runs.some(run => run.run_number > Number(mine) && run.status !== 'completed');
-  } catch (e) { log('could not ask GitHub about newer runs:', e.name); return false; }
+    if (!r.ok) return [];
+    return ((await r.json()).workflow_runs || []).filter(run => run.run_number !== Number(mine) && run.status !== 'completed');
+  } catch (e) { log('could not ask GitHub about other runs:', e.name); return []; }
 }
+const newerRunWaiting = async () => (await otherRuns()).some(run => run.run_number > Number(process.env.GITHUB_RUN_NUMBER));
+const olderRunRunning = async () => (await otherRuns()).some(run => run.run_number < Number(process.env.GITHUB_RUN_NUMBER));
 
 // ----------------------------------------------------------------------------- WhatsApp
 async function connect(onUpdate, onMessages) {
@@ -277,7 +278,8 @@ async function connect(onUpdate, onMessages) {
   // While pairing, the library's own log helps to see where linking fails. The job's log is
   // public, so every long run of digits (phone numbers, ids) is masked before it is written.
   const masked = { write: (s) => process.stdout.write(String(s).replace(/\d{7,}/g, '***')) };
-  const logger = MODE.startsWith('login') ? pino({ level: 'info', base: null }, masked) : pino({ level: 'error' });
+  // While watching, the library stays silent: its error lines carry message ids and phone numbers.
+  const logger = MODE.startsWith('login') ? pino({ level: 'info', base: null }, masked) : pino({ level: 'silent' });
   const { version } = await fetchLatestBaileysVersion();
   const sock = makeWASocket({
     version,
@@ -386,14 +388,24 @@ async function login() {
 
 // ----------------------------------------------------------------------------- watch
 async function watch() {
+  // One run at a time on the WhatsApp login. Two connected at once split the messages between
+  // them and lose encryption keys (the other one then cannot read the group: "No session found").
+  // The older run quits when it sees this one; wait for it, then take its freshly saved files.
+  for (let i = 0; i < 28 && await olderRunRunning(); i++) {
+    if (i === 0) log('an older run is still connected; waiting for it to end');
+    await sleep(15_000);
+  }
+  try { git('pull', '-q', '--ff-only', 'origin', 'whatsapp-state'); } catch (e) { log('could not refresh the saved files:', e.message.slice(-200)); }
+
   if (fs.existsSync(LOGIN_NEEDED) || !fs.existsSync(AUTH_FILE)) {
-    log('not logged in to WhatsApp: run this workflow by hand with mode = login');
+    log('not logged in to WhatsApp: run this workflow by hand with mode = login-qr');
     return process.exit(0);
   }
   decryptToDir(fs.readFileSync(AUTH_FILE, 'utf8'), AUTH_DIR);
   const state = loadState();
   const started = Date.now();
   let sock = null, open = false, busy = false, closing = false, reconnects = 0;
+  let received = 0, unreadable = 0;              // group messages this run (counts only; the log is public)
 
   const targetJid = () => CONFIG.sendTo === 'me' ? jidNormalizedUser(sock.user.id) : state.groupId;
 
@@ -451,6 +463,8 @@ async function watch() {
     let changed = false;
     for (const msg of messages) {
       if (msg.key?.remoteJid !== state.groupId || !msg.key?.id) continue;
+      received++;
+      if (!msg.message || msg.messageStubType) { unreadable++; continue; }   // could not be decrypted (yet): WhatsApp re-sends it
       if (state.seen.includes(msg.key.id)) continue;
       state.seen.push(msg.key.id);
       if (state.seen.length > 300) state.seen = state.seen.slice(-300);
@@ -507,7 +521,7 @@ async function watch() {
   const finish = async (why, code = 0) => {
     if (closing) return;
     closing = true;
-    log('ending:', why);
+    log('ending:', why, `(group messages this run: ${received}, unreadable: ${unreadable})`);
     clearInterval(tickTimer); clearInterval(handTimer);
     try { await saveAuth('run ended', true); } catch {}
     await committing;
@@ -546,6 +560,9 @@ async function watch() {
 
   sock = await connect(onUpdate, onMessages);
   const tickTimer = setInterval(tick, 20_000);
+  // encryption keys for the group arrive without a creds.update: save the whole key folder regularly
+  const keysTimer = setInterval(() => { if (!closing) saveAuth('keys saved'); }, 5 * MIN);
+  process.on('exit', () => clearInterval(keysTimer));
   const handTimer = setInterval(async () => {
     const soon = nextDue() - Date.now() < 6 * MIN;              // never hand over right before a send
     if (soon) return;
