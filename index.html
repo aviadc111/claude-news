@@ -1062,7 +1062,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "7.8";
+  const APP_VERSION = "7.9";
   // A colour of the page's own palette (see :root), for what is drawn by hand: the charts, the tab
   // marks. Read from the page so they follow the dark or the light look; kept for a second at a time.
   let themeAt = 0, themeSeen = {};
@@ -2242,7 +2242,8 @@
   // messages go over the channel "<topic>-chat", locked with a key only this phone and the PC have
   // (AES-GCM). The key arrives once inside a push message, which is itself encrypted for this
   // phone; the worker keeps it ("__chatkey"). A photo is shrunk, locked, and uploaded as a file.
-  // The chat itself is kept on this phone only (cn.chat, the last 150 messages).
+  // The chat itself is kept on this phone only (cn.chat, the last 150 messages). What you type in the
+  // chat on the computer arrives too (from "pc") and shows as yours, marked "on the computer".
   let chatLog = [], chatKey = null, chatStream = null, chatThinking = false, chatSending = false;
   try { const c = JSON.parse(ls.get("cn.chat", "[]")); if (Array.isArray(c)) chatLog = c.filter((m) => m && typeof m.id === "string"); } catch { chatLog = []; }
   const chatSave = () => { chatLog = chatLog.slice(-150); try { ls.set("cn.chat", JSON.stringify(chatLog)); } catch { chatLog.forEach((m) => { delete m.img; }); ls.set("cn.chat", JSON.stringify(chatLog)); } };
@@ -2308,9 +2309,9 @@
       const head = d !== day ? `<div class="cday">${esc(d)}</div>` : "";
       const turn = d !== day || mine !== who;
       day = d; who = mine;
-      const last = !next || (next.who === "me" ? "me" : "claude") !== mine || dayLabel(next.time) !== d || next.time - m.time > 5 * 60000;     // the time shows under the last of a run
+      const last = !next || (next.who === "me" ? "me" : "claude") !== mine || !!next.pc !== !!m.pc || dayLabel(next.time) !== d || next.time - m.time > 5 * 60000;     // the time shows under the last of a run
       return head + `<div class="cmsg ${mine}${turn ? " turn" : ""}${m.img ? " pic" : ""}">${m.img ? `<img src="${esc(m.img)}" alt="The photo you sent">${m.text ? `<span class="txt">${esc(m.text)}</span>` : ""}` : esc(m.text || "")}</div>`
-        + (last ? `<div class="ctime ${mine}">${noteClock(m.time)}</div>` : "");
+        + (last ? `<div class="ctime ${mine}">${noteClock(m.time)}${m.pc ? " · on the computer" : ""}</div>` : "");
     }).join("") + (chatThinking ? `<div class="cmsg claude turn typing" role="status" aria-label="Claude is writing">${DOTS}</div>` : "");
     list.scrollTop = list.scrollHeight;
   }
@@ -2324,9 +2325,17 @@
       let m; try { m = JSON.parse(e.data); } catch { return; }
       if (m.id) ls.set("cn.chatSince", m.id);
       const d = await chatUnlock(key, m.message || "");
-      if (!d || d.from !== "claude" || typeof d.id !== "string" || chatLog.some((x) => x.id === d.id)) return;
-      chatLog.push({ id: d.id, who: "claude", text: String(d.text || ""), time: Number(d.time) || Date.now() });
-      chatThinking = false; chatSave(); renderChat(); haptic();
+      if (!d || (d.from !== "claude" && d.from !== "pc") || typeof d.id !== "string") return;
+      const cut = Number(d.clearBefore) || 0;                // the PC asks to forget the chat from before this time (asked for once, sent with every message)
+      let changed = false;
+      if (cut > Number(ls.get("cn.chatCleared", "0"))) { chatLog = chatLog.filter((x) => x.time >= cut); ls.set("cn.chatCleared", String(cut)); changed = true; }
+      if (!chatLog.some((x) => x.id === d.id) && !(Number(d.time) < cut)) {
+        const pc = d.from === "pc";                          // "pc": what you typed in the chat on the computer; it shows here as yours
+        chatLog.push({ id: d.id, who: pc ? "me" : "claude", pc, text: String(d.text || ""), time: Number(d.time) || Date.now() });
+        if (!pc) { chatThinking = false; haptic(); }
+        changed = true;
+      }
+      if (changed) { chatSave(); renderChat(); }
     };
   }
   async function openChat() {
