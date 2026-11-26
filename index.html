@@ -299,51 +299,63 @@
   /* my notes */
   .noteform textarea, .askbox textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--surface); color: var(--fg); font: inherit; font-size: 16px; line-height: 1.4; resize: vertical; }
   #notes .lead { color: var(--muted); font-size: 13px; margin: 0 2px 10px; }
-  .noteform { display: grid; gap: 6px; background: var(--surface); border-radius: 18px; padding: 12px 12px 10px; border: 1px solid var(--line); box-shadow: 0 8px 22px rgba(0, 0, 0, .10); }
-  .noteform:focus-within { border-color: #f59e0b; }
-  .noteform textarea { border: 0; border-radius: 8px; background: transparent; padding: 4px; min-height: 72px; resize: none; outline: none; }
-  .noteform .row { justify-content: space-between; }
-  .noteform .row .left { display: flex; gap: 8px; align-items: center; }
-  #noteSave { border-radius: 999px; padding: 10px 18px; display: inline-flex; gap: 7px; align-items: center; background: #f59e0b; color: #241a00; }
-  #noteSave svg { width: 16px; height: 16px; }
-  #noteCancel { border-radius: 999px; padding: 10px 16px; }
-  #noteLen { font-size: 12px; color: var(--muted); }
-  .notehead { display: flex; justify-content: space-between; align-items: baseline; margin: 20px 4px 2px; font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
-  .noteslot, .chain { --nc: hsl(var(--nh) 82% 52%); --nt: hsl(var(--nh) 82% 52% / .11); }
+  #noteAdd { margin-left: auto; flex: 0 0 auto; border-radius: 999px; padding: 9px 14px; display: inline-flex; gap: 6px; align-items: center; background: #f59e0b; color: #241a00; font-size: 14px; white-space: nowrap; }
+  #noteAdd svg { width: 15px; height: 15px; }
+  .notehead { display: flex; justify-content: space-between; align-items: baseline; margin: 14px 4px 2px; font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+  .notehead span + span { font-weight: 400; letter-spacing: 0; text-transform: none; }
+  .ngroup { position: relative; }
+  .noteslot, .ngroup { --nc: hsl(var(--nh) 82% 52%); --nt: hsl(var(--nh) 82% 52% / .11); }
   .noteslot { position: relative; margin-top: 10px; }
   .noterow { position: relative; overflow: hidden; border-radius: 16px; padding: 13px 12px 8px 19px; display: grid; gap: 8px; background: linear-gradient(var(--nt), var(--nt)), var(--surface); transition: margin-left .28s cubic-bezier(.2, .9, .3, 1), box-shadow .15s; }
   .noterow::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: var(--nc); }
-  .noterow.editing { box-shadow: 0 0 0 2px var(--nc); }
   .noterow .when { font-size: 12px; font-weight: 600; color: var(--nc); }
   .noterow .when span { color: var(--muted); font-weight: 400; }
-  .noterow .text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 16px; line-height: 1.45; -webkit-user-select: text; user-select: text; }
-  .noterow .acts { display: flex; gap: 2px; justify-content: flex-end; }
-  .noterow .acts button { background: transparent; color: var(--muted); padding: 6px 10px; font-size: 13px; border-radius: 999px; display: inline-flex; gap: 5px; align-items: center; }
+  .noterow .text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 16px; line-height: 1.45; }
+  .noterow .acts { display: flex; gap: 0; justify-content: flex-end; flex-wrap: wrap; }
+  .noterow .acts button { background: transparent; color: var(--muted); padding: 6px 9px; font-size: 13px; border-radius: 999px; display: inline-flex; gap: 5px; align-items: center; }
   .noterow .acts button svg { width: 15px; height: 15px; }
-  /* a chain: its notes share one colour, and a few links join each note to the next */
-  .clink { position: relative; height: 0; z-index: 1; pointer-events: none; }
-  .clink svg { position: absolute; left: 15px; top: -10px; width: 16px; height: 30px; transition: left .28s cubic-bezier(.2, .9, .3, 1); }
-  .clink .halo { stroke: var(--bg); stroke-width: 5.5; }
-  .clink .links { stroke: var(--nc); stroke-width: 2.3; }
-  /* picking notes for a chain: the notes move aside and a circle shows next to each */
+  /* a chain: its notes share one colour and sit a little aside, and a curved chain at their side runs from each note to the next */
+  .chain { padding-left: 34px; transition: padding-left .28s cubic-bezier(.2, .9, .3, 1); }
+  .chainsvg { position: absolute; left: 0; top: 0; width: 34px; height: 100%; overflow: visible; pointer-events: none; fill: none; transition: opacity .2s; }
+  .chainsvg .c1 { stroke: var(--nc); stroke-width: 7; stroke-linecap: round; stroke-dasharray: 7 9; }                 /* the links, seen from the front */
+  .chainsvg .c2 { stroke: var(--bg); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 7 9; }                 /* their holes */
+  .chainsvg .c3 { stroke: var(--nc); stroke-width: 2.2; stroke-dasharray: 6 10; stroke-dashoffset: -8.5; }          /* the links between them, seen from the side */
+  /* moving a note: press and hold, then drag it up or down */
+  .ngroup.lifted { z-index: 5; }
+  .ngroup.lifted .noterow { box-shadow: 0 16px 34px rgba(0, 0, 0, .5); }
+  #notesList.dragging .ngroup:not(.lifted) { transition: transform .18s ease; }
+  /* picking notes for a chain: the top bar goes, the notes move aside with a circle next to each, and a bar at the bottom has Cancel and Done */
   .pickdot { position: absolute; left: 2px; top: 50%; width: 28px; height: 28px; padding: 0; border-radius: 50%; border: 2px solid var(--muted); background: transparent; color: transparent; display: grid; place-items: center; opacity: 0; pointer-events: none; transform: translateY(-50%) scale(.4); transition: opacity .2s, transform .3s cubic-bezier(.2, 1.4, .4, 1), background .15s, border-color .15s; }
   .pickdot svg { width: 16px; height: 16px; }
+  #notes.chaining .bar { visibility: hidden; }
+  #notes.chaining { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
   #notes.chaining .pickdot { opacity: 1; pointer-events: auto; transform: translateY(-50%) scale(1); }
   #notes.chaining .noterow { margin-left: 40px; }
-  #notes.chaining .clink svg { left: 55px; }
+  #notes.chaining .chain { padding-left: 0; }
+  #notes.chaining .chainsvg { opacity: 0; }
   #notes.chaining .noterow .acts { display: none; }
-  #notes.chaining .noterow .text { -webkit-user-select: none; user-select: none; }
-  #notes.chaining .noteform { opacity: .35; pointer-events: none; }
   .noteslot.picked .pickdot { background: var(--nc); border-color: var(--nc); color: #fff; }
   .noteslot.picked .noterow { box-shadow: 0 0 0 2px var(--nc); }
-  .chainbar { position: sticky; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); z-index: 3; display: flex; align-items: center; gap: 8px; margin-top: 16px; padding: 10px 10px 10px 16px; border-radius: 18px; background: var(--surface-2); border: 1px solid var(--line); box-shadow: 0 10px 28px rgba(0, 0, 0, .3); }
+  .chainbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 18; display: flex; align-items: center; gap: 10px;
+    padding: 10px max(14px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(14px, env(safe-area-inset-left, 0px));
+    background: var(--surface); border-top: 1px solid var(--line); }
   .chainbar[hidden] { display: none; }
-  .chainbar .cb { flex: 1; min-width: 0; display: grid; }
+  .chainbar .cb { flex: 1; min-width: 0; display: grid; justify-items: center; text-align: center; }
   .chainbar .cb b { font-size: 15px; }
   .chainbar .cb span { font-size: 12px; color: var(--muted); }
-  .chainbar button { border-radius: 999px; padding: 10px 16px; }
-  #chainDone { background: #f59e0b; color: #241a00; padding: 10px 20px; }
-  @media (prefers-reduced-motion: no-preference) { #notes .chainbar { animation: popMenu .26s cubic-bezier(.2, 1.2, .4, 1) both; } }
+  .chainbar button { flex: 0 0 auto; border-radius: 999px; padding: 11px 20px; }
+  #chainDone { background: #f59e0b; color: #241a00; }
+  @media (prefers-reduced-motion: no-preference) { .chainbar { animation: barUp .24s ease-out both; } @keyframes barUp { from { transform: translateY(100%); } } }
+  /* writing a note: a box in the middle of the screen */
+  .popmenu .notebox { background: var(--surface); border-radius: 22px; overflow: hidden; box-shadow: 0 24px 60px rgba(0, 0, 0, .5); }
+  .notebox .nk { display: flex; align-items: center; gap: 9px; padding: 18px 20px 0; font-size: 11px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: #f59e0b; }
+  .notebox .nk i { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; box-shadow: 0 0 0 4px color-mix(in srgb, #f59e0b 22%, transparent); }
+  .notebox textarea { display: block; width: 100%; box-sizing: border-box; border: 0; background: transparent; color: var(--fg); font: inherit; font-size: 17px; line-height: 1.45; padding: 12px 20px 8px;
+    min-height: 124px; max-height: 44vh; resize: none; outline: none; -webkit-user-select: text; user-select: text; -webkit-appearance: none; appearance: none; }
+  .notebox textarea::placeholder { color: var(--muted); }
+  .notebox .nlen { padding: 0 20px; font-size: 12px; color: var(--muted); }
+  .notebox .nlen:not(:empty) { padding-bottom: 8px; }
+  .popmenu.kb .notebox textarea { min-height: 92px; max-height: 190px; }
   .notesempty { text-align: center; color: var(--muted); padding: 34px 16px 10px; font-size: 14px; }
   .notesempty svg { width: 54px; height: 54px; color: #f59e0b; opacity: .85; display: block; margin: 0 auto 10px; }
   .notesempty strong { display: block; color: var(--fg); font-size: 16px; margin-bottom: 4px; }
@@ -483,7 +495,7 @@
   /* While the keyboard is up: only the question and the field, at the top of the free area, clear of the clock. */
   .popmenu.center.kb { top: calc(var(--vvtop, 0px) + env(safe-area-inset-top, 0px) + 10px) !important; transform: none; animation: none; }
   .popmenu.kb .ping { padding: 16px 18px 14px; }
-  .popmenu.kb .ping .pmeta, .popmenu.kb .ping .popts, .popmenu.kb .pfoot { display: none; }
+  .popmenu.kb .ping .pmeta, .popmenu.kb .ping .popts, .popmenu.kb .pingbox .pfoot { display: none; }
   .popmenu.kb .ping .pm { margin-top: 8px; font-size: 17px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
   .popmenu.kb .ping .pans { margin-top: 12px; }
   .popmenu .ping .send svg { width: 17px; height: 17px; }
@@ -805,23 +817,17 @@
     <button class="iconbtn" data-close="notes" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
     <h2>My notes</h2>
     <span id="notesCount" class="sub"></span>
+    <button type="button" id="noteAdd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add a note</button>
   </div>
   <p class="lead">Ideas for the app, things that are broken, things to ask Claude.</p>
-  <form id="noteForm" class="noteform">
-    <textarea id="noteText" rows="3" maxlength="4000" placeholder="Write a note…" aria-label="A new note"></textarea>
-    <div class="row">
-      <span id="noteLen"></span>
-      <span class="left"><button type="button" id="noteCancel" class="ghost" hidden>Cancel</button><button type="submit" id="noteSave"></button></span>
-    </div>
-  </form>
   <div id="notesList"></div>
-  <div id="chainBar" class="chainbar" hidden>
-    <div class="cb"><b id="chainCount"></b><span id="chainHint"></span></div>
-    <button type="button" id="chainCancel" class="ghost">Cancel</button>
-    <button type="button" id="chainDone">Done</button>
-  </div>
   <p class="note">Your notes stay on this phone only. Nobody else can read them, Claude included.</p>
 </section>
+<div id="chainBar" class="chainbar" hidden>
+  <button type="button" id="chainCancel" class="ghost">Cancel</button>
+  <div class="cb"><b id="chainCount"></b><span id="chainHint"></span></div>
+  <button type="button" id="chainDone">Done</button>
+</div>
 
 <section id="ig" class="screen" hidden aria-label="Instagram follow-back check">
   <div class="bar">
@@ -953,7 +959,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "6.4";
+  const APP_VERSION = "6.5";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -1143,7 +1149,7 @@
   // ---- my notes ---------------------------------------------------------------------
   // The user's own notes about the app. They are kept on this phone only (cn.notes) and are
   // never sent anywhere.
-  let notes = [], noteEdit = null;
+  let notes = [];
   let chainPick = null, chainStart = null, chainOld = null;     // while picking notes for a chain: the ticked ids, the note it began on, that note's chain
   try { const n = JSON.parse(ls.get("cn.notes", "[]")); if (Array.isArray(n)) notes = n.filter((x) => x && typeof x.id === "string" && typeof x.text === "string"); } catch { notes = []; }
   const saveNotes = () => { tidyNotes(); ls.set("cn.notes", JSON.stringify(notes)); notesBadge(); };
@@ -1153,12 +1159,10 @@
     plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
     check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 12.5 10 17.5 19 7"/></svg>',
     link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>',
+    unlink: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m18.8 12.3 1.7-1.7a5 5 0 0 0-7-7.1l-1.8 1.7"/><path d="m5.2 11.7-1.7 1.7a5 5 0 0 0 7 7.1l1.8-1.7"/><path d="M8 2v3M2 8h3M16 19v3M19 16h3"/></svg>',
     bin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
     pad: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6Z"/><path d="M15 3v4h4M9 12h7M9 16h5"/></svg>',
   };
-  // The links drawn between two notes of a chain: a ring, a link seen from its side, a ring.
-  const CHAIN_LINKS = '<rect x="3.5" y="1.5" width="9" height="10" rx="4.5"/><path d="M8 9v12"/><rect x="3.5" y="18.5" width="9" height="10" rx="4.5"/>';
-  const CHAIN_SVG = `<svg viewBox="0 0 16 30" fill="none" stroke-linecap="round"><g class="halo">${CHAIN_LINKS}</g><g class="links">${CHAIN_LINKS}</g></svg>`;
   // Colours. Every note that is not in a chain has a colour of its own, and a chain has one colour
   // for all its notes. A colour is kept as a hue (n.hue); the new one is the hue furthest from
   // those in use. With more notes than hues, the least used hue is taken again.
@@ -1172,29 +1176,36 @@
     for (const h of free) { const d = Math.min(...used.map((u) => hueGap(u, h))); if (d > far) { far = d; best = h; } }
     return best;
   }
-  // Puts the notes in order after any change: a chain of one note is no chain, a chain has one
-  // colour, and no two of them share a colour while a free one is left. True when something changed.
+  // Puts the notes in order after any change: every note has a place in the list (n.order, the
+  // smallest at the top; a new note goes to the top), a chain of one note is no chain, a chain has
+  // one colour, and no two of them share a colour while a free one is left. True when something changed.
   function tidyNotes() {
     const before = JSON.stringify(notes), size = {};
+    let top = Math.min(0, ...notes.filter((n) => Number.isFinite(n.order)).map((n) => n.order));
+    notes.filter((n) => !Number.isFinite(n.order)).sort((a, b) => a.time - b.time).forEach((n) => { n.order = --top; });
     notes.forEach((n) => { if (typeof n.chain === "string" && n.chain) size[n.chain] = (size[n.chain] || 0) + 1; else delete n.chain; });
     notes.forEach((n) => { if (n.chain && size[n.chain] < 2) delete n.chain; });
-    const used = [], done = new Set();
+    const used = [], done = new Set(), later = [];
     for (const n of notes.slice().sort((a, b) => a.time - b.time)) {
       const key = n.chain ? "chain " + n.chain : n.id;
       if (done.has(key)) continue;
       done.add(key);
       const group = n.chain ? notes.filter((x) => x.chain === n.chain) : [n];
-      let h = (group.find((x) => Number.isFinite(x.hue)) || {}).hue;
-      if (!Number.isFinite(h) || (used.includes(h) && NOTE_HUES.some((c) => !used.includes(c)))) h = freshHue(used);
+      const h = (group.find((x) => Number.isFinite(x.hue)) || {}).hue;
+      if (Number.isFinite(h) && !used.includes(h)) { used.push(h); group.forEach((x) => { x.hue = h; }); }
+      else later.push([group, h]);                           // no colour yet, or one that is taken: it gets one after the others kept theirs
+    }
+    later.forEach(([group, was]) => {
+      const h = !Number.isFinite(was) || NOTE_HUES.some((c) => !used.includes(c)) ? freshHue(used) : was;
       used.push(h);
       group.forEach((x) => { x.hue = h; });
-    }
+    });
     return JSON.stringify(notes) !== before;
   }
   if (tidyNotes()) ls.set("cn.notes", JSON.stringify(notes));
-  // Newest first. A chain stays together, at the place of its newest note.
+  // The list, top to bottom, in the user's own order. A chain stays together, at the place of its highest note.
   function noteGroups() {
-    const sorted = notes.slice().sort((a, b) => b.time - a.time), seen = new Set(), out = [];
+    const sorted = notes.slice().sort((a, b) => a.order - b.order), seen = new Set(), out = [];
     for (const n of sorted) {
       if (seen.has(n.id)) continue;
       const g = n.chain ? sorted.filter((x) => x.chain === n.chain) : [n];
@@ -1203,38 +1214,34 @@
     }
     return out;
   }
+  const groupKey = (g) => (g[0].chain ? "c:" + g[0].chain : "n:" + g[0].id);
   const noteClock = (ms) => new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
-  function growNote() { const t = $("noteText"); t.style.height = "auto"; t.style.height = Math.min(Math.max(t.scrollHeight, 72), 280) + "px"; $("noteLen").textContent = t.value.length > 3500 ? `${t.value.length} of 4000 letters` : ""; }
   function renderNotes() {
     $("notesCount").textContent = notes.length ? `${notes.length} note${notes.length === 1 ? "" : "s"}` : "";
-    $("noteSave").innerHTML = noteEdit ? NOTE_ICONS.check + "Save the change" : NOTE_ICONS.plus + "Add the note";
-    $("noteCancel").hidden = !noteEdit;
-    growNote();
     const slot = (n) => `
       <div class="noteslot" data-note="${esc(n.id)}" style="--nh:${Number(n.hue) || 0}">
         <button type="button" class="pickdot" aria-label="Pick this note" aria-pressed="false" tabindex="-1">${NOTE_ICONS.check}</button>
-        <div class="noterow${n.id === noteEdit ? " editing" : ""}">
+        <div class="noterow">
           <div class="when">${dayLabel(n.time)} · ${noteClock(n.time)}${n.edited ? ` <span>· changed ${dayLabel(n.edited).toLowerCase()} ${noteClock(n.edited)}</span>` : ""}</div>
           <div class="text">${esc(n.text)}</div>
-          <div class="acts"><button type="button" data-note-chain>${NOTE_ICONS.link}Chain</button><button type="button" data-note-del>${NOTE_ICONS.bin}Delete</button></div>
+          <div class="acts"><button type="button" data-note-chain>${NOTE_ICONS.link}Chain</button>${n.chain ? `<button type="button" data-note-unchain>${NOTE_ICONS.unlink}Unchain</button>` : ""}<button type="button" data-note-del>${NOTE_ICONS.bin}Delete</button></div>
         </div>
       </div>`;
-    $("notesList").innerHTML = notes.length ? `<div class="notehead"><span>Your notes</span><span>newest first</span></div>` + noteGroups().map((g) => g.length > 1
-      ? `<div class="chain" style="--nh:${Number(g[0].hue) || 0}">${g.map(slot).join(`<div class="clink" aria-hidden="true">${CHAIN_SVG}</div>`)}</div>`
-      : slot(g[0])).join("") : `<div class="notesempty">${NOTE_ICONS.pad}<strong>No notes yet</strong>Write your first one in the box above.</div>`;
+    $("notesList").innerHTML = notes.length ? `<div class="notehead"><span>Your notes</span><span>hold a note to move it</span></div>` + noteGroups().map((g) =>
+      `<div class="ngroup${g.length > 1 ? " chain" : ""}" data-group="${esc(groupKey(g))}" style="--nh:${Number(g[0].hue) || 0}">`
+      + (g.length > 1 ? `<svg class="chainsvg" aria-hidden="true"><path class="c1"/><path class="c2"/><path class="c3"/></svg>` : "") + g.map(slot).join("") + `</div>`).join("")
+      : `<div class="notesempty">${NOTE_ICONS.pad}<strong>No notes yet</strong>Tap "Add a note" at the top.</div>`;
     $("notesList").querySelectorAll(".noteslot").forEach((el) => {
       const id = el.dataset.note;
       el.querySelector(".pickdot").onclick = () => tickNote(id);
       el.querySelector(".noterow").onclick = (e) => {
         if (chainPick) { tickNote(id); return; }
-        // a tap on the words of a note opens it for a change (not while some of its words are marked for copying)
-        if (!e.target.closest(".text") || String(window.getSelection ? window.getSelection() : "")) return;
-        const n = notes.find((x) => x.id === id);
-        if (!n) return;
-        noteEdit = n.id; $("noteText").value = n.text; renderNotes();
-        $("notes").scrollTop = 0; $("noteText").focus();
+        if (Date.now() - noteDragged < 450 || !e.target.closest(".text")) return;       // a tap on the words of a note opens it for a change
+        openNoteBox(id);
       };
       el.querySelector("[data-note-chain]").onclick = (e) => { e.stopPropagation(); startChain(id); };
+      const un = el.querySelector("[data-note-unchain]");
+      if (un) un.onclick = (e) => { e.stopPropagation(); unchainNote(id); };
       el.querySelector("[data-note-del]").onclick = (e) => {
         e.stopPropagation();
         const n = notes.find((x) => x.id === id);
@@ -1242,17 +1249,116 @@
         const words = n.text.replace(/\s+/g, " ").trim();
         askDelete(`Delete this note?<span class="q">${esc(words.length > 90 ? words.slice(0, 90) + "…" : words)}</span>`, "Delete the note", () => {
           notes = notes.filter((x) => x.id !== id);
-          if (noteEdit === id) { noteEdit = null; $("noteText").value = ls.get("cn.noteDraft", ""); }
           saveNotes(); renderNotes(); toast("Note deleted");
         });
       };
     });
-    syncChain();
+    $("notesList").querySelectorAll(".ngroup").forEach(wireNoteMove);
+    drawChains(); syncChain();
   }
+  // The curved chain at the side of chained notes: an arc from the middle of each note to the middle of the next.
+  function drawChains() {
+    $("notesList").querySelectorAll(".chain").forEach((c) => {
+      const svg = c.querySelector(".chainsvg"), mids = [...c.querySelectorAll(".noteslot")].map((x) => x.offsetTop + x.offsetHeight / 2);
+      if (!svg || mids.length < 2) return;
+      let d = "";
+      for (let i = 0; i < mids.length - 1; i++) d += `M 32 ${mids[i].toFixed(1)} C 0 ${mids[i].toFixed(1)}, 0 ${mids[i + 1].toFixed(1)}, 32 ${mids[i + 1].toFixed(1)} `;
+      svg.querySelectorAll("path").forEach((p) => p.setAttribute("d", d));
+    });
+  }
+  window.addEventListener("resize", () => { if (!$("notes").hidden) drawChains(); });
+
+  // ---- moving notes: press and hold, then drag ----
+  // A note, or a whole chain, is one piece of the list (.ngroup). Holding it for a moment lifts it;
+  // dragging moves it past the other pieces, and letting go leaves it there (n.order is rewritten).
+  let noteHold = 0, noteDrag = null, noteDragged = 0, holdX = 0, holdY = 0;
+  const holdOff = () => { clearTimeout(noteHold); noteHold = 0; };
+  function liftNote(g, y) {
+    const groups = [...$("notesList").querySelectorAll(".ngroup")];
+    if (groups.length < 2 || chainPick) return;
+    noteDrag = { el: g, groups, from: groups.indexOf(g), to: groups.indexOf(g), y0: y, y, s0: $("notes").scrollTop,
+      tops: groups.map((x) => x.offsetTop), hs: groups.map((x) => x.offsetHeight), auto: 0, raf: 0 };
+    g.classList.add("lifted"); $("notesList").classList.add("dragging");
+    g.style.transform = "scale(1.02)";
+    haptic();
+  }
+  function dragNote(y) {
+    const d = noteDrag, box = $("notes");
+    if (!d) return;
+    d.y = y;
+    const dy = (y - d.y0) + (box.scrollTop - d.s0), mid = d.tops[d.from] + d.hs[d.from] / 2 + dy;
+    d.el.style.transform = `translateY(${dy}px) scale(1.02)`;
+    let to = 0;
+    d.groups.forEach((x, i) => { if (i !== d.from && d.tops[i] + d.hs[i] / 2 < mid) to++; });
+    d.to = to;
+    const room = d.hs[d.from] + 10;                           // the others make room for it
+    d.groups.forEach((x, i) => {
+      if (i === d.from) return;
+      const rank = i < d.from ? i : i - 1, place = rank < to ? rank : rank + 1;
+      x.style.transform = place > i ? `translateY(${room}px)` : place < i ? `translateY(${-room}px)` : "";
+    });
+    const r = box.getBoundingClientRect();                   // near the top or the bottom the list scrolls by itself
+    d.auto = y < r.top + 90 ? -1 : y > r.bottom - 90 ? 1 : 0;
+    if (d.auto && !d.raf) {
+      const step = () => {
+        const n = noteDrag;
+        if (!n || !n.auto) { if (n) n.raf = 0; return; }
+        const was = box.scrollTop; box.scrollTop += n.auto * 8;
+        if (box.scrollTop !== was) dragNote(n.y);
+        n.raf = requestAnimationFrame(step);
+      };
+      d.raf = requestAnimationFrame(step);
+    }
+  }
+  function dropNote() {
+    const d = noteDrag;
+    if (!d) return;
+    noteDrag = null; noteDragged = Date.now();
+    cancelAnimationFrame(d.raf);
+    $("notesList").classList.remove("dragging");
+    if (d.to !== d.from) {
+      const keys = d.groups.map((x) => x.dataset.group), mine = keys.splice(d.from, 1)[0];
+      keys.splice(d.to, 0, mine);
+      const byKey = {};
+      noteGroups().forEach((g) => { byKey[groupKey(g)] = g; });
+      let place = 0;
+      keys.forEach((k) => (byKey[k] || []).forEach((n) => { n.order = place++; }));
+      saveNotes();
+    }
+    renderNotes();
+  }
+  function wireNoteMove(g) {
+    g.addEventListener("touchstart", (e) => {
+      if (chainPick || noteDrag || e.touches.length !== 1 || e.target.closest("button")) return;
+      holdX = e.touches[0].clientX; holdY = e.touches[0].clientY;
+      holdOff(); noteHold = setTimeout(() => { noteHold = 0; liftNote(g, holdY); }, 380);
+    }, { passive: true });
+    g.addEventListener("touchmove", (e) => {
+      const t = e.touches[0];
+      if (noteHold && (Math.abs(t.clientY - holdY) > 9 || Math.abs(t.clientX - holdX) > 9)) holdOff();      // it is a scroll, not a hold
+      if (noteDrag && noteDrag.el === g) { if (e.cancelable) e.preventDefault(); dragNote(t.clientY); }
+    }, { passive: false });
+    const end = (e) => { holdOff(); if (noteDrag && noteDrag.el === g) { if (e.cancelable) e.preventDefault(); dropNote(); } };
+    g.addEventListener("touchend", end);
+    g.addEventListener("touchcancel", end);
+    g.addEventListener("mousedown", (e) => {                 // the same with a mouse
+      if (chainPick || noteDrag || e.button || e.target.closest("button")) return;
+      holdX = e.clientX; holdY = e.clientY;
+      holdOff(); noteHold = setTimeout(() => { noteHold = 0; liftNote(g, holdY); }, 380);
+    });
+  }
+  window.addEventListener("mousemove", (e) => {
+    if (noteHold && (Math.abs(e.clientY - holdY) > 9 || Math.abs(e.clientX - holdX) > 9)) holdOff();
+    if (noteDrag) { e.preventDefault(); dragNote(e.clientY); }
+  });
+  window.addEventListener("mouseup", () => { holdOff(); if (noteDrag) dropNote(); });
+
   // ---- chaining notes ----
-  // "Chain" on a note: the notes move aside and each gets a circle. The note it began on is ticked
-  // (with its whole chain, when it has one). "Done" makes the ticked notes one chain; a note of the
-  // old chain that is no longer ticked leaves it. With fewer than two ticked, the old chain is broken.
+  // "Chain" on a note: the top bar goes, the notes move aside and each gets a circle, and a bar at
+  // the bottom has Cancel and Done. The note it began on is ticked (with its whole chain, when it
+  // has one). "Done" makes the ticked notes one chain; a note of the old chain that is no longer
+  // ticked leaves it. With fewer than two ticked, the old chain is broken. "Unchain" on a chained
+  // note takes just that note out.
   function syncChain() {
     const on = !!chainPick;
     $("notes").classList.toggle("chaining", on);
@@ -1265,13 +1371,12 @@
     if (!on) return;
     const k = chainPick.size;
     $("chainCount").textContent = `${k} picked`;
-    $("chainHint").textContent = k >= 2 ? "Done chains them together" : chainOld ? "Done breaks this chain" : "Pick the notes to chain";
+    $("chainHint").textContent = k >= 2 ? "Done chains them" : chainOld ? "Done breaks this chain" : "Pick the notes to chain";
   }
   function startChain(id) {
     const n = notes.find((x) => x.id === id);
     if (!n) return;
-    if (notes.length < 2) { toast("A chain needs two notes. Write another one first."); return; }
-    if (noteEdit) { noteEdit = null; $("noteText").value = ls.get("cn.noteDraft", ""); renderNotes(); }
+    if (notes.length < 2) { toast("A chain needs two notes. Add another one first."); return; }
     chainStart = id; chainOld = n.chain || null;
     chainPick = new Set(chainOld ? notes.filter((x) => x.chain === chainOld).map((x) => x.id) : [id]);
     syncChain(); haptic();
@@ -1305,28 +1410,51 @@
     chainPick = null; chainStart = null; chainOld = null;
     saveNotes(); renderNotes(); toast(said);
   }
+  function unchainNote(id) {
+    const n = notes.find((x) => x.id === id);
+    if (!n || !n.chain) return;
+    delete n.chain; n.hue = null;                            // out of the chain: a colour of its own again
+    saveNotes(); renderNotes(); toast("Note unchained");
+  }
   $("chainCancel").onclick = stopChain;
   $("chainDone").onclick = finishChain;
-  function openNotes() { noteEdit = null; chainPick = null; chainStart = null; chainOld = null; $("noteText").value = ls.get("cn.noteDraft", ""); openScreen("notes"); renderNotes(); }
-  $("notesBtn").onclick = openNotes;  $("notesBtn").onclick = openNotes;
-  $("noteText").addEventListener("input", () => { if (!noteEdit) ls.set("cn.noteDraft", $("noteText").value); growNote(); });      // a half-written note survives closing the app
-  $("noteCancel").onclick = () => { noteEdit = null; $("noteText").value = ls.get("cn.noteDraft", ""); renderNotes(); };
-  $("noteForm").addEventListener("submit", (e) => {
-    e.preventDefault();
-    const text = $("noteText").value.trim();
-    if (!text) { toast("Write something first"); return; }
-    if (noteEdit) {
-      const n = notes.find((x) => x.id === noteEdit);
-      if (n && n.text !== text) { n.text = text; n.edited = Date.now(); }
-      noteEdit = null; $("noteText").value = ls.get("cn.noteDraft", "");
-      toast("Note changed");
-    } else {
-      notes.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), text, time: Date.now() });
-      $("noteText").value = ""; ls.set("cn.noteDraft", "");
-      toast("Note added");
-    }
-    saveNotes(); renderNotes();
-  });
+
+  // ---- writing a note: a box in the middle of the screen ----
+  // "Add a note" in the top bar opens it empty (a half-written note is kept, cn.noteDraft); a tap
+  // on the words of a note opens it with that note. A tap beside the box does not close it.
+  function openNoteBox(id) {
+    const n = id ? notes.find((x) => x.id === id) : null;
+    if ((id && !n) || !$("pop").hidden || chainPick) return;
+    rowTicker = null;
+    $("popLift").innerHTML = ""; $("popLift").className = "poplift";
+    $("popMenu").className = "popmenu center";
+    $("popMenu").innerHTML = `<div class="notebox"><div class="nk"><i></i>${n ? "Change the note" : "New note"}</div>
+        <textarea id="noteText" rows="4" maxlength="4000" placeholder="Write a note…" aria-label="${n ? "The note" : "A new note"}"></textarea>
+        <div class="nlen" id="noteLen"></div>
+        <div class="pfoot"><button type="button" id="popNo">Cancel</button><button type="button" id="noteSave">${n ? "Save" : "Add"}</button></div></div>`;
+    const t = $("noteText");
+    t.value = n ? n.text : ls.get("cn.noteDraft", "");
+    const grow = () => { t.style.height = "auto"; t.style.height = (t.scrollHeight + 2) + "px"; $("noteLen").textContent = t.value.length > 3500 ? `${t.value.length} of 4000 letters` : ""; };
+    t.addEventListener("input", () => { if (!n) ls.set("cn.noteDraft", t.value); grow(); });      // a half-written note survives closing the app
+    t.addEventListener("focus", () => setTimeout(popMid, 350));
+    t.addEventListener("blur", () => setTimeout(popMid, 350));
+    popSticky = true;
+    $("pop").hidden = false;
+    grow();
+    $("popNo").onclick = closeRowMenu;
+    $("noteSave").onclick = () => {
+      const text = t.value.trim();
+      if (!text) { toast("Write something first"); return; }
+      if (n) { if (n.text !== text) { n.text = text; n.edited = Date.now(); } }
+      else { notes.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), text, time: Date.now() }); ls.set("cn.noteDraft", ""); }
+      saveNotes(); closeRowMenu(); renderNotes(); toast(n ? "Note changed" : "Note added");
+      if (!n) $("notes").scrollTop = 0;
+    };
+    try { t.focus(); t.setSelectionRange(t.value.length, t.value.length); } catch {}
+  }
+  $("noteAdd").onclick = () => openNoteBox(null);
+  function openNotes() { chainPick = null; chainStart = null; chainOld = null; openScreen("notes"); renderNotes(); }
+  $("notesBtn").onclick = openNotes;
 
   function deduped() {
     const out = new Map();
@@ -1962,9 +2090,10 @@
     };
   }
   let popClosed = null;                                     // what to do once the pop-up is closed (a ping deletes itself)
+  let popSticky = false;                                    // true while a note is being written: a tap beside the box does not close it
   function closeRowMenu() {
     $("pop").hidden = true; $("popLift").innerHTML = ""; $("popMenu").innerHTML = ""; rowTicker = null;
-    $("popMenu").style.removeProperty("--vvtop"); $("popMenu").classList.remove("kb");
+    $("popMenu").style.removeProperty("--vvtop"); $("popMenu").classList.remove("kb"); popSticky = false;
     const after = popClosed; popClosed = null;
     if (after) after();
   }
@@ -2150,6 +2279,7 @@
   $("pop").addEventListener("click", (e) => {
     if (e.target !== $("pop")) return;
     if ($("popMenu").classList.contains("kb")) { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); return; }   // typing: a tap beside it only puts the keyboard away
+    if (popSticky) return;
     closeRowMenu();
   });
   $("pop").addEventListener("touchmove", (e) => { if (e.cancelable && !(e.target.closest && e.target.closest("input, textarea"))) e.preventDefault(); }, { passive: false });
