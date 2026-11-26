@@ -315,11 +315,11 @@
   .noterow .acts button { background: transparent; color: var(--muted); padding: 6px 9px; font-size: 13px; border-radius: 999px; display: inline-flex; gap: 5px; align-items: center; }
   .noterow .acts button svg { width: 15px; height: 15px; }
   /* a chain: its notes share one colour and sit a little aside, and a curved chain at their side runs from each note to the next */
-  .chain { padding-left: 34px; transition: padding-left .28s cubic-bezier(.2, .9, .3, 1); }
-  .chainsvg { position: absolute; left: 0; top: 0; width: 34px; height: 100%; overflow: visible; pointer-events: none; fill: none; transition: opacity .2s; }
-  .chainsvg .c1 { stroke: var(--nc); stroke-width: 7; stroke-linecap: round; stroke-dasharray: 7 9; }                 /* the links, seen from the front */
-  .chainsvg .c2 { stroke: var(--bg); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 7 9; }                 /* their holes */
-  .chainsvg .c3 { stroke: var(--nc); stroke-width: 2.2; stroke-dasharray: 6 10; stroke-dashoffset: -8.5; }          /* the links between them, seen from the side */
+  .chain { padding-left: 24px; transition: padding-left .28s cubic-bezier(.2, .9, .3, 1); }
+  .chainsvg { position: absolute; left: 0; top: 0; width: 24px; height: 100%; overflow: visible; pointer-events: none; fill: none; }
+  .chainsvg .c1 { stroke: var(--nc); stroke-width: 5; stroke-linecap: round; stroke-dasharray: 5 7; }                 /* the links, seen from the front */
+  .chainsvg .c2 { stroke: var(--bg); stroke-width: 1.8; stroke-linecap: round; stroke-dasharray: 5 7; }               /* their holes */
+  .chainsvg .c3 { stroke: var(--nc); stroke-width: 1.6; stroke-dasharray: 4.5 7.5; stroke-dashoffset: -6.25; }      /* the links between them, seen from the side */
   /* moving a note: press and hold, then drag it up or down */
   .ngroup.lifted { z-index: 5; }
   .ngroup.lifted .noterow { box-shadow: 0 16px 34px rgba(0, 0, 0, .5); }
@@ -332,7 +332,6 @@
   #notes.chaining .pickdot { opacity: 1; pointer-events: auto; transform: translateY(-50%) scale(1); }
   #notes.chaining .noterow { margin-left: 40px; }
   #notes.chaining .chain { padding-left: 0; }
-  #notes.chaining .chainsvg { opacity: 0; }
   #notes.chaining .noterow .acts { display: none; }
   .noteslot.picked .pickdot { background: var(--nc); border-color: var(--nc); color: #fff; }
   .noteslot.picked .noterow { box-shadow: 0 0 0 2px var(--nc); }
@@ -959,7 +958,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "6.5";
+  const APP_VERSION = "6.6";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -1256,13 +1255,19 @@
     $("notesList").querySelectorAll(".ngroup").forEach(wireNoteMove);
     drawChains(); syncChain();
   }
-  // The curved chain at the side of chained notes: an arc from the middle of each note to the middle of the next.
+  // The chain of chained notes. In the list: a curved one at their side, an arc from the middle of
+  // each note to the middle of the next. While picking notes for a chain: a little straight one
+  // from the circle of each note to the circle of the next.
   function drawChains() {
+    const picking = !!chainPick;
     $("notesList").querySelectorAll(".chain").forEach((c) => {
       const svg = c.querySelector(".chainsvg"), mids = [...c.querySelectorAll(".noteslot")].map((x) => x.offsetTop + x.offsetHeight / 2);
       if (!svg || mids.length < 2) return;
       let d = "";
-      for (let i = 0; i < mids.length - 1; i++) d += `M 32 ${mids[i].toFixed(1)} C 0 ${mids[i].toFixed(1)}, 0 ${mids[i + 1].toFixed(1)}, 32 ${mids[i + 1].toFixed(1)} `;
+      for (let i = 0; i < mids.length - 1; i++) {
+        const a = mids[i], b = mids[i + 1];
+        d += picking ? `M 16 ${(a + 19).toFixed(1)} L 16 ${(b - 19).toFixed(1)} ` : `M 23 ${a.toFixed(1)} C 1 ${a.toFixed(1)}, 1 ${b.toFixed(1)}, 23 ${b.toFixed(1)} `;
+      }
       svg.querySelectorAll("path").forEach((p) => p.setAttribute("d", d));
     });
   }
@@ -1361,8 +1366,10 @@
   // note takes just that note out.
   function syncChain() {
     const on = !!chainPick;
+    const turned = $("notes").classList.contains("chaining") !== on;
     $("notes").classList.toggle("chaining", on);
     $("chainBar").hidden = !on;
+    if (turned) { drawChains(); setTimeout(drawChains, 340); }   // the notes move aside: the chain is drawn for the new places, again once they have settled
     $("notesList").querySelectorAll(".noteslot").forEach((el) => {
       const p = on && chainPick.has(el.dataset.note), dot = el.querySelector(".pickdot");
       el.classList.toggle("picked", p);
