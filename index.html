@@ -996,7 +996,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "7.5";
+  const APP_VERSION = "7.6";
   // A colour of the page's own palette (see :root), for what is drawn by hand: the charts, the tab
   // marks. Read from the page so they follow the dark or the light look; kept for a second at a time.
   let themeAt = 0, themeSeen = {};
@@ -2395,12 +2395,11 @@
         const since = Math.floor(Date.now() / 1000) - 5;
         await sendAnswer(p, text);
         await pingChange(p.id, (x) => Object.assign(x, { answered: true }));      // answered: it deletes itself
-        if (pingOpen === p.id) drawPing(p, 0);
-        const got = await answerGot(a.id, since);
+        if (pingOpen === p.id) closeRowMenu();                // and closes at once, without showing the answer back
+        toast("Answer sent");
+        const got = await answerGot(a.id, since);              // what became of it is told in a short line at the bottom
         if (answers[a.id]) { answers[a.id].got = got; ls.set("cn.answers", JSON.stringify(answers)); }
-        if (pingOpen !== p.id) return;
-        wirePingAnswer(p);
-        if (got) setTimeout(() => { if (pingOpen === p.id) { closeRowMenu(); toast("Claude got your answer"); } }, 1300);
+        toast(got ? "Claude got your answer" : "No sign that Claude got it. Answer on the PC too.");
       } catch (e) { toast(e.message || "Could not send the answer"); if (pingOpen === p.id) wirePingAnswer(p); }
     };
     box.querySelectorAll("[data-opt]").forEach((b) => b.onclick = () => go(opts[Number(b.dataset.opt)]));
