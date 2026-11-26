@@ -314,6 +314,7 @@
   .noterow .acts { display: flex; gap: 0; justify-content: flex-end; flex-wrap: wrap; }
   .noterow .acts button { background: transparent; color: var(--muted); padding: 6px 9px; font-size: 13px; border-radius: 999px; display: inline-flex; gap: 5px; align-items: center; }
   .noterow .acts button svg { width: 15px; height: 15px; }
+  .noterow .acts button[data-armed] { background: color-mix(in srgb, var(--nc) 26%, transparent); color: var(--fg); }     /* pressed once: press again to do it */
   /* a chain: its notes share one colour and sit a little aside, and a curved chain at their side runs from each note to the next */
   .chain { padding-left: 24px; transition: padding-left .28s cubic-bezier(.2, .9, .3, 1); }
   .chainsvg { position: absolute; left: 0; top: 0; width: 24px; height: 100%; overflow: visible; pointer-events: none; fill: none; }
@@ -323,7 +324,7 @@
   /* moving a note: press and hold, then drag it up or down */
   .ngroup.lifted { z-index: 5; }
   .ngroup.lifted .noterow { box-shadow: 0 16px 34px rgba(0, 0, 0, .5); }
-  #notesList.dragging .ngroup:not(.lifted) { transition: transform .18s ease; }
+  #notesList.dragging .ngroup:not(.lifted) { transition: transform .3s cubic-bezier(.2, .8, .2, 1); }
   /* picking notes for a chain: the top bar goes, the notes move aside with a circle next to each, and a bar at the bottom has Cancel and Done */
   .pickdot { position: absolute; left: 2px; top: 50%; width: 28px; height: 28px; padding: 0; border-radius: 50%; border: 2px solid var(--muted); background: transparent; color: transparent; display: grid; place-items: center; opacity: 0; pointer-events: none; transform: translateY(-50%) scale(.4); transition: opacity .2s, transform .3s cubic-bezier(.2, 1.4, .4, 1), background .15s, border-color .15s; }
   .pickdot svg { width: 16px; height: 16px; }
@@ -958,7 +959,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "6.6";
+  const APP_VERSION = "6.7";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -1221,7 +1222,7 @@
       <div class="noteslot" data-note="${esc(n.id)}" style="--nh:${Number(n.hue) || 0}">
         <button type="button" class="pickdot" aria-label="Pick this note" aria-pressed="false" tabindex="-1">${NOTE_ICONS.check}</button>
         <div class="noterow">
-          <div class="when">${dayLabel(n.time)} · ${noteClock(n.time)}${n.edited ? ` <span>· changed ${dayLabel(n.edited).toLowerCase()} ${noteClock(n.edited)}</span>` : ""}</div>
+          <div class="when">${dayLabel(n.time)} · ${noteClock(n.time)}</div>
           <div class="text">${esc(n.text)}</div>
           <div class="acts"><button type="button" data-note-chain>${NOTE_ICONS.link}Chain</button>${n.chain ? `<button type="button" data-note-unchain>${NOTE_ICONS.unlink}Unchain</button>` : ""}<button type="button" data-note-del>${NOTE_ICONS.bin}Delete</button></div>
         </div>
@@ -1233,14 +1234,18 @@
     $("notesList").querySelectorAll(".noteslot").forEach((el) => {
       const id = el.dataset.note;
       el.querySelector(".pickdot").onclick = () => tickNote(id);
-      el.querySelector(".noterow").onclick = (e) => {
-        if (chainPick) { tickNote(id); return; }
-        if (Date.now() - noteDragged < 450 || !e.target.closest(".text")) return;       // a tap on the words of a note opens it for a change
-        openNoteBox(id);
-      };
+      el.querySelector(".noterow").onclick = () => { if (chainPick) tickNote(id); };      // a note is not changed after it is written: a tap only ticks it while picking for a chain
       el.querySelector("[data-note-chain]").onclick = (e) => { e.stopPropagation(); startChain(id); };
       const un = el.querySelector("[data-note-unchain]");
-      if (un) un.onclick = (e) => { e.stopPropagation(); unchainNote(id); };
+      if (un) un.onclick = (e) => {                           // two presses: the first only asks, the second unchains
+        e.stopPropagation();
+        if (!un.dataset.armed) {
+          un.dataset.armed = "1"; un.lastChild.textContent = "Tap again";
+          setTimeout(() => { if (un.isConnected) { delete un.dataset.armed; un.lastChild.textContent = "Unchain"; } }, 4000);
+          return;
+        }
+        unchainNote(id);
+      };
       el.querySelector("[data-note-del]").onclick = (e) => {
         e.stopPropagation();
         const n = notes.find((x) => x.id === id);
@@ -1291,10 +1296,18 @@
     const d = noteDrag, box = $("notes");
     if (!d) return;
     d.y = y;
-    const dy = (y - d.y0) + (box.scrollTop - d.s0), mid = d.tops[d.from] + d.hs[d.from] / 2 + dy;
+    const last = d.groups.length - 1;
+    // It stays inside the list: no higher than the first piece, no lower than the last.
+    const dy = Math.max(d.tops[0] - d.tops[d.from] - 6, Math.min((d.tops[last] + d.hs[last]) - (d.tops[d.from] + d.hs[d.from]) + 6, (y - d.y0) + (box.scrollTop - d.s0)));
+    const top = d.tops[d.from] + dy, bottom = top + d.hs[d.from];
     d.el.style.transform = `translateY(${dy}px) scale(1.02)`;
+    // A neighbour gives way as soon as the edge of the dragged piece passes its middle.
     let to = 0;
-    d.groups.forEach((x, i) => { if (i !== d.from && d.tops[i] + d.hs[i] / 2 < mid) to++; });
+    d.groups.forEach((x, i) => {
+      if (i === d.from) return;
+      const middle = d.tops[i] + d.hs[i] / 2;
+      if (i < d.from ? top > middle : bottom > middle) to++;
+    });
     d.to = to;
     const room = d.hs[d.from] + 10;                           // the others make room for it
     d.groups.forEach((x, i) => {
@@ -1303,12 +1316,12 @@
       x.style.transform = place > i ? `translateY(${room}px)` : place < i ? `translateY(${-room}px)` : "";
     });
     const r = box.getBoundingClientRect();                   // near the top or the bottom the list scrolls by itself
-    d.auto = y < r.top + 90 ? -1 : y > r.bottom - 90 ? 1 : 0;
+    d.auto = y < r.top + 90 ? -Math.min(1, 1 - (y - r.top) / 90) : y > r.bottom - 90 ? Math.min(1, 1 - (r.bottom - y) / 90) : 0;      // faster the nearer the edge, never fast
     if (d.auto && !d.raf) {
       const step = () => {
         const n = noteDrag;
         if (!n || !n.auto) { if (n) n.raf = 0; return; }
-        const was = box.scrollTop; box.scrollTop += n.auto * 8;
+        const was = box.scrollTop; box.scrollTop += n.auto * 6;
         if (box.scrollTop !== was) dragNote(n.y);
         n.raf = requestAnimationFrame(step);
       };
@@ -1427,22 +1440,21 @@
   $("chainDone").onclick = finishChain;
 
   // ---- writing a note: a box in the middle of the screen ----
-  // "Add a note" in the top bar opens it empty (a half-written note is kept, cn.noteDraft); a tap
-  // on the words of a note opens it with that note. A tap beside the box does not close it.
-  function openNoteBox(id) {
-    const n = id ? notes.find((x) => x.id === id) : null;
-    if ((id && !n) || !$("pop").hidden || chainPick) return;
+  // "Add a note" in the top bar opens it (a half-written note is kept, cn.noteDraft). A tap beside
+  // the box does not close it. A note is not changed after it is written: the user asked for that.
+  function openNoteBox() {
+    if (!$("pop").hidden || chainPick) return;
     rowTicker = null;
     $("popLift").innerHTML = ""; $("popLift").className = "poplift";
     $("popMenu").className = "popmenu center";
-    $("popMenu").innerHTML = `<div class="notebox"><div class="nk"><i></i>${n ? "Change the note" : "New note"}</div>
-        <textarea id="noteText" rows="4" maxlength="4000" placeholder="Write a note…" aria-label="${n ? "The note" : "A new note"}"></textarea>
+    $("popMenu").innerHTML = `<div class="notebox"><div class="nk"><i></i>New note</div>
+        <textarea id="noteText" rows="4" maxlength="4000" placeholder="Write a note…" aria-label="A new note"></textarea>
         <div class="nlen" id="noteLen"></div>
-        <div class="pfoot"><button type="button" id="popNo">Cancel</button><button type="button" id="noteSave">${n ? "Save" : "Add"}</button></div></div>`;
+        <div class="pfoot"><button type="button" id="popNo">Cancel</button><button type="button" id="noteSave">Add</button></div></div>`;
     const t = $("noteText");
-    t.value = n ? n.text : ls.get("cn.noteDraft", "");
+    t.value = ls.get("cn.noteDraft", "");
     const grow = () => { t.style.height = "auto"; t.style.height = (t.scrollHeight + 2) + "px"; $("noteLen").textContent = t.value.length > 3500 ? `${t.value.length} of 4000 letters` : ""; };
-    t.addEventListener("input", () => { if (!n) ls.set("cn.noteDraft", t.value); grow(); });      // a half-written note survives closing the app
+    t.addEventListener("input", () => { ls.set("cn.noteDraft", t.value); grow(); });      // a half-written note survives closing the app
     t.addEventListener("focus", () => setTimeout(popMid, 350));
     t.addEventListener("blur", () => setTimeout(popMid, 350));
     popSticky = true;
@@ -1452,14 +1464,14 @@
     $("noteSave").onclick = () => {
       const text = t.value.trim();
       if (!text) { toast("Write something first"); return; }
-      if (n) { if (n.text !== text) { n.text = text; n.edited = Date.now(); } }
-      else { notes.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), text, time: Date.now() }); ls.set("cn.noteDraft", ""); }
-      saveNotes(); closeRowMenu(); renderNotes(); toast(n ? "Note changed" : "Note added");
-      if (!n) $("notes").scrollTop = 0;
+      notes.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), text, time: Date.now() });
+      ls.set("cn.noteDraft", "");
+      saveNotes(); closeRowMenu(); renderNotes(); toast("Note added");
+      $("notes").scrollTop = 0;
     };
     try { t.focus(); t.setSelectionRange(t.value.length, t.value.length); } catch {}
   }
-  $("noteAdd").onclick = () => openNoteBox(null);
+  $("noteAdd").onclick = () => openNoteBox();
   function openNotes() { chainPick = null; chainStart = null; chainOld = null; openScreen("notes"); renderNotes(); }
   $("notesBtn").onclick = openNotes;
 
