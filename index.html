@@ -970,7 +970,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "6.9";
+  const APP_VERSION = "7.0";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -2348,7 +2348,7 @@
       if (pingLong(p)) { await pingChange(p.id, () => null); toast("Ping deleted"); closeRowMenu(); return; }
       p.until = Date.now() + LONG_MS;
       await pingChange(p.id, (x) => Object.assign(x, { until: p.until }));
-      toast("Saved for 30 minutes"); if (pingOpen === p.id) drawPing(p, more);
+      toast("Saved for 30 minutes"); if (pingOpen === p.id) closeRowMenu();      // saved: the pop-up closes by itself, the ping waits in the strip
     };
     wirePingAnswer(p);
   }
