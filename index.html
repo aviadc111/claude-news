@@ -475,10 +475,17 @@
   .ping .popts.n1 { grid-template-columns: 1fr; }
   .popmenu .ping .opt { justify-content: center; text-align: center; padding: 12px 10px; border-radius: 13px; font-size: 15px; font-weight: 700; background: var(--surface-2); color: var(--fg); }
   .ping .pans form { position: relative; display: block; margin: 0; }
-  .ping .pans input { width: 100%; box-sizing: border-box; border: 0; border-radius: 13px; padding: 12px 50px 12px 14px; background: var(--bg); color: var(--fg); font: inherit; outline: none; -webkit-appearance: none; appearance: none; }
-  .ping .pans input::placeholder { color: var(--muted); }
-  .ping .pans input:focus { box-shadow: 0 0 0 1.5px #f59e0b; }
-  .popmenu .ping .send { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; padding: 0; border-radius: 50%; justify-content: center; background: #f59e0b; color: #241a00; }
+  .ping .pans textarea { display: block; width: 100%; box-sizing: border-box; border: 0; border-radius: 13px; padding: 12px 50px 12px 14px; background: var(--bg); color: var(--fg); font: inherit; font-size: 16px; line-height: 1.35;
+    resize: none; outline: none; max-height: 176px; -webkit-user-select: text; user-select: text; -webkit-appearance: none; appearance: none; }
+  .ping .pans textarea::placeholder { color: var(--muted); }
+  .ping .pans textarea:focus { box-shadow: 0 0 0 1.5px #f59e0b; }
+  .popmenu .ping .send { position: absolute; right: 6px; bottom: 5px; width: 34px; height: 34px; padding: 0; border-radius: 50%; justify-content: center; background: #f59e0b; color: #241a00; }
+  /* While the keyboard is up: only the question and the field, at the top of the free area, clear of the clock. */
+  .popmenu.center.kb { top: calc(var(--vvtop, 0px) + env(safe-area-inset-top, 0px) + 10px) !important; transform: none; animation: none; }
+  .popmenu.kb .ping { padding: 16px 18px 14px; }
+  .popmenu.kb .ping .pmeta, .popmenu.kb .ping .popts, .popmenu.kb .pfoot { display: none; }
+  .popmenu.kb .ping .pm { margin-top: 8px; font-size: 17px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .popmenu.kb .ping .pans { margin-top: 12px; }
   .popmenu .ping .send svg { width: 17px; height: 17px; }
   .ping .pans .said { display: flex; gap: 9px; align-items: flex-start; font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
   .ping .pans .said svg { flex: 0 0 auto; width: 18px; height: 18px; margin-top: 2px; color: #22c55e; }
@@ -501,7 +508,7 @@
   .pbar .pr b { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .pbar .pr span { font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
   /* the delete question: in the middle of the screen, with the stock set back down into the list */
-  .popmenu.center { top: var(--popmid, 50%) !important; left: 24px; right: 24px; transform: translateY(-50%); }   /* --popmid: the middle of what the keyboard leaves free */
+  .popmenu.center { top: 50% !important; left: 24px; right: 24px; transform: translateY(-50%); }
   .poplift.down { transform: scale(1); opacity: 0; animation: none; transition: transform .22s ease-in, opacity .2s ease-in .06s; }
   @media (prefers-reduced-motion: no-preference) {
     .pop { animation: fadeIn .2s ease-out; }
@@ -946,7 +953,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "6.3";
+  const APP_VERSION = "6.4";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -1957,7 +1964,7 @@
   let popClosed = null;                                     // what to do once the pop-up is closed (a ping deletes itself)
   function closeRowMenu() {
     $("pop").hidden = true; $("popLift").innerHTML = ""; $("popMenu").innerHTML = ""; rowTicker = null;
-    $("popMenu").style.removeProperty("--popmid");
+    $("popMenu").style.removeProperty("--vvtop"); $("popMenu").classList.remove("kb");
     const after = popClosed; popClosed = null;
     if (after) after();
   }
@@ -2043,10 +2050,10 @@
     if (a.until && Date.now() > a.until) { box.innerHTML = `<div class="st">Claude is no longer waiting for an answer from the phone. Answer in its chat on your PC.</div>`; return; }
     const opts = Array.isArray(a.options) ? a.options.filter((o) => typeof o === "string" && o.trim()).slice(0, 4) : [];
     box.innerHTML = (opts.length ? `<div class="popts${opts.length === 1 ? " n1" : ""}">${opts.map((o, i) => `<button type="button" class="opt" data-opt="${i}">${esc(o)}</button>`).join("")}</div>` : "")
-      + `<form id="pingForm"><input id="pingText" type="text" maxlength="500" enterkeyhint="send" autocomplete="off" autocapitalize="sentences" placeholder="${opts.length ? "Or write your own answer" : "Write your answer"}" aria-label="Your answer"><button type="submit" class="send" aria-label="Send">${SEND_ICON}</button></form>`;
+      + `<form id="pingForm"><textarea id="pingText" rows="1" maxlength="500" enterkeyhint="send" autocomplete="off" autocapitalize="sentences" placeholder="${opts.length ? "Or write your own answer" : "Write your answer"}" aria-label="Your answer"></textarea><button type="submit" class="send" aria-label="Send">${SEND_ICON}</button></form>`;
     const go = async (text) => {
       if (!String(text || "").trim()) { toast("Write an answer first"); return; }
-      box.querySelectorAll("button, input").forEach((b) => { b.disabled = true; });
+      box.querySelectorAll("button, textarea").forEach((b) => { b.disabled = true; });
       try {
         const since = Math.floor(Date.now() / 1000) - 5;
         await sendAnswer(p, text);
@@ -2061,8 +2068,12 @@
     };
     box.querySelectorAll("[data-opt]").forEach((b) => b.onclick = () => go(opts[Number(b.dataset.opt)]));
     $("pingForm").addEventListener("submit", (e) => { e.preventDefault(); go($("pingText").value); });
-    $("pingText").addEventListener("focus", () => setTimeout(popMid, 350));
-    $("pingText").addEventListener("blur", () => setTimeout(popMid, 350));
+    const t = $("pingText");
+    const grow = () => { t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 176) + "px"; };       // the field grows with the answer, so all of it is seen
+    t.addEventListener("input", grow);
+    t.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); go(t.value); } });
+    t.addEventListener("focus", () => setTimeout(popMid, 350));
+    t.addEventListener("blur", () => setTimeout(popMid, 350));
   }
   function drawPing(p, more) {
     const close = `<button type="button" id="popNo">${more > 0 ? `Next (${more})` : "Close"}</button>`;
@@ -2136,14 +2147,19 @@
     $("popNo").onclick = closeRowMenu;
     haptic();
   }
-  $("pop").addEventListener("click", (e) => { if (e.target === $("pop")) closeRowMenu(); });
+  $("pop").addEventListener("click", (e) => {
+    if (e.target !== $("pop")) return;
+    if ($("popMenu").classList.contains("kb")) { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); return; }   // typing: a tap beside it only puts the keyboard away
+    closeRowMenu();
+  });
   $("pop").addEventListener("touchmove", (e) => { if (e.cancelable && !(e.target.closest && e.target.closest("input, textarea"))) e.preventDefault(); }, { passive: false });
-  // The keyboard covers the lower half of the screen: the pop-up then sits in the middle of what
-  // is left free (the phone reports that area as the "visual viewport").
+  // The keyboard covers the lower half of the screen. While it is up (the phone reports the free
+  // area as the "visual viewport"), the pop-up is short and sits at the top of that area.
   function popMid() {
     const vv = window.visualViewport, menu = $("popMenu");
-    if (!vv || $("pop").hidden || vv.height > window.innerHeight - 80) { menu.style.removeProperty("--popmid"); return; }
-    menu.style.setProperty("--popmid", Math.max(vv.offsetTop + vv.height / 2, vv.offsetTop + menu.offsetHeight / 2 + 10) + "px");
+    const up = !!vv && !$("pop").hidden && vv.height < window.innerHeight - 80;
+    menu.classList.toggle("kb", up);
+    if (up) menu.style.setProperty("--vvtop", Math.max(0, vv.offsetTop) + "px"); else menu.style.removeProperty("--vvtop");
   }
   if (window.visualViewport) { window.visualViewport.addEventListener("resize", popMid); window.visualViewport.addEventListener("scroll", popMid); }
   // Deleting a stock takes it off the list, so it leaves Charts and the Demo together. What your demo
