@@ -1076,7 +1076,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "8.3";
+  const APP_VERSION = "8.4";
   // A colour of the page's own palette (see :root), for what is drawn by hand: the charts, the tab
   // marks. Read from the page so they follow the dark or the light look; kept for a second at a time.
   let themeAt = 0, themeSeen = {};
@@ -2364,7 +2364,52 @@
       if (changed) { chatSave(); renderChat(); }
     };
   }
+  // ---- a notification from the Phone chat opens the chat --------------------------------
+  // "Claude phone needs your answer" is only a notification (the user asked for that instead of a ping,
+  // 27 Nov 2026). The worker leaves the note "__chat-ask" with the notification's tag. A tap is known the
+  // same three ways as for a category: the worker saw it; the notification left the phone's list when the
+  // app came to the front; or its banner left the list while the app was open.
+  async function closeChatNotes() {
+    try {
+      const reg = registration || await Promise.race([navigator.serviceWorker.ready, new Promise((r) => setTimeout(() => r(null), 1500))]);
+      if (reg && reg.getNotifications) (await reg.getNotifications()).forEach((n) => { if (n.data && n.data.chat) n.close(); });
+    } catch {}
+  }
+  function openChatAsk(how) {
+    tapLog("opened the chat (" + how + ")");
+    if (!$("chat").hidden) { stateDel("__chat-ask"); closeChatNotes(); return; }
+    if (tabs.includes("Claude News")) goToTab("Claude News", false);       // closes whatever is open
+    openChat();
+  }
+  let chatAskRun = 0;
+  async function checkChatAsk() {                            // runs when the app starts or comes to the front
+    const run = ++chatAskRun;
+    let waited = 0;
+    for (const at of [0, 400, 1000, 2000, 3500]) {
+      if (at) { await new Promise((r) => setTimeout(r, at - waited)); waited = at; }
+      if (run !== chatAskRun || document.hidden) return;
+      const d = await stateGet("__chat-ask");
+      if (!d) return;
+      if (Date.now() - d.time > 3 * 3600000) { stateDel("__chat-ask"); return; }
+      if (d.tapped && Date.now() - d.tapped < 90000) { openChatAsk("the worker saw the tap"); return; }
+      const shown = await shownTags();
+      if (shown && d.id && !shown.has(d.id) && Date.now() - d.time > 1500) { openChatAsk("its notification left the list"); return; }
+    }
+  }
+  async function watchChatAsk(id) {                          // it arrived while the app is open
+    if (!$("chat").hidden) return;                           // the question is on the screen already
+    let listed = false;
+    for (let i = 0; i < 14; i++) {
+      await new Promise((r) => setTimeout(r, 700));
+      if (document.hidden || !$("chat").hidden) return;
+      const shown = await shownTags();
+      if (!shown) return;
+      if (shown.has(id)) listed = true;
+      else if (listed) { openChatAsk("banner tapped while the app was open"); return; }
+    }
+  }
   async function openChat() {
+    stateDel("__chat-ask"); closeChatNotes();                // in the chat: its notification has done its work
     openScreen("chat");
     chatShow("checking");
     let key = await chatCrypto();
@@ -2478,6 +2523,7 @@
       $("chatText").value = ""; $("chatText").style.height = "auto";
       // Answered here: the ping that asked the same thing ("Claude phone needs your answer") has nothing left to ask.
       pingsLoad().then((l) => { const keep = l.filter((p) => !/^Claude phone needs/i.test(p.title)); if (keep.length !== l.length) return pingsSave(keep); }).catch(() => {});
+      stateDel("__chat-ask"); closeChatNotes();
     } catch (e) { if (e) toast(e.message || "Could not send"); }
     chatSending = false; $("chatState").textContent = "";
     $("chatForm").querySelectorAll("button, textarea").forEach((b) => { b.disabled = false; });
@@ -2493,7 +2539,11 @@
     // With the keyboard up the iPhone also slides the page under it, and the screen's bottom is not where
     // innerHeight says (v8.0 left a gap above the keyboard and lost the top bar, seen on the phone 27 Nov 2026).
     // So the chat is laid exactly over the part of the screen that is left: that part's top and height.
-    const kb = window.innerHeight - vv.height > 80;
+    // Is the keyboard up? The free area is much shorter than the screen. On the user's iPhone `innerHeight`
+    // shrinks together with the free area (the phone reported 478 and 478, of 812, on 27 Nov 2026), so the
+    // free area is measured against the page's own height and the tallest free area seen so far.
+    chatFull = Math.max(chatFull, vv.height, document.documentElement.clientHeight || 0);
+    const kb = chatFull - vv.height > 80;
     c.style.top = kb ? vv.offsetTop + "px" : ""; c.style.height = kb ? vv.height + "px" : ""; c.style.bottom = kb ? "auto" : "";
     if (kb !== c.classList.contains("kb")) chatDiag("vv");
     c.classList.toggle("kb", kb);
@@ -2507,6 +2557,7 @@
   // For now (v8.3): the phone tells the PC how the chat screen is laid out with the keyboard up (numbers only,
   // locked like every chat message; the PC keeps them in chat_diag.log). The iPhone still showed a gap above the
   // keyboard and lost the top bar, and it cannot be seen on the PC. Take this out once that is solved.
+  let chatFull = 0;                                          // the tallest free area seen: the screen without a keyboard
   let chatDiagAt = 0;
   function chatDiag(why) {
     if (Date.now() - chatDiagAt < 5000) return;
@@ -5329,8 +5380,8 @@
     checkPendingTab(); fetchRecent(); checkForUpdate();
     if (!$("board").hidden && stocks && stocks.stocks && !inSync(stocks)) refreshBoard(true).then(followChecker);   // back in the app while a new stock was on its way
   });
-  window.addEventListener("pageshow", () => { checkPendingTab(); checkForUpdate(); clearSystemNotes(); showPings(); });
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) { clearSystemNotes(); showPings(); } });
+  window.addEventListener("pageshow", () => { checkPendingTab(); checkChatAsk(); checkForUpdate(); clearSystemNotes(); showPings(); });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { checkChatAsk(); clearSystemNotes(); showPings(); } });
   setInterval(() => { if (!document.hidden) checkForUpdate(); }, 15 * 60000);
   setInterval(() => { if (!document.hidden) fetchRecent(); }, 60000);
   let reloading = false;
@@ -5349,6 +5400,8 @@
       }
       if (e.data.type === "ping" && !document.hidden) watchPing(e.data.id);      // a ping arrived while the app is open
       if (e.data.type === "open-ping") showPings();          // the worker saw the tap on a ping
+      if (e.data.type === "chat-ask" && !document.hidden) watchChatAsk(e.data.id);      // the Phone chat's notification arrived while the app is open
+      if (e.data.type === "open-chat") openChatAsk("the worker told the open app");      // ...and this one was tapped
       if (e.data.type === "updated" && navigator.serviceWorker.controller) reloadOnce();   // a new version just took over
     });
   }

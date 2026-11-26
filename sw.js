@@ -1,5 +1,5 @@
 /* Claude News service worker: offline shell + push notifications. */
-const CACHE = "claude-news-v75";
+const CACHE = "claude-news-v76";
 const STATE = "claude-news-state";          // small notes shared with the page; kept across updates
 const SHELL = ["./", "./index.html", "./config.js", "./manifest.webmanifest",
                "./icons/icon-192.png", "./icons/icon-512.png", "./icons/logo.svg"];
@@ -105,23 +105,32 @@ self.addEventListener("push", (event) => {
   // to no category. It is kept apart ("__pings") until the app shows it in full in the middle of
   // the screen; closing that deletes it. Its link carries "sys=1".
   const ephemeral = !!data.ephemeral || /[?&]sys=1\b/.test(msg.url);
+  // From the Phone chat on the PC ("Claude phone needs your answer"): only a notification, kept
+  // nowhere. A tap on it opens the chat; the note "__chat-ask" tells the page which one to watch.
+  const toChat = !!data.chat;
   event.waitUntil((async () => {
     // The key of the chat with Claude on the PC arrives this way, once: encrypted for this phone
     // by the push itself. It is kept for the page ("__chatkey") and is not a ping.
     if (data.chatKey && typeof data.chatKey.key === "string") {
       try { await (await caches.open(STATE)).put(stateUrl("__chatkey"), asJson({ id: String(data.chatKey.id || ""), key: data.chatKey.key })); } catch (e) { /* the app asks again */ }
+    } else if (toChat) {
+      try {
+        (await self.registration.getNotifications()).forEach((n) => { if (n.data && n.data.chat) n.close(); });      // one at a time: the newest
+        await (await caches.open(STATE)).put(stateUrl("__chat-ask"), asJson({ id: msg.id, time: Date.now() }));
+      } catch (e) { /* the notification itself still shows */ }
     } else if (ephemeral) await keepPing(msg); else await storeMessage(msg);
     await self.registration.showNotification(msg.title, {
       body: msg.body,
       icon: "./icons/icon-192.png",
       badge: "./icons/icon-192.png",
       tag: msg.id,
-      data: { url: msg.url, project: ephemeral ? "" : msg.project, time: msg.time, ephemeral },
+      data: { url: msg.url, project: ephemeral || toChat ? "" : msg.project, time: msg.time, ephemeral, chat: toChat },
     });
     await pruneOld();
     const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-    clients.forEach((c) => c.postMessage(ephemeral ? { type: "ping", id: msg.id } : { type: "new-message", message: msg }));
-    await tapLog(ephemeral ? `a self-deleting message arrived, ${clients.length} app window(s)` : `a message from ${msg.project} arrived, ${clients.length} app window(s)`);
+    clients.forEach((c) => c.postMessage(toChat ? { type: "chat-ask", id: msg.id } : ephemeral ? { type: "ping", id: msg.id } : { type: "new-message", message: msg }));
+    await tapLog(toChat ? `a notification from the Phone chat arrived, ${clients.length} app window(s)`
+      : ephemeral ? `a self-deleting message arrived, ${clients.length} app window(s)` : `a message from ${msg.project} arrived, ${clients.length} app window(s)`);
   })());
 });
 
@@ -170,7 +179,10 @@ self.addEventListener("notificationclick", (event) => {
   const scope = self.registration.scope;
   event.waitUntil((async () => {
     let project = d.project || "";
-    if (!project && n.tag && !d.ephemeral) { const m = await getMessage(n.tag); project = (m && m.project) || ""; }
+    if (d.chat) {                                            // from the Phone chat: the app opens the chat
+      try { await (await caches.open(STATE)).put(stateUrl("__chat-ask"), asJson({ id: n.tag || "", time: Date.now(), tapped: Date.now() })); } catch (e) { /* other ways remain */ }
+    }
+    if (!project && n.tag && !d.ephemeral && !d.chat) { const m = await getMessage(n.tag); project = (m && m.project) || ""; }
     if (project) {
       try { await (await caches.open(STATE)).put(stateUrl("__open-tab"), asJson({ project, id: n.tag || "", time: Date.now() })); } catch (e) { /* other ways remain */ }
     }
@@ -180,11 +192,12 @@ self.addEventListener("notificationclick", (event) => {
       if ("focus" in c) {
         if (project) c.postMessage({ type: "open-tab", project, id: n.tag || "" });
         if (d.ephemeral) c.postMessage({ type: "open-ping", id: n.tag || "" });
+        if (d.chat) c.postMessage({ type: "open-chat" });
         try { await c.focus(); } catch (e) { /* the phone brings the app forward itself */ }
         return;
       }
     }
-    try { await self.clients.openWindow(d.ephemeral ? scope : (d.url || (project ? scope + "?tab=" + encodeURIComponent(project) : scope))); }
+    try { await self.clients.openWindow(d.ephemeral || d.chat ? scope :(d.url || (project ? scope + "?tab=" + encodeURIComponent(project) : scope))); }
     catch (e) { await tapLog("could not open the app window: " + (e && e.message || e)); }
   })());
 });
