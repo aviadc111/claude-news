@@ -984,7 +984,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "7.1";
+  const APP_VERSION = "7.2";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -2200,13 +2200,32 @@
       if (open) open();
     } catch {}
   }
-  function refreshNow() {
+  // Let go past the mark: the wheel turns while the app fetches what is new, in place: messages,
+  // prices, Claude's accounts, and a look for a new version. The page itself is not loaded again,
+  // so it never goes dark. Only when a new version is found does the app load again (reloadOnce).
+  async function refreshNow() {
     refreshing = true;
     ptr.classList.add("back", "spin");
     ptr.querySelector(".arc").style.strokeDashoffset = "";
     ptr.style.transform = "translate(-50%, 28px)"; ptr.style.opacity = "1";
     haptic();
-    setTimeout(wheelReload, 700);
+    const began = Date.now();
+    try {
+      await Promise.race([
+        Promise.allSettled([fetchRecent(), loadStocks(true), loadClaude(true), registration ? registration.update() : null]),
+        new Promise((r) => setTimeout(r, 8000)),               // a slow connection does not keep the wheel for ever
+      ]);
+      if (!$("board").hidden && stocks) renderBoard(stocks);
+      if (!$("demo").hidden) renderDemo();
+      if (!$("desk").hidden) refreshDesk();
+      renderMarket();
+      showPings();
+    } catch {}
+    const left = 650 - (Date.now() - began);                  // long enough to be seen
+    if (left > 0) await new Promise((r) => setTimeout(r, left));
+    refreshing = false;
+    ptr.classList.remove("spin");
+    ptrHide();
   }
   document.addEventListener("touchstart", (e) => {
     pull = null;
