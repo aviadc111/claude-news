@@ -292,7 +292,9 @@
   .mbar.off .mdot { background: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, .18); }
   .mbar .mt b { font-weight: 800; }
   .mbar .mt span { color: var(--muted); }
-  .mbar .ms { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .mbar .mr { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; margin-top: 2px; font-size: 13px; }
+  .mbar .mr span { color: var(--muted); }
+  .mbar .mr b { font-weight: 600; }
   @media (prefers-reduced-motion: no-preference) { .mbar.on .mdot { animation: mpulse 2.4s ease-in-out infinite; } @keyframes mpulse { 50% { box-shadow: 0 0 0 6px rgba(34, 197, 94, .08); } } }
   /* my notes */
   .noteform textarea, .askbox textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--surface); color: var(--fg); font: inherit; font-size: 16px; line-height: 1.4; resize: vertical; }
@@ -872,7 +874,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "5.6";
+  const APP_VERSION = "5.7";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -2610,22 +2612,20 @@
     const days = Math.round((new Date(b.getFullYear(), b.getMonth(), b.getDate()) - new Date(a.getFullYear(), a.getMonth(), a.getDate())) / 86400000);
     return days === 0 ? "today" : days === 1 ? "tomorrow" : days < 7 ? "on " + b.toLocaleDateString([], { weekday: "long" }) : "on " + b.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
   }
-  // Open or closed right now, why, and when that changes. `now` can be given for tests.
+  // Open or closed right now, the reason in a word or two, and two rows: when it opens and when it
+  // closes, in the phone's own time. `now` can be given for tests.
   function marketStatus(now) {
     now = now || Date.now();
     const d = marketDay(now);
+    const when = (ms) => { const day = dayWord(ms).replace(/^on /, ""); return (day === "today" ? "" : day + " ") + clockOf(ms); };
     if (d.trading && d.mins >= 9 * 60 + 30 && d.mins < d.closes) {
-      const end = nyMoment(d.day, d.closes);
-      return { open: true, title: "US market open", why: d.early ? "closes early today" : "", next: `Closes at ${clockOf(end)}, in ${spanWords(end - now)}.` };
+      return { open: true, title: "Market open", why: d.early ? "closes early" : "",
+        rows: [["Opened", clockOf(nyMoment(d.day, 9 * 60 + 30))], ["Closes", clockOf(nyMoment(d.day, d.closes))]] };
     }
-    const shut = clockOf(nyMoment(d.day, d.closes));
-    const why = d.holiday ? `holiday: ${d.holiday}` : d.weekend ? "weekend" : d.mins < 9 * 60 + 30 ? "not open yet today"
-      : d.early ? `closed early today, at ${shut}` : `ended for today at ${shut}`;
+    const why = d.holiday ? d.holiday : d.weekend ? "weekend" : d.mins < 9 * 60 + 30 ? "not open yet" : d.early ? "closed early" : "ended for today";
     let nd = d, i = 0;
     if (!(d.trading && d.mins < 9 * 60 + 30)) { do { i++; nd = dayInfo(shiftDay(d.day, i)); } while (!nd.trading && i < 14); }
-    const start = nyMoment(nd.day, 9 * 60 + 30);
-    return { open: false, title: "US market closed", why,
-      next: `Opens ${dayWord(start)} at ${clockOf(start)}, in ${spanWords(start - now)}.` + (nd.early ? ` ${i ? "That day it closes early" : "It closes early today"}, at ${clockOf(nyMoment(nd.day, nd.closes))}.` : "") };
+    return { open: false, title: "Market closed", why, rows: [["Opens", when(nyMoment(nd.day, 9 * 60 + 30))], ["Closes", when(nyMoment(nd.day, nd.closes))]] };
   }
   function renderMarket() {                                  // the strip under the title row of the Stocks category
     try {
@@ -2633,7 +2633,8 @@
       el.hidden = current !== "Stocks";
       if (el.hidden) return;
       const st = marketStatus();
-      const html = `<span class="mdot"></span><div><div class="mt"><b>${esc(st.title)}</b>${st.why ? `<span> · ${esc(st.why)}</span>` : ""}</div><div class="ms">${esc(st.next)}</div></div>`;
+      const html = `<span class="mdot"></span><div><div class="mt"><b>${esc(st.title)}</b>${st.why ? `<span> · ${esc(st.why)}</span>` : ""}</div>`
+        + `<div class="mr">${st.rows.map(([k, v]) => `<span>${esc(k)}</span><b>${esc(v)}</b>`).join("")}</div></div>`;
       el.className = "mbar " + (st.open ? "on" : "off");
       if (el._html !== html) { el.innerHTML = html; el._html = html; }
     } catch {}
