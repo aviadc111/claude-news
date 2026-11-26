@@ -1063,7 +1063,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "8.0";
+  const APP_VERSION = "8.1";
   // A colour of the page's own palette (see :root), for what is drawn by hand: the charts, the tab
   // marks. Read from the page so they follow the dark or the light look; kept for a second at a time.
   let themeAt = 0, themeSeen = {};
@@ -2356,7 +2356,7 @@
     chatThinking = state === "busy" || (!!lastOne && lastOne.who === "me" && Date.now() - lastOne.time < 30 * 60000);
     chatShow("ready"); renderChat(); chatListen(key);
   }
-  function closeChat() { chatStop(); closeScreen("chat"); $("chat").style.bottom = ""; $("chat").classList.remove("kb"); }
+  function closeChat() { chatStop(); closeScreen("chat"); $("chat").style.top = $("chat").style.height = $("chat").style.bottom = ""; $("chat").classList.remove("kb"); }
   $("chatBtn").onclick = openChat;
   $("chatBack").onclick = closeChat;
   // A photo is made smaller before it is sent: at most 1600 pixels a side, as a JPEG. Also a tiny copy to show in the chat.
@@ -2409,8 +2409,12 @@
   function chatLift() {
     const vv = window.visualViewport, c = $("chat");
     if (!vv || c.hidden) return;
-    const kb = Math.max(0, window.innerHeight - (vv.offsetTop + vv.height));
-    c.style.bottom = kb > 80 ? kb + "px" : ""; c.classList.toggle("kb", kb > 80);
+    // With the keyboard up the iPhone also slides the page under it, and the screen's bottom is not where
+    // innerHeight says (v8.0 left a gap above the keyboard and lost the top bar, seen on the phone 27 Nov 2026).
+    // So the chat is laid exactly over the part of the screen that is left: that part's top and height.
+    const kb = window.innerHeight - vv.height > 80;
+    c.style.top = kb ? vv.offsetTop + "px" : ""; c.style.height = kb ? vv.height + "px" : ""; c.style.bottom = kb ? "auto" : "";
+    c.classList.toggle("kb", kb);
     $("chatList").scrollTop = $("chatList").scrollHeight;
   }
   if (window.visualViewport) { window.visualViewport.addEventListener("resize", chatLift); window.visualViewport.addEventListener("scroll", chatLift); }
