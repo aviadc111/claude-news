@@ -454,6 +454,14 @@
   .popmenu .ask { background: var(--surface-2); border-radius: 13px; padding: 12px 14px; font-size: 13px; line-height: 1.5; }
   .popmenu .yes { background: #7f1d1d; color: #fff; justify-content: center; }
   .popmenu .ask .q { display: block; margin-top: 4px; color: var(--muted); overflow-wrap: anywhere; }
+  /* a ping, opened in full: the title, then its facts as tidy rows */
+  .popmenu .ping { background: var(--surface-2); border-radius: 16px; padding: 14px 16px 6px; }
+  .ping .pw { font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+  .ping h3 { margin: 3px 0 11px; font-size: 19px; font-weight: 800; letter-spacing: -.01em; line-height: 1.25; }
+  .ping .prow { display: grid; grid-template-columns: 78px 1fr; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; }
+  .ping .prow span { font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); padding-top: 3px; }
+  .ping .ptext { padding: 9px 0; border-top: 1px solid var(--line); font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; }
+  .popmenu .pmore { text-align: center; font-size: 12px; color: #cbd5e1; }
   .popmenu .no { justify-content: center; }
   /* the delete question: in the middle of the screen, with the stock set back down into the list */
   .popmenu.center { top: 50% !important; left: 24px; right: 24px; transform: translateY(-50%); }
@@ -900,7 +908,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "5.9";
+  const APP_VERSION = "6.0";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -1907,7 +1915,63 @@
       $("popNo").onclick = closeRowMenu;
     };
   }
-  function closeRowMenu() { $("pop").hidden = true; $("popLift").innerHTML = ""; $("popMenu").innerHTML = ""; rowTicker = null; }
+  let popClosed = null;                                     // what to do once the pop-up is closed (a ping deletes itself)
+  function closeRowMenu() {
+    $("pop").hidden = true; $("popLift").innerHTML = ""; $("popMenu").innerHTML = ""; rowTicker = null;
+    const after = popClosed; popClosed = null;
+    if (after) after();
+  }
+  // ---- pings ------------------------------------------------------------------------
+  // A ping is a self-deleting message ("Claude needs your answer", a new app version). It is in no
+  // category. The background worker keeps each one as it arrives ("__pings"); when the app comes
+  // to the front, or its notification is tapped while the app is open, the waiting pings open in
+  // full in the middle of the screen. Closing that, or leaving the app, deletes them.
+  const PING_FACT = /^([A-Z][A-Za-z ]{1,15}): (.+)$/;       // a line like "Chat: Sound Cleaner"
+  let pingsOpen = [];
+  function pingHtml(p) {
+    const lines = String(p.body || "").split("\n").map((l) => l.trim()).filter(Boolean);
+    return `<div class="ping"><div class="pw">${esc(fmtAgo(p.time))}</div><h3>${esc(p.title)}</h3>`
+      + lines.map((l) => { const m = l.match(PING_FACT); return m ? `<div class="prow"><span>${esc(m[1])}</span><div>${esc(m[2][0].toUpperCase() + m[2].slice(1))}</div></div>` : `<div class="ptext">${esc(l)}</div>`; }).join("") + `</div>`;
+  }
+  async function showPings() {
+    try {
+      if (document.hidden || !$("pop").hidden) return;
+      const list = ((await stateGet("__pings")) || []).filter((p) => p && typeof p.id === "string" && typeof p.title === "string" && !expired(p));
+      if (!list.length || document.hidden || !$("pop").hidden) return;
+      list.sort((a, b) => b.time - a.time);
+      pingsOpen = list.map((p) => p.id);
+      rowTicker = null;
+      $("popLift").innerHTML = ""; $("popLift").className = "poplift";
+      $("popMenu").className = "popmenu center";
+      $("popMenu").innerHTML = list.slice(0, 3).map(pingHtml).join("")
+        + (list.length > 3 ? `<div class="pmore">and ${list.length - 3} older</div>` : "")
+        + `<button type="button" id="popNo" class="no">Close</button>`;
+      $("pop").hidden = false;
+      $("popNo").onclick = closeRowMenu;
+      popClosed = async () => {                              // closed: these pings are gone for good
+        const ids = pingsOpen; pingsOpen = [];
+        const left = ((await stateGet("__pings")) || []).filter((p) => p && !ids.includes(p.id) && !expired(p));
+        if (left.length) await statePut("__pings", left); else await stateDel("__pings");
+        clearSystemNotes();
+        if (left.length) showPings();                        // one arrived meanwhile
+      };
+      tapLog(`showed ${list.length} ping${list.length === 1 ? "" : "s"} in the middle of the screen`);
+    } catch {}
+  }
+  // The app is open and a ping's banner slides in: if it leaves the phone's list while the app
+  // stays in front, it was tapped (iPhones often do not report the tap itself).
+  async function watchPing(id) {
+    let listed = false;
+    for (let i = 0; i < 14; i++) {
+      await new Promise((r) => setTimeout(r, 700));
+      if (document.hidden) return;
+      const shown = await shownTags();
+      if (!shown) return;
+      if (shown.has(id)) listed = true;
+      else if (listed) { showPings(); return; }
+    }
+  }
+  document.addEventListener("visibilitychange", () => { if (document.hidden && pingsOpen.length) closeRowMenu(); });    // leaving the app closes the ping, and so deletes it
   // The question before anything is deleted, anywhere in the app: in the middle of the screen, the
   // same look as deleting a stock. `html` is the question, `yes` the words on the red button.
   function askDelete(html, yes, onYes, no = "Keep it") {
@@ -4387,8 +4451,8 @@
     checkPendingTab(); fetchRecent(); checkForUpdate();
     if (!$("board").hidden && stocks && stocks.stocks && !inSync(stocks)) refreshBoard(true).then(followChecker);   // back in the app while a new stock was on its way
   });
-  window.addEventListener("pageshow", () => { checkPendingTab(); checkForUpdate(); clearSystemNotes(); });
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) clearSystemNotes(); });
+  window.addEventListener("pageshow", () => { checkPendingTab(); checkForUpdate(); clearSystemNotes(); showPings(); });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { clearSystemNotes(); showPings(); } });
   setInterval(() => { if (!document.hidden) checkForUpdate(); }, 15 * 60000);
   setInterval(() => { if (!document.hidden) fetchRecent(); }, 60000);
   let reloading = false;
@@ -4404,6 +4468,8 @@
         tapLog("opened " + e.data.project + " (the worker told the open app)");
         goToTab(e.data.project, true); afterTap(e.data.id);
       }
+      if (e.data.type === "ping" && !document.hidden) watchPing(e.data.id);      // a ping arrived while the app is open
+      if (e.data.type === "open-ping") showPings();          // the worker saw the tap on a ping
       if (e.data.type === "updated" && navigator.serviceWorker.controller) reloadOnce();   // a new version just took over
     });
   }

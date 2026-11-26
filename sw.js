@@ -1,5 +1,5 @@
 /* Claude News service worker: offline shell + push notifications. */
-const CACHE = "claude-news-v51";
+const CACHE = "claude-news-v52";
 const STATE = "claude-news-state";          // small notes shared with the page; kept across updates
 const SHELL = ["./", "./index.html", "./config.js", "./manifest.webmanifest",
                "./icons/icon-192.png", "./icons/icon-512.png", "./icons/logo.svg"];
@@ -101,12 +101,12 @@ self.addEventListener("push", (event) => {
   };
   // A question from Claude carries what the app needs to send the answer back (see "answering Claude" in the page).
   if (data.ask && typeof data.ask.id === "string" && typeof data.ask.key === "string") msg.ask = data.ask;
-  // A self-deleting message (a new app version, Claude waiting for an answer) is only a
-  // notification: it is not kept in the app, belongs to no category, and is closed when the
-  // app is opened. Its link carries "sys=1".
+  // A self-deleting message, a "ping" (a new app version, Claude waiting for an answer), belongs
+  // to no category. It is kept apart ("__pings") until the app shows it in full in the middle of
+  // the screen; closing that deletes it. Its link carries "sys=1".
   const ephemeral = !!data.ephemeral || /[?&]sys=1\b/.test(msg.url);
   event.waitUntil((async () => {
-    if (!ephemeral) await storeMessage(msg);
+    if (ephemeral) await keepPing(msg); else await storeMessage(msg);
     await self.registration.showNotification(msg.title, {
       body: msg.body,
       icon: "./icons/icon-192.png",
@@ -116,7 +116,7 @@ self.addEventListener("push", (event) => {
     });
     await pruneOld();
     const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-    if (!ephemeral) clients.forEach((c) => c.postMessage({ type: "new-message", message: msg }));
+    clients.forEach((c) => c.postMessage(ephemeral ? { type: "ping", id: msg.id } : { type: "new-message", message: msg }));
     await tapLog(ephemeral ? `a self-deleting message arrived, ${clients.length} app window(s)` : `a message from ${msg.project} arrived, ${clients.length} app window(s)`);
   })());
 });
@@ -147,6 +147,16 @@ async function getMessage(id) {
     });
   } catch (e) { return null; }
 }
+// The pings that wait to be shown in the app: at most 10, none older than 48 hours.
+async function keepPing(msg) {
+  try {
+    const cache = await caches.open(STATE);
+    const r = await cache.match(stateUrl("__pings"));
+    const list = (r ? await r.json() : []).filter((p) => p && Date.now() - p.time < 48 * 3600000);
+    list.push({ id: msg.id, time: msg.time, received: msg.received, title: msg.title, body: msg.body });
+    await cache.put(stateUrl("__pings"), asJson(list.slice(-10)));
+  } catch (e) { /* the notification itself still shows */ }
+}
 self.addEventListener("notificationclick", (event) => {
   const n = event.notification;
   n.close();
@@ -163,6 +173,7 @@ self.addEventListener("notificationclick", (event) => {
     for (const c of clients) {
       if ("focus" in c) {
         if (project) c.postMessage({ type: "open-tab", project, id: n.tag || "" });
+        if (d.ephemeral) c.postMessage({ type: "open-ping", id: n.tag || "" });
         try { await c.focus(); } catch (e) { /* the phone brings the app forward itself */ }
         return;
       }
