@@ -467,18 +467,22 @@
   .popmenu .pfoot { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); }
   .popmenu .pfoot button { background: transparent; border-radius: 0; justify-content: center; padding: 15px 8px; font-size: 16px; font-weight: 600; color: var(--fg); }
   .popmenu .pfoot button + button { border-left: 1px solid var(--line); color: var(--accent); font-weight: 700; }
-  /* answering Claude inside the ping */
-  .ping .pans { margin-top: 16px; display: grid; gap: 8px; }
-  .popmenu .ping .opt { justify-content: center; text-align: center; padding: 12px; border-radius: 13px; font-weight: 700; color: var(--fg);
-    background: color-mix(in srgb, #f59e0b 14%, var(--surface-2)); border: 1px solid color-mix(in srgb, #f59e0b 42%, transparent); }
-  .ping .pans form { display: flex; gap: 8px; align-items: flex-end; }
-  .ping .pans textarea { flex: 1; min-width: 0; box-sizing: border-box; border: 1px solid var(--line); border-radius: 13px; padding: 10px 12px; background: var(--bg); color: var(--fg); font: inherit; font-size: 16px; line-height: 1.35; resize: none; outline: none; }
-  .ping .pans textarea:focus { border-color: #f59e0b; }
-  .popmenu .ping .send { width: auto; flex: 0 0 auto; justify-content: center; padding: 11px 16px; border-radius: 13px; font-weight: 800; background: #f59e0b; color: #241a00; }
-  .ping .pans .said { font-size: 16px; font-weight: 600; background: var(--surface-2); border-radius: 13px; padding: 11px 13px; overflow-wrap: anywhere; }
+  .popmenu .pfoot.one { grid-template-columns: 1fr; }
+  .popmenu .pfoot.one button { color: var(--accent); font-weight: 700; }
+  /* answering Claude inside the ping: quiet buttons for the offered answers, one field for your own */
+  .ping .pans { margin-top: 18px; display: grid; gap: 10px; }
+  .ping .popts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .ping .popts.n1 { grid-template-columns: 1fr; }
+  .popmenu .ping .opt { justify-content: center; text-align: center; padding: 12px 10px; border-radius: 13px; font-size: 15px; font-weight: 700; background: var(--surface-2); color: var(--fg); }
+  .ping .pans form { position: relative; display: block; margin: 0; }
+  .ping .pans input { width: 100%; box-sizing: border-box; border: 0; border-radius: 13px; padding: 12px 50px 12px 14px; background: var(--bg); color: var(--fg); font: inherit; outline: none; -webkit-appearance: none; appearance: none; }
+  .ping .pans input::placeholder { color: var(--muted); }
+  .ping .pans input:focus { box-shadow: 0 0 0 1.5px #f59e0b; }
+  .popmenu .ping .send { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; padding: 0; border-radius: 50%; justify-content: center; background: #f59e0b; color: #241a00; }
+  .popmenu .ping .send svg { width: 17px; height: 17px; }
+  .ping .pans .said { display: flex; gap: 9px; align-items: flex-start; font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+  .ping .pans .said svg { flex: 0 0 auto; width: 18px; height: 18px; margin-top: 2px; color: #22c55e; }
   .ping .pans .st { font-size: 12.5px; line-height: 1.45; color: var(--muted); }
-  .ping .pans .st.ok { color: #22c55e; font-weight: 600; }
-  .popmenu.center.typing { top: calc(env(safe-area-inset-top, 0px) + 14px) !important; transform: none; animation: none; }     /* above the keyboard */
   /* the long pings (saved, or a question from Claude): a strip that continues the top bar */
   .pbar { flex: 0 0 calc(100% + max(18px, env(safe-area-inset-left, 0px)) + max(18px, env(safe-area-inset-right, 0px))); box-sizing: border-box; width: auto;
     margin-left: calc(-1 * max(18px, env(safe-area-inset-left, 0px))); margin-bottom: -10px;
@@ -497,7 +501,7 @@
   .pbar .pr b { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .pbar .pr span { font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
   /* the delete question: in the middle of the screen, with the stock set back down into the list */
-  .popmenu.center { top: 50% !important; left: 24px; right: 24px; transform: translateY(-50%); }
+  .popmenu.center { top: var(--popmid, 50%) !important; left: 24px; right: 24px; transform: translateY(-50%); }   /* --popmid: the middle of what the keyboard leaves free */
   .poplift.down { transform: scale(1); opacity: 0; animation: none; transition: transform .22s ease-in, opacity .2s ease-in .06s; }
   @media (prefers-reduced-motion: no-preference) {
     .pop { animation: fadeIn .2s ease-out; }
@@ -942,11 +946,11 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "6.2";
+  const APP_VERSION = "6.3";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
-  document.addEventListener("touchend", (e) => { const now = Date.now(); if (now - lastTap < 300 && !e.target.closest("input, button, a")) e.preventDefault(); lastTap = now; }, { passive: false });
+  document.addEventListener("touchend", (e) => { const now = Date.now(); if (now - lastTap < 300 && !e.target.closest("input, textarea, button, a")) e.preventDefault(); lastTap = now; }, { passive: false });
   const DEFAULT_TABS = ["Stocks", "Claude News", "Instagram"];
   document.getElementById("version").textContent = APP_VERSION;
   let registration = null, subscription = null, deferredInstall = null;
@@ -1953,6 +1957,7 @@
   let popClosed = null;                                     // what to do once the pop-up is closed (a ping deletes itself)
   function closeRowMenu() {
     $("pop").hidden = true; $("popLift").innerHTML = ""; $("popMenu").innerHTML = ""; rowTicker = null;
+    $("popMenu").style.removeProperty("--popmid");
     const after = popClosed; popClosed = null;
     if (after) after();
   }
@@ -1972,7 +1977,8 @@
   async function pingsSave(list) { if (list.length) await statePut("__pings", list); else await stateDel("__pings"); renderPingBar(list); }
   async function pingsLoad() {                               // the pings that are still alive
     const all = (await stateGet("__pings")) || [];
-    const list = (Array.isArray(all) ? all : []).filter((p) => p && typeof p.id === "string" && typeof p.title === "string" && !expired(p) && !(p.until && p.until <= Date.now()));
+    const list = (Array.isArray(all) ? all : []).filter((p) => p && typeof p.id === "string" && typeof p.title === "string" && !expired(p) && !(p.until && p.until <= Date.now())
+      && !(p.answered && p.id !== pingOpen));                 // an answered question is gone once its pop-up is closed
     if (list.length !== (Array.isArray(all) ? all.length : 0)) await pingsSave(list);
     return list;
   }
@@ -1993,16 +1999,16 @@
     return { chat, done, main, rest: facts.map((f) => f[0] + ": " + f[1]).concat(plain) };
   }
   function pingHtml(p) {
-    const x = pingParts(p), left = pingLong(p) ? Math.max(1, Math.ceil((p.until - Date.now()) / 60000)) : 0;
+    const x = pingParts(p);
     return `<div class="ping${/needs your/i.test(p.title) ? " needs" : ""}"><div class="pk"><i></i>${esc(p.title)}</div>`
       + (x.main ? `<div class="pm">${esc(x.main)}</div>` : "")
-      + `<div class="pmeta">${esc([x.chat, fmtAgo(p.time), left ? `stays ${left} more min` : ""].filter(Boolean).join(" · "))}</div>`
+      + `<div class="pmeta">${esc([x.chat, fmtAgo(p.time)].filter(Boolean).join(" · "))}</div>`
       + (x.done ? `<div class="pmeta">${esc(x.done)}</div>` : "")
       + x.rest.map((l) => `<div class="pmeta">${esc(l)}</div>`).join("")
       + (askOf(p) ? `<div class="pans" id="pingAns"></div>` : "") + `</div>`;
   }
   function renderPingBar(list) {
-    const bar = $("pingBar"), long = (list || []).filter(pingLong).sort((a, b) => b.time - a.time);
+    const bar = $("pingBar"), long = (list || []).filter((p) => pingLong(p) && !p.answered).sort((a, b) => b.time - a.time);
     bar.hidden = !long.length;
     if (!long.length) return;
     const p = long[0], left = Math.max(1, Math.ceil((p.until - Date.now()) / 60000));
@@ -2024,44 +2030,47 @@
     }
     return false;
   }
+  const SEND_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/></svg>';
   function wirePingAnswer(p) {                               // the answer box inside the opened ping
     const box = $("pingAns"), a = askOf(p);
     if (!box || !a) return;
     const sent = answers[a.id];
     if (sent) {
-      box.innerHTML = `<div class="said">${esc(sent.text)}</div><div class="st${sent.got ? " ok" : ""}">${sent.got ? "Claude got your answer."
+      box.innerHTML = `<div class="said">${NOTE_ICONS.check}<span>${esc(sent.text)}</span></div><div class="st">${sent.got ? "Claude got your answer."
         : sent.got === false ? "No sign that Claude got it. Its chat may have moved on, so answer on the PC too." : "Sent. Waiting for Claude to confirm…"}</div>`;
       return;
     }
     if (a.until && Date.now() > a.until) { box.innerHTML = `<div class="st">Claude is no longer waiting for an answer from the phone. Answer in its chat on your PC.</div>`; return; }
     const opts = Array.isArray(a.options) ? a.options.filter((o) => typeof o === "string" && o.trim()).slice(0, 4) : [];
-    box.innerHTML = opts.map((o, i) => `<button type="button" class="opt" data-opt="${i}">${esc(o)}</button>`).join("")
-      + `<form id="pingForm"><textarea id="pingText" rows="1" maxlength="500" placeholder="${opts.length ? "Or write your own answer" : "Write your answer"}" aria-label="Your answer"></textarea><button type="submit" class="send">Send</button></form>`;
+    box.innerHTML = (opts.length ? `<div class="popts${opts.length === 1 ? " n1" : ""}">${opts.map((o, i) => `<button type="button" class="opt" data-opt="${i}">${esc(o)}</button>`).join("")}</div>` : "")
+      + `<form id="pingForm"><input id="pingText" type="text" maxlength="500" enterkeyhint="send" autocomplete="off" autocapitalize="sentences" placeholder="${opts.length ? "Or write your own answer" : "Write your answer"}" aria-label="Your answer"><button type="submit" class="send" aria-label="Send">${SEND_ICON}</button></form>`;
     const go = async (text) => {
       if (!String(text || "").trim()) { toast("Write an answer first"); return; }
-      box.querySelectorAll("button, textarea").forEach((b) => { b.disabled = true; });
+      box.querySelectorAll("button, input").forEach((b) => { b.disabled = true; });
       try {
         const since = Math.floor(Date.now() / 1000) - 5;
         await sendAnswer(p, text);
-        if (pingOpen === p.id) wirePingAnswer(p);
+        await pingChange(p.id, (x) => Object.assign(x, { answered: true }));      // answered: it deletes itself
+        if (pingOpen === p.id) drawPing(p, 0);
         const got = await answerGot(a.id, since);
         if (answers[a.id]) { answers[a.id].got = got; ls.set("cn.answers", JSON.stringify(answers)); }
-        if (got) await pingChange(p.id, (x) => Object.assign(x, { answered: true }));      // answered: it goes when it is closed
-        if (pingOpen === p.id) wirePingAnswer(p);
+        if (pingOpen !== p.id) return;
+        wirePingAnswer(p);
+        if (got) setTimeout(() => { if (pingOpen === p.id) { closeRowMenu(); toast("Claude got your answer"); } }, 1300);
       } catch (e) { toast(e.message || "Could not send the answer"); if (pingOpen === p.id) wirePingAnswer(p); }
     };
     box.querySelectorAll("[data-opt]").forEach((b) => b.onclick = () => go(opts[Number(b.dataset.opt)]));
     $("pingForm").addEventListener("submit", (e) => { e.preventDefault(); go($("pingText").value); });
-    const t = $("pingText");
-    t.addEventListener("input", () => { t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight + 2, 120) + "px"; });
-    t.addEventListener("focus", () => $("popMenu").classList.add("typing"));          // the box moves up, clear of the keyboard
-    t.addEventListener("blur", () => $("popMenu").classList.remove("typing"));
+    $("pingText").addEventListener("focus", () => setTimeout(popMid, 350));
+    $("pingText").addEventListener("blur", () => setTimeout(popMid, 350));
   }
   function drawPing(p, more) {
-    $("popMenu").innerHTML = `<div class="pingbox">${pingHtml(p)}<div class="pfoot"><button type="button" id="pingKeep">${pingLong(p) ? "Delete" : "Save"}</button>`
-      + `<button type="button" id="popNo">${more > 0 ? `Next (${more})` : "Close"}</button></div></div>`;
+    const close = `<button type="button" id="popNo">${more > 0 ? `Next (${more})` : "Close"}</button>`;
+    // A question keeps itself for 30 minutes and deletes itself when answered, so it needs no second button.
+    $("popMenu").innerHTML = `<div class="pingbox">${pingHtml(p)}` + (askOf(p) ? `<div class="pfoot one">${close}</div>`
+      : `<div class="pfoot"><button type="button" id="pingKeep">${pingLong(p) ? "Delete" : "Save"}</button>${close}</div>`) + `</div>`;
     $("popNo").onclick = closeRowMenu;
-    $("pingKeep").onclick = async () => {
+    if ($("pingKeep")) $("pingKeep").onclick = async () => {
       if (pingLong(p)) { await pingChange(p.id, () => null); toast("Ping deleted"); closeRowMenu(); return; }
       p.until = Date.now() + LONG_MS;
       await pingChange(p.id, (x) => Object.assign(x, { until: p.until }));
@@ -2077,7 +2086,7 @@
       const list = await pingsLoad();
       renderPingBar(list);
       if (!next) pingsSeen.clear();
-      const wait = list.filter((p) => (fromBar ? pingLong(p) && !pingsSeen.has(p.id) : !p.until)).sort((a, b) => b.time - a.time);
+      const wait = list.filter((p) => !p.answered && (fromBar ? pingLong(p) && !pingsSeen.has(p.id) : !p.until)).sort((a, b) => b.time - a.time);
       if (!wait.length || document.hidden || !$("pop").hidden) return;
       const p = wait[0];
       if (askOf(p) && !p.until) {                            // a question from Claude is a long ping by itself
@@ -2128,7 +2137,15 @@
     haptic();
   }
   $("pop").addEventListener("click", (e) => { if (e.target === $("pop")) closeRowMenu(); });
-  $("pop").addEventListener("touchmove", (e) => { if (e.cancelable) e.preventDefault(); }, { passive: false });
+  $("pop").addEventListener("touchmove", (e) => { if (e.cancelable && !(e.target.closest && e.target.closest("input, textarea"))) e.preventDefault(); }, { passive: false });
+  // The keyboard covers the lower half of the screen: the pop-up then sits in the middle of what
+  // is left free (the phone reports that area as the "visual viewport").
+  function popMid() {
+    const vv = window.visualViewport, menu = $("popMenu");
+    if (!vv || $("pop").hidden || vv.height > window.innerHeight - 80) { menu.style.removeProperty("--popmid"); return; }
+    menu.style.setProperty("--popmid", Math.max(vv.offsetTop + vv.height / 2, vv.offsetTop + menu.offsetHeight / 2 + 10) + "px");
+  }
+  if (window.visualViewport) { window.visualViewport.addEventListener("resize", popMid); window.visualViewport.addEventListener("scroll", popMid); }
   // Deleting a stock takes it off the list, so it leaves Charts and the Demo together. What your demo
   // holds of it is sold at the price now; Claude's chart accounts sell theirs when they next look.
   function deleteStock(t) {
