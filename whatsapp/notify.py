@@ -14,5 +14,6 @@ import claude_news_core as cn  # noqa: E402
 
 if __name__ == "__main__":
     title, body = sys.argv[1], sys.argv[2]
-    summary, _ = cn.notify(title, body, project="Claude News", priority="high")
+    private = "--private" in sys.argv[3:]       # push to the phone only, nothing in the feed (for text copied from the group)
+    summary, _ = cn.notify(title, body, project="Claude News", priority="high", feed=not private)
     print("notified:", {k: v for k, v in summary.items() if k != "devices"} if isinstance(summary, dict) else summary)

@@ -40,6 +40,7 @@ const CONFIG = {
   pollOptions: ['כרית', 'שתי כריות', 'כרית ותיק'],
   sendTo: 'me',                                   // 'group': into the group. 'me': to your own chat (trial period, from 2026-11-24)
   tellClaudeNews: true,                           // also tell the phone (Claude News) about every training noted and every send
+  reportMisses: true,                             // trial: a group message mentioning אימון that was not understood is pushed to the phone (private)
   timeZone: 'Asia/Jerusalem',
   pollLateHours: 3,                               // a poll more than this late is not sent
   messageMaxAgeHours: 36,                         // older group messages are ignored (history, not news)
@@ -92,7 +93,9 @@ const heb = (word) => new RegExp(`(^|[^א-ת])${word}([^א-ת]|$)`);   // a whol
 // cancel: the message cancels that day's training. noTime: a day and the word "אימון" but no time.
 export function parseTraining(text, sentMs) {
   const t = String(text || '').trim();
-  if (!t || t.includes('?')) return null;
+  if (!t) return null;
+  // "מחר ב-17:00?" is a question. "אימון מחר ב-17:00 במגרש, מי מגיע?" is an announcement with a question at its end.
+  if (t.includes('?') && (t.length < 60 || !heb('אימון').test(t))) return null;
   const z = zoned(sentMs);
   const todayUTC = Date.UTC(z.y, z.m - 1, z.d);
   const weekdayToday = new Date(todayUTC).getUTCDay();          // 0 = Sunday = ראשון
@@ -169,10 +172,28 @@ function textOf(msg) {
   return m.conversation || m.extendedTextMessage?.text || m.imageMessage?.caption || m.videoMessage?.caption || '';
 }
 
+const toNum = (v) => (typeof v === 'object' && v !== null ? (v.toNumber ? v.toNumber() : Number(v.low)) : Number(v));
+
 function timestampMs(msg) {
-  const t = msg.messageTimestamp;
-  const s = typeof t === 'object' && t !== null ? (t.toNumber ? t.toNumber() : Number(t.low)) : Number(t);
-  return (s || Math.floor(Date.now() / 1000)) * 1000;
+  return (toNum(msg.messageTimestamp) || Math.floor(Date.now() / 1000)) * 1000;
+}
+
+// A WhatsApp "event" (the calendar-like card a group can post): it carries its own date and time.
+function eventOf(msg) {
+  const e = unwrap(msg.message).eventMessage;
+  if (!e || !e.startTime) return null;
+  const startMs = toNum(e.startTime) * 1000;
+  const title = `${e.name || ''} ${e.description || ''}`;
+  const z = zoned(startMs);
+  return {
+    date: `${z.y}-${pad(z.m)}-${pad(z.d)}`,
+    display: `${z.d}.${z.m}.${z.y}`,
+    time: `${pad(z.hh)}:${pad(z.mm)}`,
+    at: startMs,
+    cancel: !!e.isCanceled,
+    lecture: /הרצאה|הרצאת/.test(title),          // the title itself is not kept: state.json is public
+    noTime: false,
+  };
 }
 
 // ----------------------------------------------------------------------------- encrypted login
@@ -247,9 +268,11 @@ function saveAuth(reason, now = false) {
 }
 
 // ----------------------------------------------------------------------------- the phone
-function tellPhone(title, body) {
+function tellPhone(title, body, priv = false) {
   return new Promise((resolve) => {
-    const p = spawn('python', [path.join(HERE, 'notify.py'), title, body], { stdio: 'inherit' });
+    const args = [path.join(HERE, 'notify.py'), title, body, ...(priv ? ['--private'] : [])];
+    const p = spawn('python', args, { stdio: ['ignore', 'pipe', 'inherit'] });   // stdout swallowed: it echoes the text
+    p.stdout.on('data', () => {});
     p.on('close', (code) => resolve(code === 0));
     p.on('error', () => resolve(false));
   });
@@ -471,8 +494,16 @@ async function watch() {
       changed = true;
       const sentMs = timestampMs(msg);
       if (Date.now() - sentMs > CONFIG.messageMaxAgeHours * 3600_000) continue;
-      const found = parseTraining(textOf(msg), sentMs);
-      if (!found) continue;
+      const text = textOf(msg);
+      const found = eventOf(msg) || parseTraining(text, sentMs);
+      if (!found) {
+        // trial period: a message that talks about a training but was not understood goes to the phone
+        // (push only, not in the feed) so the wording can be taught
+        if (CONFIG.reportMisses && /אימון|הרצאה/.test(text)) {
+          tellPhone('WhatsApp watcher: not understood', text.slice(0, 400), true).catch(() => {});
+        }
+        continue;
+      }
       const same = state.trainings.find(t => t.date === found.date);
       let note = null;
       if (found.lecture) {                                       // a lecture, not a workout: no reminder, no poll
