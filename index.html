@@ -464,6 +464,15 @@
   #ptr.spin .arc { stroke-dashoffset: 16; }
   #ptr.spin svg { animation: ptrSpin .8s linear infinite; }
   @keyframes ptrSpin { to { transform: rotate(270deg); } }
+  /* While the app loads again (a refresh, or a new version): nothing but the wheel, where the pulled one stopped. */
+  #cover { position: fixed; inset: 0; z-index: 190; background: var(--bg); }
+  #cover[hidden] { display: none; }
+  #cover.out { opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+  #cover .wheel { position: absolute; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 86px); transform: translateX(-50%); width: 38px; height: 38px; border-radius: 50%; background: var(--surface-2);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .4); display: grid; place-items: center; }
+  #cover .wheel svg { width: 22px; height: 22px; transform: rotate(-90deg); animation: ptrSpin .8s linear infinite; }
+  #cover .track { stroke: var(--line); stroke-width: 2.6; }
+  #cover .arc { stroke: var(--accent); stroke-width: 2.6; stroke-dasharray: 53.4; stroke-dashoffset: 16; }
   #splash { position: fixed; inset: 0; z-index: 200; background: #070b14; transition: opacity .35s ease-out; }
   #splash.out { opacity: 0; pointer-events: none; }
   #splash canvas { width: 100%; height: 100%; display: block; }
@@ -581,6 +590,11 @@
 </style>
 </head>
 <body>
+<div id="cover" aria-hidden="true" hidden><div class="wheel"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><circle class="track" cx="12" cy="12" r="8.5"/><circle class="arc" cx="12" cy="12" r="8.5"/></svg></div></div>
+<script>
+// The page was loaded again by a refresh or by a new version: the wheel is up from the first moment.
+(() => { try { if (sessionStorage.getItem("cn.wheel")) { sessionStorage.removeItem("cn.wheel"); document.getElementById("cover").hidden = false; } } catch (e) {} })();
+</script>
 <div id="splash" aria-hidden="true"><canvas id="splashCanvas"></canvas></div>
 <script>
 // The opening: a grid over the whole screen and a neon line that comes toward you, from the
@@ -970,7 +984,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "7.0";
+  const APP_VERSION = "7.1";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -2159,18 +2173,40 @@
     ptr.classList.add("back"); ptr.classList.remove("ready");
     ptr.style.transform = ""; ptr.style.opacity = "";
   }
+  // The cover: the whole screen with only the wheel on it, while the app loads again.
+  function coverShow() { $("cover").classList.remove("out"); $("cover").hidden = false; }
+  function coverHide() {
+    const c = $("cover");
+    if (c.hidden) return;
+    c.classList.add("out");
+    setTimeout(() => { c.hidden = true; c.classList.remove("out"); }, 220);
+  }
+  // Loads the app again. The new page starts under the cover (cn.wheel), without the opening
+  // animation (cn.splash), and straight on the screen that is open now (cn.reopen).
+  function wheelReload() {
+    try {
+      sessionStorage.setItem("cn.wheel", "1");
+      sessionStorage.setItem("cn.splash", String(Date.now()));
+      const open = [...document.querySelectorAll(".screen")].filter((x) => !x.hidden).pop();
+      if (open && ["notes", "board", "demo"].includes(open.id)) sessionStorage.setItem("cn.reopen", open.id);
+    } catch {}
+    location.reload();
+  }
+  function reopenAfterRefresh() {                            // right at the start, before anything else is seen
+    try {
+      const back = sessionStorage.getItem("cn.reopen");
+      sessionStorage.removeItem("cn.reopen");
+      const open = { notes: openNotes, board: openBoard, demo: openDemo }[back];
+      if (open) open();
+    } catch {}
+  }
   function refreshNow() {
     refreshing = true;
     ptr.classList.add("back", "spin");
     ptr.querySelector(".arc").style.strokeDashoffset = "";
     ptr.style.transform = "translate(-50%, 28px)"; ptr.style.opacity = "1";
     haptic();
-    try {
-      sessionStorage.setItem("cn.splash", String(Date.now()));                 // loaded again at once: no opening animation
-      const open = [...document.querySelectorAll(".screen")].filter((x) => !x.hidden).pop();
-      if (open && ["notes", "board", "demo"].includes(open.id)) sessionStorage.setItem("cn.reopen", open.id);
-    } catch {}
-    setTimeout(() => location.reload(), 700);
+    setTimeout(wheelReload, 700);
   }
   document.addEventListener("touchstart", (e) => {
     pull = null;
@@ -2197,13 +2233,6 @@
     if (p.dist >= PTR_AT) refreshNow(); else ptrHide();
   }, { passive: true });
   document.addEventListener("touchcancel", () => { if (pull) { pull = null; ptrHide(); } }, { passive: true });
-  try {                                                      // after a refresh: back to the screen it was pulled on
-    const back = sessionStorage.getItem("cn.reopen");
-    sessionStorage.removeItem("cn.reopen");
-    const btn = { notes: "notesBtn", board: "boardBtn", demo: "demoBtn" }[back];
-    if (btn) setTimeout(() => { try { $(btn).click(); } catch {} }, 450);
-  } catch {}
-
   // A button that asks for a second press ("Tap again"): it goes back to what it said after 4
   // seconds, or the moment anything else on the screen is pressed. lastPress: when the screen was
   // last touched (the keyboard's own buttons do not count; see openNoteBox).
@@ -2363,6 +2392,9 @@
       const wait = list.filter((p) => !p.answered && (fromBar ? pingLong(p) && !pingsSeen.has(p.id) : !p.until)).sort((a, b) => b.time - a.time);
       if (!wait.length || document.hidden || !$("pop").hidden) return;
       const p = wait[0];
+      // It opens in its own category: Claude's own pings in Claude News, a ping about another category there.
+      const home = typeof p.project === "string" && tabs.includes(p.project) ? p.project : "Claude News";
+      if (tabs.includes(home) && (current !== home || [...document.querySelectorAll(".screen")].some((x) => !x.hidden))) goToTab(home, false);
       if (askOf(p) && !p.until) {                            // a question from Claude is a long ping by itself
         p.until = Date.now() + LONG_MS;
         await pingChange(p.id, (x) => Object.assign(x, { until: p.until }));
@@ -4895,7 +4927,8 @@
   setInterval(() => { if (!document.hidden) fetchRecent(); }, 60000);
   let reloading = false;
   const hadController = "serviceWorker" in navigator && !!navigator.serviceWorker.controller;   // false on first ever load
-  function reloadOnce() { if (!reloading && hadController) { reloading = true; location.reload(); } }
+  // A new version took over: the app loads again behind the wheel, with no flash of the old page.
+  function reloadOnce() { if (!reloading && hadController) { reloading = true; ls.set("cn.ranVersion", APP_VERSION); coverShow(); wheelReload(); } }
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.addEventListener("message", (e) => {
       if (!e.data) return;
@@ -4937,7 +4970,13 @@
   };
 
   (async () => {
+    // This page is a new version and the background worker is still the old one: it is about to
+    // follow, and then the app loads again (reloadOnce). Until then only the wheel is shown.
+    const updating = hadController && ls.get("cn.ranVersion", "") !== APP_VERSION;
+    if (updating) coverShow(); else ls.set("cn.ranVersion", APP_VERSION);
     render();
+    reopenAfterRefresh();
+    if (!updating) setTimeout(coverHide, 380);
     await loadLocal();
     const urlTab = new URLSearchParams(location.search).get("tab");     // opened from a notification
     const urlOpen = new URLSearchParams(location.search).get("open");
@@ -4966,6 +5005,12 @@
       } catch (e) { showError("Could not install the background worker: " + (e.message || e)); }
     }
     updateSetupUI();
+    if (updating) {
+      const settled = () => { ls.set("cn.ranVersion", APP_VERSION); coverHide(); };
+      try { if (registration) await registration.update(); } catch {}
+      if (!registration || (!registration.installing && !registration.waiting)) settled();     // the worker is the new one already
+      else setTimeout(settled, 12000);                       // it should have taken over long before this
+    }
   })();
 })();
 </script>

@@ -1,5 +1,5 @@
 /* Claude News service worker: offline shell + push notifications. */
-const CACHE = "claude-news-v62";
+const CACHE = "claude-news-v63";
 const STATE = "claude-news-state";          // small notes shared with the page; kept across updates
 const SHELL = ["./", "./index.html", "./config.js", "./manifest.webmanifest",
                "./icons/icon-192.png", "./icons/icon-512.png", "./icons/logo.svg"];
@@ -153,7 +153,7 @@ async function keepPing(msg) {
     const cache = await caches.open(STATE);
     const r = await cache.match(stateUrl("__pings"));
     const list = (r ? await r.json() : []).filter((p) => p && Date.now() - p.time < 48 * 3600000);
-    const ping = { id: msg.id, time: msg.time, received: msg.received, title: msg.title, body: msg.body };
+    const ping = { id: msg.id, time: msg.time, received: msg.received, title: msg.title, body: msg.body, project: msg.project };     // project: the category it opens in
     if (msg.ask) ping.ask = msg.ask;                       // a question: the app shows an answer box in the ping
     list.push(ping);
     await cache.put(stateUrl("__pings"), asJson(list.slice(-10)));
