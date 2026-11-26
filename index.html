@@ -276,15 +276,24 @@
   .chartsbtn .nbadge { position: absolute; top: -6px; right: -6px; min-width: 19px; height: 19px; padding: 0 5px; box-sizing: border-box; border-radius: 10px; background: var(--danger, #ef4444); color: #fff;
     font-size: 11px; font-weight: 800; display: grid; place-items: center; box-shadow: 0 0 0 2px var(--bg); }
   .chartsbtn .nbadge[hidden] { display: none; }
-  /* the live market status at the top of the Stocks category */
-  .mcard { display: flex; gap: 12px; align-items: flex-start; background: var(--surface); border-radius: 16px; padding: 13px 15px; margin-bottom: 10px; }
-  .mcard[hidden] { display: none; }
-  .mcard .mdot { flex: 0 0 auto; width: 12px; height: 12px; border-radius: 50%; margin-top: 5px; }
-  .mcard .mdot.on { background: #22c55e; box-shadow: 0 0 0 4px rgba(34, 197, 94, .22); }
-  .mcard .mdot.off { background: #ef4444; box-shadow: 0 0 0 4px rgba(239, 68, 68, .18); }
-  .mcard .mt { font-weight: 700; font-size: 16px; }
-  .mcard .ms { font-size: 13px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
-  @media (prefers-reduced-motion: no-preference) { .mcard .mdot.on { animation: mpulse 2.4s ease-in-out infinite; } @keyframes mpulse { 50% { box-shadow: 0 0 0 7px rgba(34, 197, 94, .08); } } }
+  /* The live market status: a strip that continues the top bar of the Stocks category. It is the
+     last thing inside the header, on a row of its own, from edge to edge. */
+  header { flex-wrap: wrap; }
+  .mbar { flex: 0 0 calc(100% + max(18px, env(safe-area-inset-left, 0px)) + max(18px, env(safe-area-inset-right, 0px))); box-sizing: border-box;
+    margin-left: calc(-1 * max(18px, env(safe-area-inset-left, 0px))); margin-bottom: -10px;
+    padding: 8px max(18px, env(safe-area-inset-right, 0px)) 9px max(18px, env(safe-area-inset-left, 0px));
+    display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.35;
+    border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .mbar[hidden] { display: none; }
+  .mbar.on { background: color-mix(in srgb, #22c55e 10%, var(--bg)); }
+  .mbar.off { background: color-mix(in srgb, #ef4444 8%, var(--bg)); }
+  .mbar .mdot { flex: 0 0 auto; width: 9px; height: 9px; border-radius: 50%; margin-top: 4.5px; }
+  .mbar.on .mdot { background: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, .22); }
+  .mbar.off .mdot { background: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, .18); }
+  .mbar .mt b { font-weight: 800; }
+  .mbar .mt span { color: var(--muted); }
+  .mbar .ms { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  @media (prefers-reduced-motion: no-preference) { .mbar.on .mdot { animation: mpulse 2.4s ease-in-out infinite; } @keyframes mpulse { 50% { box-shadow: 0 0 0 6px rgba(34, 197, 94, .08); } } }
   /* my notes */
   .noteform textarea, .askbox textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--surface); color: var(--fg); font: inherit; font-size: 16px; line-height: 1.4; resize: vertical; }
   #notes .lead { color: var(--muted); font-size: 13px; margin: 0 2px 10px; }
@@ -593,6 +602,7 @@
   <button id="settingsBtn" class="iconbtn" aria-label="Settings">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
   </button>
+  <div id="marketCard" class="mbar" role="status" hidden></div>
 </header>
 
 <main>
@@ -611,7 +621,6 @@
     <p id="setupError" class="error" hidden></p>
   </section>
 
-  <div id="marketCard" class="mcard" role="status" hidden></div>
   <ul id="feed" class="feed"></ul>
   <div id="empty" class="empty" hidden></div>
 </main>
@@ -863,7 +872,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "5.5";
+  const APP_VERSION = "5.6";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -2607,24 +2616,25 @@
     const d = marketDay(now);
     if (d.trading && d.mins >= 9 * 60 + 30 && d.mins < d.closes) {
       const end = nyMoment(d.day, d.closes);
-      return { open: true, title: "The US market is open", why: d.early ? "It closes early today." : "", next: `Closes at ${clockOf(end)}, in ${spanWords(end - now)}.` };
+      return { open: true, title: "US market open", why: d.early ? "closes early today" : "", next: `Closes at ${clockOf(end)}, in ${spanWords(end - now)}.` };
     }
     const shut = clockOf(nyMoment(d.day, d.closes));
-    const why = d.holiday ? `Today is a US holiday: ${d.holiday}.` : d.weekend ? "It is the weekend." : d.mins < 9 * 60 + 30 ? "It has not opened yet today."
-      : d.early ? `It closed early today, at ${shut}.` : `Trading ended for today at ${shut}.`;
+    const why = d.holiday ? `holiday: ${d.holiday}` : d.weekend ? "weekend" : d.mins < 9 * 60 + 30 ? "not open yet today"
+      : d.early ? `closed early today, at ${shut}` : `ended for today at ${shut}`;
     let nd = d, i = 0;
     if (!(d.trading && d.mins < 9 * 60 + 30)) { do { i++; nd = dayInfo(shiftDay(d.day, i)); } while (!nd.trading && i < 14); }
     const start = nyMoment(nd.day, 9 * 60 + 30);
-    return { open: false, title: "The US market is closed", why,
+    return { open: false, title: "US market closed", why,
       next: `Opens ${dayWord(start)} at ${clockOf(start)}, in ${spanWords(start - now)}.` + (nd.early ? ` ${i ? "That day it closes early" : "It closes early today"}, at ${clockOf(nyMoment(nd.day, nd.closes))}.` : "") };
   }
-  function renderMarket() {                                  // the card at the top of the Stocks category
+  function renderMarket() {                                  // the strip under the title row of the Stocks category
     try {
       const el = $("marketCard");
       el.hidden = current !== "Stocks";
       if (el.hidden) return;
       const st = marketStatus();
-      const html = `<span class="mdot ${st.open ? "on" : "off"}"></span><div><div class="mt">${esc(st.title)}</div>${st.why ? `<div class="ms">${esc(st.why)}</div>` : ""}<div class="ms">${esc(st.next)}</div></div>`;
+      const html = `<span class="mdot"></span><div><div class="mt"><b>${esc(st.title)}</b>${st.why ? `<span> · ${esc(st.why)}</span>` : ""}</div><div class="ms">${esc(st.next)}</div></div>`;
+      el.className = "mbar " + (st.open ? "on" : "off");
       if (el._html !== html) { el.innerHTML = html; el._html = html; }
     } catch {}
   }
