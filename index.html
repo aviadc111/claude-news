@@ -281,21 +281,21 @@
   header { flex-wrap: wrap; }
   .mbar { flex: 0 0 calc(100% + max(18px, env(safe-area-inset-left, 0px)) + max(18px, env(safe-area-inset-right, 0px))); box-sizing: border-box;
     margin-left: calc(-1 * max(18px, env(safe-area-inset-left, 0px))); margin-bottom: -10px;
-    padding: 8px max(18px, env(safe-area-inset-right, 0px)) 9px max(18px, env(safe-area-inset-left, 0px));
-    display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.35;
-    border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    padding: 10px max(18px, env(safe-area-inset-right, 0px)) 11px max(18px, env(safe-area-inset-left, 0px));
+    display: flex; align-items: center; justify-content: space-between; gap: 14px;
+    border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); --mc: #ef4444; }
   .mbar[hidden] { display: none; }
-  .mbar.on { background: color-mix(in srgb, #22c55e 10%, var(--bg)); }
-  .mbar.off { background: color-mix(in srgb, #ef4444 8%, var(--bg)); }
-  .mbar .mdot { flex: 0 0 auto; width: 9px; height: 9px; border-radius: 50%; margin-top: 4.5px; }
-  .mbar.on .mdot { background: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, .22); }
-  .mbar.off .mdot { background: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, .18); }
-  .mbar .mt b { font-weight: 800; }
-  .mbar .mt span { color: var(--muted); }
-  .mbar .mr { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; margin-top: 2px; font-size: 13px; }
-  .mbar .mr span { color: var(--muted); }
-  .mbar .mr b { font-weight: 600; }
-  @media (prefers-reduced-motion: no-preference) { .mbar.on .mdot { animation: mpulse 2.4s ease-in-out infinite; } @keyframes mpulse { 50% { box-shadow: 0 0 0 6px rgba(34, 197, 94, .08); } } }
+  .mbar.on { --mc: #22c55e; }
+  .mbar { background: linear-gradient(90deg, color-mix(in srgb, var(--mc) 15%, var(--bg)), color-mix(in srgb, var(--mc) 3%, var(--bg)) 75%); }
+  .mbar .mleft { min-width: 0; }
+  .mbar .mt { display: flex; align-items: center; gap: 9px; font-size: 16px; font-weight: 800; letter-spacing: -.01em; white-space: nowrap; }
+  .mbar .mt .st { color: var(--mc); }
+  .mbar .mdot { flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; background: var(--mc); box-shadow: 0 0 0 4px color-mix(in srgb, var(--mc) 22%, transparent); }
+  .mbar .mwhy { margin: 2px 0 0 19px; font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mbar .mtimes { flex: 0 0 auto; display: grid; grid-template-columns: auto auto; column-gap: 9px; row-gap: 3px; align-items: baseline; padding-left: 14px; border-left: 1px solid var(--line); }
+  .mbar .mtimes span { font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+  .mbar .mtimes b { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  @media (prefers-reduced-motion: no-preference) { .mbar.on .mdot { animation: mpulse 2.4s ease-in-out infinite; } @keyframes mpulse { 50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--mc) 8%, transparent); } } }
   /* my notes */
   .noteform textarea, .askbox textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--surface); color: var(--fg); font: inherit; font-size: 16px; line-height: 1.4; resize: vertical; }
   #notes .lead { color: var(--muted); font-size: 13px; margin: 0 2px 10px; }
@@ -874,7 +874,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "5.7";
+  const APP_VERSION = "5.8";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -2633,8 +2633,9 @@
       el.hidden = current !== "Stocks";
       if (el.hidden) return;
       const st = marketStatus();
-      const html = `<span class="mdot"></span><div><div class="mt"><b>${esc(st.title)}</b>${st.why ? `<span> · ${esc(st.why)}</span>` : ""}</div>`
-        + `<div class="mr">${st.rows.map(([k, v]) => `<span>${esc(k)}</span><b>${esc(v)}</b>`).join("")}</div></div>`;
+      const html = `<div class="mleft"><div class="mt"><span class="mdot"></span><span>Market <span class="st">${st.open ? "open" : "closed"}</span></span></div>${st.why ? `<div class="mwhy">${esc(st.why[0].toUpperCase() + st.why.slice(1))}</div>` : ""}</div>`
+        + `<div class="mtimes">${st.rows.map(([k, v]) => `<span>${esc(k)}</span><b>${esc(v)}</b>`).join("")}</div>`;
+      el.setAttribute("aria-label", `${st.title}${st.why ? ", " + st.why : ""}. ${st.rows.map((r) => r.join(" ")).join(", ")}.`);
       el.className = "mbar " + (st.open ? "on" : "off");
       if (el._html !== html) { el.innerHTML = html; el._html = html; }
     } catch {}
