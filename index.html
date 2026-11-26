@@ -518,7 +518,7 @@
   .chatoff p { margin: 0 0 18px; font-size: 15px; line-height: 1.5; }
   .chatoff button { border-radius: 999px; padding: 11px 22px; background: var(--surface-2); color: var(--fg); }
   .chatform { flex: 0 0 auto; display: flex; align-items: flex-end; gap: 8px; margin: 0 -4px; padding: 8px 0 calc(10px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); }
-  #chat.kb .chatform { padding-bottom: 8px; }
+  #chat.kb .chatform, #chat.typing .chatform { padding-bottom: 8px; }     /* typing: the keyboard is up, so the room kept for the home bar is not needed (it was the gap above the keyboard) */
   .chatform[hidden] { display: none; }
   .chatform textarea { flex: 1 1 auto; min-width: 0; box-sizing: border-box; border: 0; border-radius: 20px; padding: 10px 14px; background: var(--surface); color: var(--fg); font: inherit; font-size: 16px; line-height: 1.35;
     resize: none; outline: none; max-height: 132px; -webkit-user-select: text; user-select: text; -webkit-appearance: none; appearance: none; }
@@ -1076,7 +1076,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "8.2";
+  const APP_VERSION = "8.3";
   // A colour of the page's own palette (see :root), for what is drawn by hand: the charts, the tab
   // marks. Read from the page so they follow the dark or the light look; kept for a second at a time.
   let themeAt = 0, themeSeen = {};
@@ -2495,8 +2495,39 @@
     // So the chat is laid exactly over the part of the screen that is left: that part's top and height.
     const kb = window.innerHeight - vv.height > 80;
     c.style.top = kb ? vv.offsetTop + "px" : ""; c.style.height = kb ? vv.height + "px" : ""; c.style.bottom = kb ? "auto" : "";
+    if (kb !== c.classList.contains("kb")) chatDiag("vv");
     c.classList.toggle("kb", kb);
     $("chatList").scrollTop = $("chatList").scrollHeight;
+  }
+  // While the writing box has the cursor the keyboard is up, whatever the phone reports about its screen.
+  $("chatText").addEventListener("focus", () => { $("chat").classList.add("typing"); chatDiag("focus"); setTimeout(() => { $("chatList").scrollTop = $("chatList").scrollHeight; }, 400); });
+  $("chatText").addEventListener("blur", () => { $("chat").classList.remove("typing"); });
+  // A tap on the chat itself (the messages, the top bar), not on a button, puts the keyboard away.
+  $("chat").addEventListener("click", (e) => { if (!e.target.closest("button, textarea, input, label, form")) $("chatText").blur(); });
+  // For now (v8.3): the phone tells the PC how the chat screen is laid out with the keyboard up (numbers only,
+  // locked like every chat message; the PC keeps them in chat_diag.log). The iPhone still showed a gap above the
+  // keyboard and lost the top bar, and it cannot be seen on the PC. Take this out once that is solved.
+  let chatDiagAt = 0;
+  function chatDiag(why) {
+    if (Date.now() - chatDiagAt < 5000) return;
+    chatDiagAt = Date.now();
+    setTimeout(() => {
+      try {
+        const vv = window.visualViewport, c = $("chat");
+        if (c.hidden) return;
+        const r = (e) => { const b = e.getBoundingClientRect(); return [Math.round(b.top), Math.round(b.bottom)]; };
+        const probe = document.createElement("div");
+        probe.style.cssText = "position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)";
+        document.body.appendChild(probe);
+        const cs = getComputedStyle(probe), safe = [parseFloat(cs.paddingTop) || 0, parseFloat(cs.paddingBottom) || 0];
+        probe.remove();
+        chatTell({ from: "phone", kind: "diag", id: chatNewId(), time: Date.now(), why, v: APP_VERSION, ios: (ua.match(/OS (\d+[_.]\d+(?:[_.]\d+)?)/) || [])[1] || "", standalone,
+          ih: window.innerHeight, iw: window.innerWidth, sh: screen.height, ch: document.documentElement.clientHeight, sy: Math.round(window.scrollY), safe,
+          vv: vv ? [Math.round(vv.height), Math.round(vv.offsetTop), Math.round(vv.pageTop), vv.scale] : null,
+          chat: r(c), bar: r(c.querySelector(".bar")), list: r($("chatList")), form: r($("chatForm")), text: r($("chatText")),
+          kb: c.classList.contains("kb"), typing: c.classList.contains("typing"), style: c.getAttribute("style") || "", focus: document.activeElement === $("chatText") }).catch(() => {});
+      } catch {}
+    }, 1200);
   }
   if (window.visualViewport) { window.visualViewport.addEventListener("resize", chatLift); window.visualViewport.addEventListener("scroll", chatLift); }
   setInterval(() => { if (chatStream && $("chat").hidden) chatStop(); }, 3000);     // the screen was closed some other way
