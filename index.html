@@ -494,7 +494,8 @@
     .dots span:nth-child(2) { animation-delay: .2s; } .dots span:nth-child(3) { animation-delay: .4s; }
     @keyframes dotTurn { 0%, 60%, 100% { opacity: .25; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-4px); } }
   }
-  .cmsg.typing { padding: 14px 16px; color: var(--muted); }
+  .cmsg.typing { display: flex; align-items: center; gap: 10px; padding: 11px 16px; color: var(--muted); font-size: 15px; }
+  .cmsg.typing .dots span { width: 7px; height: 7px; }
   /* in the middle of the screen: waiting for the computer, or the computer is not on */
   .chatwait, .chatoff { margin: auto; text-align: center; padding: 0 22px 70px; }
   .chatwait strong { display: block; font-size: 20px; font-weight: 800; letter-spacing: -.01em; margin-bottom: 18px; }
@@ -1062,7 +1063,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "7.9";
+  const APP_VERSION = "8.0";
   // A colour of the page's own palette (see :root), for what is drawn by hand: the charts, the tab
   // marks. Read from the page so they follow the dark or the light look; kept for a second at a time.
   let themeAt = 0, themeSeen = {};
@@ -2265,7 +2266,8 @@
     try { const u8 = b64Bytes(text); return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: u8.subarray(0, 12) }, key, u8.subarray(12)))); }
     catch { return null; }
   }
-  // Is the PC on, and is the chat open on it? "ready", "closed" (on, but no chat is listening), "off", or "offline" (this phone has no connection).
+  // Is the PC on, and is the chat open on it? "ready", "busy" (open, and Claude is working on a message), "closed" (on, but no chat
+  // is open), "off", or "offline" (this phone has no connection).
   async function chatAskPc(needKey) {
     const id = "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), since = Math.floor(Date.now() / 1000) - 3;
     try {
@@ -2276,7 +2278,7 @@
       await new Promise((r) => setTimeout(r, i ? 1100 : 700));
       try {
         const text = await (await fetch(`${C.ntfy}/${C.topic}-status/json?poll=1&since=${since}`, { cache: "no-store" })).text();
-        for (const line of text.split("\n")) { try { const d = JSON.parse(JSON.parse(line).message); if (d && d.id === id) return d.state === "chat-ready" ? "ready" : "closed"; } catch {} }
+        for (const line of text.split("\n")) { try { const d = JSON.parse(JSON.parse(line).message); if (d && d.id === id) return d.state === "chat-ready" ? "ready" : d.state === "chat-busy" ? "busy" : "closed"; } catch {} }
       } catch {}
     }
     return "off";
@@ -2312,7 +2314,7 @@
       const last = !next || (next.who === "me" ? "me" : "claude") !== mine || !!next.pc !== !!m.pc || dayLabel(next.time) !== d || next.time - m.time > 5 * 60000;     // the time shows under the last of a run
       return head + `<div class="cmsg ${mine}${turn ? " turn" : ""}${m.img ? " pic" : ""}">${m.img ? `<img src="${esc(m.img)}" alt="The photo you sent">${m.text ? `<span class="txt">${esc(m.text)}</span>` : ""}` : esc(m.text || "")}</div>`
         + (last ? `<div class="ctime ${mine}">${noteClock(m.time)}${m.pc ? " · on the computer" : ""}</div>` : "");
-    }).join("") + (chatThinking ? `<div class="cmsg claude turn typing" role="status" aria-label="Claude is writing">${DOTS}</div>` : "");
+    }).join("") + (chatThinking ? `<div class="cmsg claude turn typing" role="status"><span>Working on that</span>${DOTS}</div>` : "");
     list.scrollTop = list.scrollHeight;
   }
   function chatStop() { if (chatStream) { try { chatStream.close(); } catch {} chatStream = null; } }
@@ -2344,11 +2346,15 @@
     let key = await chatCrypto();
     const state = await chatAskPc(!key);
     if ($("chat").hidden) return;
-    if (state !== "ready") { chatShow(state); return; }
+    if (state !== "ready" && state !== "busy") { chatShow(state); return; }
     for (let i = 0; i < 14 && !key; i++) { await new Promise((r) => setTimeout(r, 1000)); key = await chatCrypto(); }     // the key is on its way in a push
     if ($("chat").hidden) return;
     if (!key) { chatShow("nokey"); return; }
-    chatShow("ready"); renderChat(); chatListen(key);                 // the computer is on and the chat is waiting: start
+    // The computer is on and the chat is there: start. While Claude is working (the PC said so, or the
+    // last word here is the user's own and less than half an hour old) it says "Working on that".
+    const lastOne = chatLog[chatLog.length - 1];
+    chatThinking = state === "busy" || (!!lastOne && lastOne.who === "me" && Date.now() - lastOne.time < 30 * 60000);
+    chatShow("ready"); renderChat(); chatListen(key);
   }
   function closeChat() { chatStop(); closeScreen("chat"); $("chat").style.bottom = ""; $("chat").classList.remove("kb"); }
   $("chatBtn").onclick = openChat;
