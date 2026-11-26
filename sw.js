@@ -1,5 +1,5 @@
 /* Claude News service worker: offline shell + push notifications. */
-const CACHE = "claude-news-v68";
+const CACHE = "claude-news-v69";
 const STATE = "claude-news-state";          // small notes shared with the page; kept across updates
 const SHELL = ["./", "./index.html", "./config.js", "./manifest.webmanifest",
                "./icons/icon-192.png", "./icons/icon-512.png", "./icons/logo.svg"];
@@ -106,7 +106,11 @@ self.addEventListener("push", (event) => {
   // the screen; closing that deletes it. Its link carries "sys=1".
   const ephemeral = !!data.ephemeral || /[?&]sys=1\b/.test(msg.url);
   event.waitUntil((async () => {
-    if (ephemeral) await keepPing(msg); else await storeMessage(msg);
+    // The key of the chat with Claude on the PC arrives this way, once: encrypted for this phone
+    // by the push itself. It is kept for the page ("__chatkey") and is not a ping.
+    if (data.chatKey && typeof data.chatKey.key === "string") {
+      try { await (await caches.open(STATE)).put(stateUrl("__chatkey"), asJson({ id: String(data.chatKey.id || ""), key: data.chatKey.key })); } catch (e) { /* the app asks again */ }
+    } else if (ephemeral) await keepPing(msg); else await storeMessage(msg);
     await self.registration.showNotification(msg.title, {
       body: msg.body,
       icon: "./icons/icon-192.png",

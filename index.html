@@ -465,6 +465,33 @@
   #lineText.bad { color: var(--danger); font-weight: 700; }
 
   /* v4.3: the opening animation, the press-and-hold pop-up, pinned stocks in My demo */
+  /* chat with Claude on the PC */
+  .chartsbtn.chat { background: var(--info); color: #04222a; box-shadow: 0 4px 14px color-mix(in srgb, var(--info) 30%, transparent); }
+  #chat { display: flex; flex-direction: column; overflow: hidden; padding-bottom: 0; }
+  #chat .bar { flex: 0 0 auto; }
+  #chatList { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 8px; padding: 6px 0 12px; }
+  .cmsg { max-width: 84%; padding: 9px 13px; border-radius: 18px; font-size: 16px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; -webkit-user-select: text; user-select: text; }
+  .cmsg.me { align-self: flex-end; background: color-mix(in srgb, var(--info) 22%, var(--surface-2)); border-bottom-right-radius: 6px; }
+  .cmsg.claude { align-self: flex-start; background: var(--surface); border-bottom-left-radius: 6px; }
+  .cmsg img { display: block; max-width: 180px; max-height: 180px; border-radius: 10px; margin-bottom: 6px; }
+  .cmsg .ct { display: block; margin-top: 3px; font-size: 11px; color: var(--muted); }
+  .cmsg.me .ct { text-align: right; }
+  .cday { align-self: center; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 6px 0 2px; }
+  .cthink { align-self: flex-start; font-size: 13px; color: var(--muted); padding: 2px 6px; }
+  .chatoff { margin: auto; padding: 0 22px 60px; text-align: center; }
+  .chatoff strong { display: block; font-size: 20px; font-weight: 800; letter-spacing: -.01em; margin-bottom: 8px; }
+  .chatoff p { margin: 0 0 16px; font-size: 14px; color: var(--muted); line-height: 1.5; }
+  .chatoff button { border-radius: 999px; padding: 10px 20px; }
+  .chatform { flex: 0 0 auto; display: flex; align-items: flex-end; gap: 8px; margin: 0 -4px; padding: 8px 0 calc(10px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); }
+  #chat.kb .chatform { padding-bottom: 8px; }
+  .chatform[hidden] { display: none; }
+  .chatform textarea { flex: 1 1 auto; min-width: 0; box-sizing: border-box; border: 0; border-radius: 20px; padding: 10px 14px; background: var(--surface); color: var(--fg); font: inherit; font-size: 16px; line-height: 1.35;
+    resize: none; outline: none; max-height: 132px; -webkit-user-select: text; user-select: text; -webkit-appearance: none; appearance: none; }
+  .chatform textarea::placeholder { color: var(--muted); }
+  .chatform .cbtn { flex: 0 0 auto; width: 40px; height: 40px; padding: 0; border-radius: 50%; display: grid; place-items: center; background: var(--surface); color: var(--fg); }
+  .chatform .cbtn svg { width: 20px; height: 20px; }
+  .chatform .cbtn.send { background: var(--info); color: #04222a; }
+  .chatform .cbtn[disabled] { opacity: .45; }
   /* pull down to refresh: a circle that fills as you pull and turns while the app loads again */
   #ptr { position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 58px); z-index: 45; width: 38px; height: 38px; border-radius: 50%; background: var(--surface-2);
     box-shadow: 0 6px 18px rgba(0, 0, 0, .4); display: grid; place-items: center; opacity: 0; transform: translate(-50%, -30px); pointer-events: none; }
@@ -723,6 +750,10 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
     Notes<span id="notesBadge" class="nbadge" hidden></span>
   </button>
+  <button id="chatBtn" class="chartsbtn chat" aria-label="Chat with Claude" hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z"/></svg>
+    Chat
+  </button>
   <button id="settingsBtn" class="iconbtn" aria-label="Settings">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
   </button>
@@ -860,6 +891,19 @@
   <div id="notesList"></div>
   <p class="note">Your notes stay on this phone only. Nobody else can read them, Claude included.</p>
 </section>
+<section id="chat" class="screen" hidden aria-label="Chat with Claude">
+  <div class="bar">
+    <button class="iconbtn" id="chatBack" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <h2>Chat</h2>
+    <span id="chatState" class="sub"></span>
+  </div>
+  <div id="chatList"></div>
+  <form id="chatForm" class="chatform" hidden>
+    <label class="cbtn" aria-label="Send a photo"><input id="chatPhoto" type="file" accept="image/*" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.6-2.4h6.8L17 8h3v11H4Z"/><circle cx="12" cy="13.2" r="3.4"/></svg></label>
+    <textarea id="chatText" rows="1" maxlength="4000" placeholder="Write to Claude…" aria-label="Your message"></textarea>
+    <button type="submit" class="cbtn send" aria-label="Send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/></svg></button>
+  </form>
+</section>
 <div id="chainBar" class="chainbar" hidden>
   <button type="button" id="chainCancel" class="ghost">Cancel</button>
   <div class="cb"><b id="chainCount"></b><span id="chainHint"></span></div>
@@ -996,7 +1040,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "7.6";
+  const APP_VERSION = "7.7";
   // A colour of the page's own palette (see :root), for what is drawn by hand: the charts, the tab
   // marks. Read from the page so they follow the dark or the light look; kept for a second at a time.
   let themeAt = 0, themeSeen = {};
@@ -1560,9 +1604,10 @@
     const shown = all.filter((m) => m.project === current);
     $("tabTitle").textContent = label(current);
     $("boardBtn").hidden = $("demoBtn").hidden = current !== "Stocks";
-    document.querySelector("header").classList.toggle("three", current === "Stocks");
+    document.querySelector("header").classList.toggle("three", current === "Stocks" || current === "Claude News");
     $("igBtn").hidden = current !== "Instagram";
     $("notesBtn").hidden = current !== "Claude News";
+    $("chatBtn").hidden = current !== "Claude News";
     notesBadge(); renderMarket();
     const head = $("tabTitle");                              // a long name gets smaller letters instead of being cut
     head.style.fontSize = "";
@@ -2169,6 +2214,166 @@
       $("popNo").onclick = closeRowMenu;
     };
   }
+  // ---- chat with Claude on the PC ---------------------------------------------------
+  // The Chat button (Claude News category). It first asks the PC whether it is on and whether the
+  // chat is open in the Claude app there (the PC's helper answers on the status channel). Then the
+  // messages go over the channel "<topic>-chat", locked with a key only this phone and the PC have
+  // (AES-GCM). The key arrives once inside a push message, which is itself encrypted for this
+  // phone; the worker keeps it ("__chatkey"). A photo is shrunk, locked, and uploaded as a file.
+  // The chat itself is kept on this phone only (cn.chat, the last 150 messages).
+  let chatLog = [], chatKey = null, chatStream = null, chatThinking = false, chatSending = false;
+  try { const c = JSON.parse(ls.get("cn.chat", "[]")); if (Array.isArray(c)) chatLog = c.filter((m) => m && typeof m.id === "string"); } catch { chatLog = []; }
+  const chatSave = () => { chatLog = chatLog.slice(-150); try { ls.set("cn.chat", JSON.stringify(chatLog)); } catch { chatLog.forEach((m) => { delete m.img; }); ls.set("cn.chat", JSON.stringify(chatLog)); } };
+  const bytesB64 = (u8) => { let t = ""; for (let i = 0; i < u8.length; i += 0x8000) t += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(t); };
+  const b64Bytes = (t) => Uint8Array.from(atob(t), (c) => c.charCodeAt(0));
+  async function chatCrypto() {                              // the key, ready for use; null while this phone has none
+    const k = await stateGet("__chatkey");
+    if (!k || typeof k.key !== "string") return null;
+    if (!chatKey || chatKey.id !== k.id) chatKey = { id: k.id, key: await crypto.subtle.importKey("raw", b64Bytes(k.key), "AES-GCM", false, ["encrypt", "decrypt"]) };
+    return chatKey.key;
+  }
+  async function chatLockBytes(key, u8) {
+    const iv = crypto.getRandomValues(new Uint8Array(12)), ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, u8));
+    const out = new Uint8Array(12 + ct.length); out.set(iv); out.set(ct, 12);
+    return out;
+  }
+  const chatLock = async (key, obj) => bytesB64(await chatLockBytes(key, new TextEncoder().encode(JSON.stringify(obj))));
+  async function chatUnlock(key, text) {
+    try { const u8 = b64Bytes(text); return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: u8.subarray(0, 12) }, key, u8.subarray(12)))); }
+    catch { return null; }
+  }
+  // Is the PC on, and is the chat open on it? "ready", "closed" (on, but no chat is listening), "off", or "offline" (this phone has no connection).
+  async function chatAskPc(needKey) {
+    const id = "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), since = Math.floor(Date.now() / 1000) - 3;
+    try {
+      const r = await fetch(`${C.ntfy}/${C.topic}-commands`, { method: "POST", headers: { "Title": "chat-hello" }, body: JSON.stringify({ type: "chat-hello", id, time: Date.now(), needKey: !!needKey }) });
+      if (!r.ok) return "offline";
+    } catch { return "offline"; }
+    for (let i = 0; i < 8; i++) {
+      await new Promise((r) => setTimeout(r, i ? 1100 : 700));
+      try {
+        const text = await (await fetch(`${C.ntfy}/${C.topic}-status/json?poll=1&since=${since}`, { cache: "no-store" })).text();
+        for (const line of text.split("\n")) { try { const d = JSON.parse(JSON.parse(line).message); if (d && d.id === id) return d.state === "chat-ready" ? "ready" : "closed"; } catch {} }
+      } catch {}
+    }
+    return "off";
+  }
+  const CHAT_OFF = {
+    off: ["Your computer is turned off", "Turn it on, or wake it from sleep, and try again."],
+    closed: ["The chat isn't open on your computer", "Your computer is on, but Claude isn't waiting there. Open the Claude app on the computer; the chat named \"Phone chat\" has to be there."],
+    offline: ["No connection", "This phone can't reach the internet right now."],
+    nokey: ["This phone isn't connected to the chat yet", "The key for the chat arrives in a notification, so notifications must be on for this app (Settings, the gear at the top). Then try again."],
+  };
+  function chatShow(state) {                                 // "checking", "ready", or one of CHAT_OFF
+    const off = CHAT_OFF[state];
+    $("chatForm").hidden = state !== "ready";
+    $("chatState").textContent = state === "checking" ? "Checking your computer…" : "";
+    $("chatList").querySelectorAll(".chatoff").forEach((x) => x.remove());
+    if (off) {
+      const box = document.createElement("div"); box.className = "chatoff";
+      box.innerHTML = `<strong>${esc(off[0])}</strong><p>${esc(off[1])}</p><button type="button" class="ghost">Try again</button>`;
+      box.querySelector("button").onclick = openChat;
+      $("chatList").innerHTML = ""; $("chatList").appendChild(box);
+    }
+  }
+  function renderChat() {
+    const list = $("chatList");
+    if (list.querySelector(".chatoff")) return;
+    let day = "";
+    list.innerHTML = (chatLog.length ? "" : `<div class="cthink" style="align-self:center;margin:auto">Write to Claude, or send a photo.</div>`) + chatLog.map((m) => {
+      const d = dayLabel(m.time), head = d !== day ? `<div class="cday">${esc(d)}</div>` : "";
+      day = d;
+      return head + `<div class="cmsg ${m.who === "me" ? "me" : "claude"}">${m.img ? `<img src="${esc(m.img)}" alt="The photo you sent">` : ""}${esc(m.text || (m.img ? "" : "(a photo)"))}<span class="ct">${noteClock(m.time)}</span></div>`;
+    }).join("") + (chatThinking ? `<div class="cthink">Claude is thinking…</div>` : "");
+    list.scrollTop = list.scrollHeight;
+  }
+  function chatStop() { if (chatStream) { try { chatStream.close(); } catch {} chatStream = null; } }
+  function chatListen(key) {                                 // Claude's answers, as they come
+    chatStop();
+    const es = chatStream = new EventSource(`${C.ntfy}/${C.topic}-chat/sse?since=${encodeURIComponent(ls.get("cn.chatSince", "") || "12h")}`);
+    es.onmessage = async (e) => {
+      if (chatStream !== es) return;
+      if ($("chat").hidden) { chatStop(); return; }
+      let m; try { m = JSON.parse(e.data); } catch { return; }
+      if (m.id) ls.set("cn.chatSince", m.id);
+      const d = await chatUnlock(key, m.message || "");
+      if (!d || d.from !== "claude" || typeof d.id !== "string" || chatLog.some((x) => x.id === d.id)) return;
+      chatLog.push({ id: d.id, who: "claude", text: String(d.text || ""), time: Number(d.time) || Date.now() });
+      chatThinking = false; chatSave(); renderChat(); haptic();
+    };
+  }
+  async function openChat() {
+    openScreen("chat");
+    $("chatList").innerHTML = ""; renderChat(); chatShow("checking");
+    let key = await chatCrypto();
+    const state = await chatAskPc(!key);
+    if ($("chat").hidden) return;
+    if (state !== "ready") { chatShow(state); return; }
+    for (let i = 0; i < 14 && !key; i++) { await new Promise((r) => setTimeout(r, 1000)); key = await chatCrypto(); }     // the key is on its way in a push
+    if ($("chat").hidden) return;
+    if (!key) { chatShow("nokey"); return; }
+    chatShow("ready"); renderChat(); chatListen(key);
+  }
+  function closeChat() { chatStop(); closeScreen("chat"); $("chat").style.bottom = ""; $("chat").classList.remove("kb"); }
+  $("chatBtn").onclick = openChat;
+  $("chatBack").onclick = closeChat;
+  // A photo is made smaller before it is sent: at most 1600 pixels a side, as a JPEG. Also a tiny copy to show in the chat.
+  async function chatPhoto(file) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("That file is not a picture")); i.src = url; });
+      const draw = (side, q, asUrl) => {
+        const k = Math.min(1, side / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement("canvas");
+        c.width = Math.max(1, Math.round(img.naturalWidth * k)); c.height = Math.max(1, Math.round(img.naturalHeight * k));
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        return asUrl ? c.toDataURL("image/jpeg", q) : new Promise((res) => c.toBlob(res, "image/jpeg", q));
+      };
+      const blob = await draw(1600, 0.82, false);
+      if (!blob) throw new Error("Could not read that picture");
+      return { bytes: new Uint8Array(await blob.arrayBuffer()), small: draw(200, 0.6, true) };
+    } finally { URL.revokeObjectURL(url); }
+  }
+  async function chatSend(text, file) {
+    text = String(text || "").trim();
+    if ((!text && !file) || chatSending) return;
+    const key = await chatCrypto();
+    if (!key) { chatShow("nokey"); return; }
+    chatSending = true; $("chatForm").querySelectorAll("button, textarea").forEach((b) => { b.disabled = true; });
+    try {
+      const msg = { from: "phone", id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), text, time: Date.now() };
+      let small = "";
+      if (file) {
+        $("chatState").textContent = "Sending the photo…";
+        const p = await chatPhoto(file);
+        const r = await fetch(`${C.ntfy}/${C.topic}-chatfile`, { method: "PUT", headers: { "Filename": "photo.bin" }, body: await chatLockBytes(key, p.bytes) });
+        const j = r.ok ? await r.json() : null;
+        if (!j || !j.attachment || !j.attachment.url) throw new Error("Could not send the photo");
+        msg.photo = j.attachment.url; small = p.small;
+      }
+      const r = await fetch(`${C.ntfy}/${C.topic}-chat`, { method: "POST", headers: { "Title": "chat" }, body: await chatLock(key, msg) });
+      if (!r.ok) throw new Error("Could not send (" + r.status + ")");
+      chatLog.push({ id: msg.id, who: "me", text, time: msg.time, img: small });
+      chatThinking = true; chatSave();
+      $("chatText").value = ""; $("chatText").style.height = "auto";
+    } catch (e) { toast(e.message || "Could not send"); }
+    chatSending = false; $("chatState").textContent = "";
+    $("chatForm").querySelectorAll("button, textarea").forEach((b) => { b.disabled = false; });
+    renderChat();
+  }
+  $("chatForm").addEventListener("submit", (e) => { e.preventDefault(); chatSend($("chatText").value, null); });
+  $("chatPhoto").addEventListener("change", () => { const f = $("chatPhoto").files && $("chatPhoto").files[0]; $("chatPhoto").value = ""; if (f) chatSend($("chatText").value, f); });
+  $("chatText").addEventListener("input", () => { const t = $("chatText"); t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 132) + "px"; });
+  // The keyboard covers the bottom of the screen: the chat screen ends where the keyboard begins.
+  function chatLift() {
+    const vv = window.visualViewport, c = $("chat");
+    if (!vv || c.hidden) return;
+    const kb = Math.max(0, window.innerHeight - (vv.offsetTop + vv.height));
+    c.style.bottom = kb > 80 ? kb + "px" : ""; c.classList.toggle("kb", kb > 80);
+    $("chatList").scrollTop = $("chatList").scrollHeight;
+  }
+  if (window.visualViewport) { window.visualViewport.addEventListener("resize", chatLift); window.visualViewport.addEventListener("scroll", chatLift); }
+  setInterval(() => { if (chatStream && $("chat").hidden) chatStop(); }, 3000);     // the screen was closed some other way
+
   // ---- pull down to refresh ---------------------------------------------------------
   // At the top of the page, or of an open screen, pulling further down brings a circle that fills
   // up as you pull. Let go past the mark and it turns while the app is loaded again: new
@@ -2184,6 +2389,7 @@
     if (!$("pop").hidden || !target.closest || target.closest(".sheet, .sheet-bg, canvas, input, textarea, select")) return null;
     if ([...document.querySelectorAll(".sheet")].some((x) => !x.hidden)) return null;
     const screen = [...document.querySelectorAll(".screen")].filter((x) => !x.hidden).pop();
+    if (screen && screen.id === "chat") return null;        // the chat scrolls its own list
     if (screen) return screen.contains(target) ? screen : null;
     return document.scrollingElement || document.documentElement;
   }
