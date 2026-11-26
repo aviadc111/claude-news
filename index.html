@@ -453,6 +453,17 @@
   #lineText.bad { color: var(--danger); font-weight: 700; }
 
   /* v4.3: the opening animation, the press-and-hold pop-up, pinned stocks in My demo */
+  /* pull down to refresh: a circle that fills as you pull and turns while the app loads again */
+  #ptr { position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 58px); z-index: 45; width: 38px; height: 38px; border-radius: 50%; background: var(--surface-2);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .4); display: grid; place-items: center; opacity: 0; transform: translate(-50%, -30px); pointer-events: none; }
+  #ptr.back { transition: transform .22s ease, opacity .22s ease; }
+  #ptr svg { width: 22px; height: 22px; transform: rotate(-90deg); }
+  #ptr .track { stroke: var(--line); stroke-width: 2.6; }
+  #ptr .arc { stroke: var(--muted); stroke-width: 2.6; stroke-dasharray: 53.4; stroke-dashoffset: 53.4; }
+  #ptr.ready .arc, #ptr.spin .arc { stroke: var(--accent); }
+  #ptr.spin .arc { stroke-dashoffset: 16; }
+  #ptr.spin svg { animation: ptrSpin .8s linear infinite; }
+  @keyframes ptrSpin { to { transform: rotate(270deg); } }
   #splash { position: fixed; inset: 0; z-index: 200; background: #070b14; transition: opacity .35s ease-out; }
   #splash.out { opacity: 0; pointer-events: none; }
   #splash canvas { width: 100%; height: 100%; display: block; }
@@ -959,7 +970,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "6.8";
+  const APP_VERSION = "6.9";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -2118,6 +2129,81 @@
       $("popNo").onclick = closeRowMenu;
     };
   }
+  // ---- pull down to refresh ---------------------------------------------------------
+  // At the top of the page, or of an open screen, pulling further down brings a circle that fills
+  // up as you pull. Let go past the mark and it turns while the app is loaded again: new
+  // messages, new prices, a new version. The opening animation is skipped, and the screen you
+  // were on (Notes, Charts, Demo) opens again.
+  const PTR_AT = 78;                                         // how far the finger has to pull
+  const ptr = document.createElement("div");
+  ptr.id = "ptr"; ptr.setAttribute("aria-hidden", "true");
+  ptr.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><circle class="track" cx="12" cy="12" r="8.5"/><circle class="arc" cx="12" cy="12" r="8.5"/></svg>';
+  document.body.appendChild(ptr);
+  let pull = null, refreshing = false;
+  function pullScroller(target) {                            // what scrolls under this finger, or null where a pull means something else
+    if (!$("pop").hidden || !target.closest || target.closest(".sheet, .sheet-bg, canvas, input, textarea, select")) return null;
+    if ([...document.querySelectorAll(".sheet")].some((x) => !x.hidden)) return null;
+    const screen = [...document.querySelectorAll(".screen")].filter((x) => !x.hidden).pop();
+    if (screen) return screen.contains(target) ? screen : null;
+    return document.scrollingElement || document.documentElement;
+  }
+  function ptrShow(dist) {
+    const part = Math.min(1, dist / PTR_AT);
+    ptr.classList.remove("back");
+    ptr.style.transform = `translate(-50%, ${Math.min(dist * 0.5, 58) - 30}px)`;
+    ptr.style.opacity = String(Math.min(1, dist / 30));
+    ptr.querySelector(".arc").style.strokeDashoffset = String(53.4 * (1 - 0.9 * part));
+    ptr.classList.toggle("ready", part >= 1);
+  }
+  function ptrHide() {
+    ptr.classList.add("back"); ptr.classList.remove("ready");
+    ptr.style.transform = ""; ptr.style.opacity = "";
+  }
+  function refreshNow() {
+    refreshing = true;
+    ptr.classList.add("back", "spin");
+    ptr.querySelector(".arc").style.strokeDashoffset = "";
+    ptr.style.transform = "translate(-50%, 28px)"; ptr.style.opacity = "1";
+    haptic();
+    try {
+      sessionStorage.setItem("cn.splash", String(Date.now()));                 // loaded again at once: no opening animation
+      const open = [...document.querySelectorAll(".screen")].filter((x) => !x.hidden).pop();
+      if (open && ["notes", "board", "demo"].includes(open.id)) sessionStorage.setItem("cn.reopen", open.id);
+    } catch {}
+    setTimeout(() => location.reload(), 700);
+  }
+  document.addEventListener("touchstart", (e) => {
+    pull = null;
+    if (refreshing || e.touches.length !== 1) return;
+    const sc = pullScroller(e.target);
+    if (sc && sc.scrollTop <= 0) pull = { sc, x: e.touches[0].clientX, y: e.touches[0].clientY, dist: 0, on: false };
+  }, { passive: true });
+  document.addEventListener("touchmove", (e) => {
+    if (!pull) return;
+    if (noteDrag || e.touches.length !== 1) { pull = null; ptrHide(); return; }
+    const dx = e.touches[0].clientX - pull.x, dy = e.touches[0].clientY - pull.y;
+    if (!pull.on) {
+      if (dy < -6 || Math.abs(dx) > Math.max(12, dy)) { pull = null; return; }      // going up, or sideways: not a pull
+      if (dy < 12) return;
+      if (pull.sc.scrollTop > 0) { pull = null; return; }
+      pull.on = true;
+    }
+    pull.dist = Math.max(0, dy - 12);
+    ptrShow(pull.dist);
+  }, { passive: true });
+  document.addEventListener("touchend", () => {
+    const p = pull; pull = null;
+    if (!p || !p.on) return;
+    if (p.dist >= PTR_AT) refreshNow(); else ptrHide();
+  }, { passive: true });
+  document.addEventListener("touchcancel", () => { if (pull) { pull = null; ptrHide(); } }, { passive: true });
+  try {                                                      // after a refresh: back to the screen it was pulled on
+    const back = sessionStorage.getItem("cn.reopen");
+    sessionStorage.removeItem("cn.reopen");
+    const btn = { notes: "notesBtn", board: "boardBtn", demo: "demoBtn" }[back];
+    if (btn) setTimeout(() => { try { $(btn).click(); } catch {} }, 450);
+  } catch {}
+
   // A button that asks for a second press ("Tap again"): it goes back to what it said after 4
   // seconds, or the moment anything else on the screen is pressed. lastPress: when the screen was
   // last touched (the keyboard's own buttons do not count; see openNoteBox).
