@@ -40,6 +40,10 @@
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
   html, body { height: 100%; }
+  /* On an iPhone, a page too short to scroll is laid out as if the screen ended a status bar's height
+     early, so the bottom bar floats that much too high (seen in Claude News and FollowBack, not in
+     Stocks, which is long). A page that is always a little taller than the screen is laid out right. */
+  @supports (-webkit-touch-callout: none) { html { min-height: calc(100% + env(safe-area-inset-top, 0px) + 1px); } }
   body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.45 var(--font); -webkit-font-smoothing: antialiased;
          touch-action: pan-x pan-y; -webkit-text-size-adjust: 100%; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   .msg, code, input { -webkit-user-select: text; user-select: text; }
@@ -992,7 +996,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "7.4";
+  const APP_VERSION = "7.5";
   // A colour of the page's own palette (see :root), for what is drawn by hand: the charts, the tab
   // marks. Read from the page so they follow the dark or the light look; kept for a second at a time.
   let themeAt = 0, themeSeen = {};
