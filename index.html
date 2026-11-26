@@ -469,19 +469,41 @@
   .chartsbtn.chat { background: var(--info); color: #04222a; box-shadow: 0 4px 14px color-mix(in srgb, var(--info) 30%, transparent); }
   #chat { display: flex; flex-direction: column; overflow: hidden; padding-bottom: 0; }
   #chat .bar { flex: 0 0 auto; }
-  #chatList { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 8px; padding: 6px 0 12px; }
-  .cmsg { max-width: 84%; padding: 9px 13px; border-radius: 18px; font-size: 16px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; -webkit-user-select: text; user-select: text; }
-  .cmsg.me { align-self: flex-end; background: color-mix(in srgb, var(--info) 22%, var(--surface-2)); border-bottom-right-radius: 6px; }
-  .cmsg.claude { align-self: flex-start; background: var(--surface); border-bottom-left-radius: 6px; }
-  .cmsg img { display: block; max-width: 180px; max-height: 180px; border-radius: 10px; margin-bottom: 6px; }
-  .cmsg .ct { display: block; margin-top: 3px; font-size: 11px; color: var(--muted); }
-  .cmsg.me .ct { text-align: right; }
-  .cday { align-self: center; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 6px 0 2px; }
-  .cthink { align-self: flex-start; font-size: 13px; color: var(--muted); padding: 2px 6px; }
-  .chatoff { margin: auto; padding: 0 22px 60px; text-align: center; }
-  .chatoff strong { display: block; font-size: 20px; font-weight: 800; letter-spacing: -.01em; margin-bottom: 8px; }
-  .chatoff p { margin: 0 0 16px; font-size: 14px; color: var(--muted); line-height: 1.5; }
-  .chatoff button { border-radius: 999px; padding: 10px 20px; }
+  /* The list. It is always a hair taller than its frame, so the phone lets it be pulled past its ends. */
+  #chatList { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; display: flex; flex-direction: column; padding: 8px 2px 14px; }
+  #chatList::after { content: ""; position: absolute; left: 0; top: 0; width: 1px; height: calc(100% + 1px); pointer-events: none; visibility: hidden; }
+  #chatList > :first-child { margin-top: auto; }              /* a short chat sits at the bottom, next to the box you write in */
+  /* Bubbles: yours bright and on the right, Claude's quiet and on the left. */
+  .cmsg { max-width: 82%; margin-top: 3px; padding: 10px 14px; border-radius: 20px; font-size: 16px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; -webkit-user-select: text; user-select: text; }
+  .cmsg.turn { margin-top: 14px; }                            /* the other one starts speaking */
+  .cmsg.me { align-self: flex-end; background: var(--info); color: #04222a; border-bottom-right-radius: 7px; }
+  .cmsg.claude { align-self: flex-start; background: var(--surface-2); color: var(--fg); border-bottom-left-radius: 7px; }
+  .cmsg.pic { padding: 4px 4px 8px; }
+  .cmsg.pic img { display: block; width: 100%; max-width: 220px; border-radius: 16px; }
+  .cmsg.pic .txt { display: block; padding: 7px 10px 0; }
+  .ctime { margin-top: 3px; font-size: 11px; color: var(--muted); }
+  .ctime.me { align-self: flex-end; margin-right: 6px; }
+  .ctime.claude { align-self: flex-start; margin-left: 6px; }
+  .cday { align-self: center; font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); margin: 14px 0 4px; }
+  .chint { align-self: center; margin: auto; font-size: 14px; color: var(--muted); text-align: center; }
+  /* three dots that take turns: waiting, and Claude writing */
+  .dots { display: inline-flex; gap: 7px; align-items: center; }
+  .dots span { width: 9px; height: 9px; border-radius: 50%; background: currentColor; opacity: .3; }
+  @media (prefers-reduced-motion: no-preference) {
+    .dots span { animation: dotTurn 1.2s ease-in-out infinite; }
+    .dots span:nth-child(2) { animation-delay: .2s; } .dots span:nth-child(3) { animation-delay: .4s; }
+    @keyframes dotTurn { 0%, 60%, 100% { opacity: .25; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-4px); } }
+  }
+  .cmsg.typing { padding: 14px 16px; color: var(--muted); }
+  /* in the middle of the screen: waiting for the computer, or the computer is not on */
+  .chatwait, .chatoff { margin: auto; text-align: center; padding: 0 22px 70px; }
+  .chatwait strong { display: block; font-size: 20px; font-weight: 800; letter-spacing: -.01em; margin-bottom: 18px; }
+  .chatwait .dots { color: var(--info); }
+  .chatwait .dots span { width: 11px; height: 11px; }
+  .chatoff .box { padding: 22px 20px 20px; border-radius: 22px; background: color-mix(in srgb, var(--danger) 13%, var(--surface)); border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent); }
+  .chatoff strong { display: block; font-size: 20px; font-weight: 800; letter-spacing: -.01em; color: var(--danger); margin-bottom: 8px; }
+  .chatoff p { margin: 0 0 18px; font-size: 15px; line-height: 1.5; }
+  .chatoff button { border-radius: 999px; padding: 11px 22px; background: var(--surface-2); color: var(--fg); }
   .chatform { flex: 0 0 auto; display: flex; align-items: flex-end; gap: 8px; margin: 0 -4px; padding: 8px 0 calc(10px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); }
   #chat.kb .chatform { padding-bottom: 8px; }
   .chatform[hidden] { display: none; }
@@ -1040,7 +1062,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "7.7";
+  const APP_VERSION = "7.8";
   // A colour of the page's own palette (see :root), for what is drawn by hand: the charts, the tab
   // marks. Read from the page so they follow the dark or the light look; kept for a second at a time.
   let themeAt = 0, themeSeen = {};
@@ -2259,32 +2281,37 @@
     return "off";
   }
   const CHAT_OFF = {
-    off: ["Your computer is turned off", "Turn it on, or wake it from sleep, and try again."],
-    closed: ["The chat isn't open on your computer", "Your computer is on, but Claude isn't waiting there. Open the Claude app on the computer; the chat named \"Phone chat\" has to be there."],
-    offline: ["No connection", "This phone can't reach the internet right now."],
-    nokey: ["This phone isn't connected to the chat yet", "The key for the chat arrives in a notification, so notifications must be on for this app (Settings, the gear at the top). Then try again."],
+    off: ["Your computer isn't on", "Turn it on, or wake it from sleep, and then try again."],
+    closed: ["The chat isn't open on your computer", "Your computer is on, but the Claude app isn't waiting there. Open the Claude app on the computer, and then try again."],
+    offline: ["No connection", "This phone can't reach the internet right now. Try again when it can."],
+    nokey: ["This phone isn't connected to the chat yet", "The key for the chat arrives in a notification, so notifications must be on for this app (the gear at the top). Then try again."],
   };
+  const DOTS = `<div class="dots" aria-hidden="true"><span></span><span></span><span></span></div>`;
   function chatShow(state) {                                 // "checking", "ready", or one of CHAT_OFF
-    const off = CHAT_OFF[state];
+    const off = CHAT_OFF[state], list = $("chatList");
     $("chatForm").hidden = state !== "ready";
-    $("chatState").textContent = state === "checking" ? "Checking your computer…" : "";
-    $("chatList").querySelectorAll(".chatoff").forEach((x) => x.remove());
-    if (off) {
-      const box = document.createElement("div"); box.className = "chatoff";
-      box.innerHTML = `<strong>${esc(off[0])}</strong><p>${esc(off[1])}</p><button type="button" class="ghost">Try again</button>`;
-      box.querySelector("button").onclick = openChat;
-      $("chatList").innerHTML = ""; $("chatList").appendChild(box);
+    $("chatState").textContent = "";
+    if (state === "checking") { list.innerHTML = `<div class="chatwait" role="status"><strong>Waiting for your computer</strong>${DOTS}</div>`; return; }
+    if (off) {                                               // a reddish message in the middle, and the way back
+      list.innerHTML = `<div class="chatoff" role="alert"><div class="box"><strong>${esc(off[0])}</strong><p>${esc(off[1])}</p><button type="button">Back to home screen</button></div></div>`;
+      list.querySelector("button").onclick = closeChat;
+      return;
     }
+    list.innerHTML = "";
   }
   function renderChat() {
     const list = $("chatList");
-    if (list.querySelector(".chatoff")) return;
-    let day = "";
-    list.innerHTML = (chatLog.length ? "" : `<div class="cthink" style="align-self:center;margin:auto">Write to Claude, or send a photo.</div>`) + chatLog.map((m) => {
-      const d = dayLabel(m.time), head = d !== day ? `<div class="cday">${esc(d)}</div>` : "";
-      day = d;
-      return head + `<div class="cmsg ${m.who === "me" ? "me" : "claude"}">${m.img ? `<img src="${esc(m.img)}" alt="The photo you sent">` : ""}${esc(m.text || (m.img ? "" : "(a photo)"))}<span class="ct">${noteClock(m.time)}</span></div>`;
-    }).join("") + (chatThinking ? `<div class="cthink">Claude is thinking…</div>` : "");
+    if (list.querySelector(".chatoff, .chatwait")) return;
+    let day = "", who = "";
+    list.innerHTML = (chatLog.length ? "" : `<div class="chint">Write to Claude, or send a photo.</div>`) + chatLog.map((m, i) => {
+      const d = dayLabel(m.time), mine = m.who === "me" ? "me" : "claude", next = chatLog[i + 1];
+      const head = d !== day ? `<div class="cday">${esc(d)}</div>` : "";
+      const turn = d !== day || mine !== who;
+      day = d; who = mine;
+      const last = !next || (next.who === "me" ? "me" : "claude") !== mine || dayLabel(next.time) !== d || next.time - m.time > 5 * 60000;     // the time shows under the last of a run
+      return head + `<div class="cmsg ${mine}${turn ? " turn" : ""}${m.img ? " pic" : ""}">${m.img ? `<img src="${esc(m.img)}" alt="The photo you sent">${m.text ? `<span class="txt">${esc(m.text)}</span>` : ""}` : esc(m.text || "")}</div>`
+        + (last ? `<div class="ctime ${mine}">${noteClock(m.time)}</div>` : "");
+    }).join("") + (chatThinking ? `<div class="cmsg claude turn typing" role="status" aria-label="Claude is writing">${DOTS}</div>` : "");
     list.scrollTop = list.scrollHeight;
   }
   function chatStop() { if (chatStream) { try { chatStream.close(); } catch {} chatStream = null; } }
@@ -2304,7 +2331,7 @@
   }
   async function openChat() {
     openScreen("chat");
-    $("chatList").innerHTML = ""; renderChat(); chatShow("checking");
+    chatShow("checking");
     let key = await chatCrypto();
     const state = await chatAskPc(!key);
     if ($("chat").hidden) return;
@@ -2312,7 +2339,7 @@
     for (let i = 0; i < 14 && !key; i++) { await new Promise((r) => setTimeout(r, 1000)); key = await chatCrypto(); }     // the key is on its way in a push
     if ($("chat").hidden) return;
     if (!key) { chatShow("nokey"); return; }
-    chatShow("ready"); renderChat(); chatListen(key);
+    chatShow("ready"); renderChat(); chatListen(key);                 // the computer is on and the chat is waiting: start
   }
   function closeChat() { chatStop(); closeScreen("chat"); $("chat").style.bottom = ""; $("chat").classList.remove("kb"); }
   $("chatBtn").onclick = openChat;
