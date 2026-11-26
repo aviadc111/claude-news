@@ -83,7 +83,8 @@ function instant(y, m, d, hh, mm) {           // Israel wall-clock time -> ms si
 // ----------------------------------------------------------------------------- reading a message
 const HEB_DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 const CANCEL_WORDS = /(מבוטל|בוטל|מתבטל|ביטול|אין אימון|לא יהיה אימון|לא יתקיים|נדחה לשבוע הבא)/;
-const heb = (word) => new RegExp(`(^|[^א-ת])${word}([^א-ת]|$)`);   // a whole Hebrew word (\b does not know Hebrew)
+// a whole Hebrew word, allowing one attached prefix letter (למחר, והיום): \b does not know Hebrew
+const heb = (word) => new RegExp(`(^|[^א-ת])[ולבהמשכ]?${word}([^א-ת]|$)`);
 
 // Reads one group message. Returns null when it says nothing about a training day, otherwise
 //   { date, display, time, at, cancel, noTime }
@@ -91,11 +92,12 @@ const heb = (word) => new RegExp(`(^|[^א-ת])${word}([^א-ת]|$)`);   // a whol
 // "מחר", or "היום"/"הערב". The time: 17:00, 17.00, בשעה 17, ב-17. Questions (with "?") are ignored:
 // "מחר ב-17:00?" is somebody asking, not the trainer announcing.
 // cancel: the message cancels that day's training. noTime: a day and the word "אימון" but no time.
-export function parseTraining(text, sentMs) {
+export function parseTraining(text, sentMs, { isPoll = false } = {}) {
   const t = String(text || '').trim();
   if (!t) return null;
-  // "מחר ב-17:00?" is a question. "אימון מחר ב-17:00 במגרש, מי מגיע?" is an announcement with a question at its end.
-  if (t.includes('?') && (t.length < 60 || !heb('אימון').test(t))) return null;
+  // "מחר ב-17:00?" is a question. "אימון מחר ב-17:00 במגרש, מי מגיע?" is an announcement with a question
+  // at its end, and a poll's question ("מי מגיע לאימון מחר ב-17:00?") is how the trainer announces.
+  if (!isPoll && t.includes('?') && (t.length < 60 || !t.includes('אימון'))) return null;
   const z = zoned(sentMs);
   const todayUTC = Date.UTC(z.y, z.m - 1, z.d);
   const weekdayToday = new Date(todayUTC).getUTCDay();          // 0 = Sunday = ראשון
@@ -141,7 +143,7 @@ export function parseTraining(text, sentMs) {
   const cancel = CANCEL_WORDS.test(t);
   const lecture = /הרצאה|הרצאת/.test(t);                        // a lecture instead of a workout: nothing to bring
   const hasTime = hh !== undefined && hh <= 23 && mm <= 59;
-  if (!hasTime && !cancel && !lecture && !heb('אימון').test(t)) return null;
+  if (!hasTime && !cancel && !lecture && !t.includes('אימון')) return null;   // לאימון, האימון, אימונים all count
 
   const day = new Date(dayUTC);
   const y = day.getUTCFullYear(), mo = day.getUTCMonth() + 1, d = day.getUTCDate();
@@ -167,8 +169,15 @@ function unwrap(message) {
   return m || {};
 }
 
+function pollOf(msg) {                        // a poll: its question and its options
+  const m = unwrap(msg.message);
+  return m.pollCreationMessage || m.pollCreationMessageV2 || m.pollCreationMessageV3 || m.pollCreationMessageV4 || m.pollCreationMessageV5 || null;
+}
+
 function textOf(msg) {
   const m = unwrap(msg.message);
+  const poll = pollOf(msg);
+  if (poll) return poll.name || '';             // the question only: options like "17:00 / 18:00" would be a vote, not a time
   return m.conversation || m.extendedTextMessage?.text || m.imageMessage?.caption || m.videoMessage?.caption || '';
 }
 
@@ -495,12 +504,14 @@ async function watch() {
       const sentMs = timestampMs(msg);
       if (Date.now() - sentMs > CONFIG.messageMaxAgeHours * 3600_000) continue;
       const text = textOf(msg);
-      const found = eventOf(msg) || parseTraining(text, sentMs);
+      const poll = pollOf(msg);
+      const found = eventOf(msg) || parseTraining(text, sentMs, { isPoll: !!poll });
       if (!found) {
         // trial period: a message that talks about a training but was not understood goes to the phone
         // (push only, not in the feed) so the wording can be taught
         if (CONFIG.reportMisses && /אימון|הרצאה/.test(text)) {
-          tellPhone('WhatsApp watcher: not understood', text.slice(0, 400), true).catch(() => {});
+          const options = poll ? ' | options: ' + (poll.options || []).map(o => o.optionName).join(', ') : '';
+          tellPhone(`WhatsApp watcher: ${poll ? 'poll' : 'message'} not understood`, (text + options).slice(0, 400), true).catch(() => {});
         }
         continue;
       }
