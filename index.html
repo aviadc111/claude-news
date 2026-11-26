@@ -6,7 +6,7 @@
 <title>Claude News</title>
 <meta name="description" content="Messages and alerts from your projects, pushed to your phone.">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#0f172a">
+<meta name="theme-color" content="#07090f">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -16,9 +16,12 @@
 <style>
   /* Layout: native-style phone app. Brand header, one feed per project, bottom tab bar with a tab per project. */
   :root {
-    --bg: #0b1220; --surface: #161f31; --surface-2: #1f2a40; --line: #273449;
-    --fg: #f1f5f9; --muted: #8b9ab1; --accent: #f59e0b; --accent-ink: #0b1220;
-    --ok: #22c55e; --danger: #ef4444; --tabbar: rgba(11, 18, 32, .86);
+    /* The dark look (v7.4, "clean and neon"): a nearly black page so the colours glow, and neon
+       versions of the three colours that mean something: amber = the app's own, look here;
+       green = up, open, done; red = down, closed, delete. Violet and cyan are the two extras. */
+    --bg: #07090f; --surface: #0f131c; --surface-2: #171c28; --line: #232a3a;
+    --fg: #f4f7fb; --muted: #8792a8; --accent: #ffb020; --accent-ink: #07090f;
+    --ok: #2bff88; --danger: #ff3b5c; --violet: #8a6bff; --info: #00e5ff; --tabbar: rgba(7, 9, 15, .86);
     --font: -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
     color-scheme: dark;
   }
@@ -26,11 +29,13 @@
     :root:not([data-theme="dark"]) {
       --bg: #f2f4f8; --surface: #ffffff; --surface-2: #e9edf4; --line: #dfe4ec;
       --fg: #0f172a; --muted: #5f6f86; --tabbar: rgba(242, 244, 248, .88); color-scheme: light;
+      --accent: #f59e0b; --accent-ink: #0b1220; --ok: #22c55e; --danger: #ef4444; --violet: #6366f1; --info: #2563eb;
     }
   }
   :root[data-theme="light"] {
     --bg: #f2f4f8; --surface: #ffffff; --surface-2: #e9edf4; --line: #dfe4ec;
     --fg: #0f172a; --muted: #5f6f86; --tabbar: rgba(242, 244, 248, .88); color-scheme: light;
+    --accent: #f59e0b; --accent-ink: #0b1220; --ok: #22c55e; --danger: #ef4444; --violet: #6366f1; --info: #2563eb;
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
@@ -146,7 +151,7 @@
   code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; background: var(--surface-2); padding: 3px 8px; border-radius: 8px; word-break: break-all; display: inline-block; }
   /* stocks board */
   .chartsbtn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; font-size: 14px; font-weight: 700;
-               background: #22c55e; color: #052e16; box-shadow: 0 4px 14px rgba(34,197,94,.3); }
+               background: var(--ok); color: #052e16; box-shadow: 0 4px 14px color-mix(in srgb, var(--ok) 30%, transparent); }
   .chartsbtn svg { width: 18px; height: 18px; }
   .section-title .lead { display: flex; align-items: center; gap: 10px; }
   .screen {
@@ -213,7 +218,7 @@
   .srow.off .info, .srow.off canvas, .srow.off .px { opacity: .4; }
   .pick { width: 30px; height: 30px; padding: 0; border-radius: 50%; background: none; border: 2px solid var(--muted);
           display: grid; place-items: center; color: #052e16; }
-  .pick.on { background: #22c55e; border-color: #22c55e; }
+  .pick.on { background: var(--ok); border-color: var(--ok); }
   .pick svg { width: 16px; height: 16px; }
 
   /* v1.7: add a stock, glow for picked stocks, my shares */
@@ -221,10 +226,10 @@
   .addform input { flex: 1; min-width: 0; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); text-transform: uppercase; }
   .addform input::placeholder { text-transform: none; color: var(--muted); }
   .addform button { flex: 0 0 auto; }
-  .hint .glowtxt { color: #22c55e; }
+  .hint .glowtxt { color: var(--ok); }
   #boardList { padding: 4px 2px; }
   .srow { align-items: start; }
-  .srow.on { box-shadow: 0 0 0 1.5px rgba(34, 197, 94, .95), 0 0 16px rgba(34, 197, 94, .38); }
+  .srow.on { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ok) 95%, transparent), 0 0 16px color-mix(in srgb, var(--ok) 38%, transparent); }
   .srow .pick, .srow canvas { align-self: center; }
   .srow.wait { align-items: center; cursor: default; }
   .srow.wait .pick { font-size: 14px; color: var(--muted); }
@@ -255,7 +260,7 @@
   .suggest button:last-child { border-bottom: 0; }
   .suggest b { font-weight: 800; }
   .suggest span { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .suggest em { font-style: normal; font-size: 12px; font-weight: 700; color: #22c55e; }
+  .suggest em { font-style: normal; font-size: 12px; font-weight: 700; color: var(--ok); }
   .suggest button[disabled] { opacity: 1; }
   .suggest button[disabled] em, .suggest button[disabled] b { color: var(--muted); }
   .adderror { display: inline-block; margin: 0 0 10px; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 700;
@@ -263,7 +268,7 @@
   @media (prefers-reduced-motion: no-preference) { .adderror { animation: pop .18s ease-out; } @keyframes pop { from { transform: scale(.9); opacity: 0; } } }
 
   /* v3.3: demo account (practice trading with pretend money) */
-  .chartsbtn.demo { background: #6366f1; color: #fff; box-shadow: 0 4px 14px rgba(99, 102, 241, .3); }
+  .chartsbtn.demo { background: var(--violet); color: #fff; box-shadow: 0 4px 14px color-mix(in srgb, var(--violet) 30%, transparent); }
   header.three .chartsbtn { padding: 8px 11px; font-size: 13px; }
   #demoSum .num { font-size: 38px; }
   .drow { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; font-weight: 400;
@@ -275,8 +280,8 @@
   .drow .px { text-align: right; font-variant-numeric: tabular-nums; flex: 0 0 auto; }
   .drow .px b { display: block; font-size: 15px; }
   .drow .px span { font-size: 12px; font-weight: 700; }
-  .chartsbtn.notes { position: relative; background: #f59e0b; color: #241a00; box-shadow: 0 4px 14px rgba(245, 158, 11, .3); }
-  .chartsbtn .nbadge { position: absolute; top: -6px; right: -6px; min-width: 19px; height: 19px; padding: 0 5px; box-sizing: border-box; border-radius: 10px; background: var(--danger, #ef4444); color: #fff;
+  .chartsbtn.notes { position: relative; background: var(--accent); color: #241a00; box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 30%, transparent); }
+  .chartsbtn .nbadge { position: absolute; top: -6px; right: -6px; min-width: 19px; height: 19px; padding: 0 5px; box-sizing: border-box; border-radius: 10px; background: var(--danger); color: #fff;
     font-size: 11px; font-weight: 800; display: grid; place-items: center; box-shadow: 0 0 0 2px var(--bg); }
   .chartsbtn .nbadge[hidden] { display: none; }
   /* The live market status: a strip that continues the top bar of the Stocks category. It is the
@@ -286,9 +291,9 @@
     margin-left: calc(-1 * max(18px, env(safe-area-inset-left, 0px))); margin-bottom: -10px;
     padding: 10px max(18px, env(safe-area-inset-right, 0px)) 11px max(18px, env(safe-area-inset-left, 0px));
     display: flex; align-items: center; justify-content: space-between; gap: 14px;
-    border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); --mc: #ef4444; }
+    border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); --mc: var(--danger); }
   .mbar[hidden] { display: none; }
-  .mbar.on { --mc: #22c55e; }
+  .mbar.on { --mc: var(--ok); }
   .mbar { background: linear-gradient(90deg, color-mix(in srgb, var(--mc) 15%, var(--bg)), color-mix(in srgb, var(--mc) 3%, var(--bg)) 75%); }
   .mbar .mleft { min-width: 0; }
   .mbar .mt { display: flex; align-items: center; gap: 9px; font-size: 16px; font-weight: 800; letter-spacing: -.01em; white-space: nowrap; }
@@ -302,16 +307,16 @@
   /* my notes */
   .noteform textarea, .askbox textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--surface); color: var(--fg); font: inherit; font-size: 16px; line-height: 1.4; resize: vertical; }
   #notes .lead { color: var(--muted); font-size: 13px; margin: 0 2px 10px; }
-  #noteAdd { margin-left: auto; flex: 0 0 auto; border-radius: 999px; padding: 9px 14px; display: inline-flex; gap: 6px; align-items: center; background: #f59e0b; color: #241a00; font-size: 14px; white-space: nowrap; }
+  #noteAdd { margin-left: auto; flex: 0 0 auto; border-radius: 999px; padding: 9px 14px; display: inline-flex; gap: 6px; align-items: center; background: var(--accent); color: #241a00; font-size: 14px; white-space: nowrap; }
   #noteAdd svg { width: 15px; height: 15px; }
   .notehead { display: flex; justify-content: space-between; align-items: baseline; margin: 14px 4px 2px; font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
   .notehead span + span { font-weight: 400; letter-spacing: 0; text-transform: none; }
   .ngroup { position: relative; }
-  .noteslot, .ngroup { --nc: hsl(var(--nh) 82% 52%); --nt: hsl(var(--nh) 82% 52% / .11); }
+  .noteslot, .ngroup { --nc: hsl(var(--nh) var(--ns, 100%) var(--nl, 60%)); --nt: hsl(var(--nh) var(--ns, 100%) var(--nl, 60%) / .1); }
   .noteslot { position: relative; margin-top: 10px; }
   .noterow { position: relative; overflow: hidden; border-radius: 16px; padding: 13px 12px 8px 19px; display: grid; gap: 8px; background: linear-gradient(var(--nt), var(--nt)), var(--surface); transition: margin-left .28s cubic-bezier(.2, .9, .3, 1), box-shadow .15s; }
   .noterow::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: var(--nc); }
-  .noterow .when { font-size: 12px; font-weight: 600; color: var(--nc); }
+  .noterow .when { font-size: 12px; font-weight: 600; color: color-mix(in srgb, var(--nc) 82%, var(--fg)); }     /* a little towards the text colour, so the deep ones stay readable */
   .noterow .when span { color: var(--muted); font-weight: 400; }
   .noterow .text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 16px; line-height: 1.45; }
   .noterow .acts { display: flex; gap: 0; justify-content: flex-end; flex-wrap: wrap; }
@@ -347,12 +352,12 @@
   .chainbar .cb b { font-size: 15px; }
   .chainbar .cb span { font-size: 12px; color: var(--muted); }
   .chainbar button { flex: 0 0 auto; border-radius: 999px; padding: 11px 20px; }
-  #chainDone { background: #f59e0b; color: #241a00; }
+  #chainDone { background: var(--accent); color: #241a00; }
   @media (prefers-reduced-motion: no-preference) { .chainbar { animation: barUp .24s ease-out both; } @keyframes barUp { from { transform: translateY(100%); } } }
   /* writing a note: a box in the middle of the screen */
   .popmenu .notebox { background: var(--surface); border-radius: 22px; overflow: hidden; box-shadow: 0 24px 60px rgba(0, 0, 0, .5); }
-  .notebox .nk { display: flex; align-items: center; gap: 9px; padding: 18px 20px 0; font-size: 11px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: #f59e0b; }
-  .notebox .nk i { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; box-shadow: 0 0 0 4px color-mix(in srgb, #f59e0b 22%, transparent); }
+  .notebox .nk { display: flex; align-items: center; gap: 9px; padding: 18px 20px 0; font-size: 11px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: var(--accent); }
+  .notebox .nk i { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); }
   .notebox textarea { display: block; width: 100%; box-sizing: border-box; border: 0; background: transparent; color: var(--fg); font: inherit; font-size: 17px; line-height: 1.45; padding: 12px 20px 8px;
     min-height: 124px; max-height: 44vh; resize: none; outline: none; -webkit-user-select: text; user-select: text; -webkit-appearance: none; appearance: none; }
   .notebox textarea::placeholder { color: var(--muted); }
@@ -360,16 +365,16 @@
   .notebox .nlen:not(:empty) { padding-bottom: 8px; }
   .popmenu.kb .notebox textarea { min-height: 92px; max-height: 190px; }
   .notesempty { text-align: center; color: var(--muted); padding: 34px 16px 10px; font-size: 14px; }
-  .notesempty svg { width: 54px; height: 54px; color: #f59e0b; opacity: .85; display: block; margin: 0 auto 10px; }
+  .notesempty svg { width: 54px; height: 54px; color: var(--accent); opacity: .85; display: block; margin: 0 auto 10px; }
   .notesempty strong { display: block; color: var(--fg); font-size: 16px; margin-bottom: 4px; }
   #notes .note { margin: 18px 4px 0; text-align: center; }
   .askbox { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; display: grid; gap: 8px; }
   .askbox .k { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
   .askbox .d { font-size: 12px; color: var(--muted); }
   .askbox .said { font-size: 15px; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--surface-2); border-radius: 10px; padding: 8px 10px; }
-  .askbox .chip { padding: 10px 14px; font-size: 14px; font-weight: 700; background: #6366f1; color: #fff; }
+  .askbox .chip { padding: 10px 14px; font-size: 14px; font-weight: 700; background: var(--violet); color: #fff; }
   .askbox form { display: grid; gap: 8px; }
-  .msg .asktag { margin-top: 6px; font-size: 13px; font-weight: 700; color: #f59e0b; }
+  .msg .asktag { margin-top: 6px; font-size: 13px; font-weight: 700; color: var(--accent); }
   .chips { display: flex; gap: 8px; flex-wrap: wrap; }
   .chip { padding: 7px 13px; font-size: 13px; border-radius: 999px; background: var(--surface-2); color: var(--fg); }
   .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: var(--bg); border-radius: 12px; padding: 4px; }
@@ -382,7 +387,7 @@
   #tradeAfter.bad { color: var(--danger); font-weight: 700; }
 
   /* v3.4: demo: one chart with every stock, adding a stock, opening a stock's chart */
-  :root { --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #0ca30c; --s7: #9085e9; --s8: #e66767; }
+  :root { --s1: #3d9bff; --s2: #ff7a1a; --s3: #00ffc8; --s4: #ffe600; --s5: #ff5fa2; --s6: #b6ff00; --s7: #a98bff; --s8: #00e5ff; }     /* neon lines; no plain green or red, those mean up and down */
   @media (prefers-color-scheme: light) {
     :root:not([data-theme="dark"]) { --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #6250d6; --s8: #e34948; }
   }
@@ -420,7 +425,7 @@
   /* v3.7: the demo's two accounts, "My demo" and "Claude's" */
   .acctabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 2px 0 10px; }
   .acctabs button { display: grid; gap: 1px; justify-items: start; text-align: left; padding: 9px 9px; border-radius: 14px; background: var(--surface); color: var(--fg); font-weight: 400; border: 2px solid transparent; min-width: 0; }
-  .acctabs button.on { border-color: #6366f1; }
+  .acctabs button.on { border-color: var(--violet); }
   .acctabs .t { font-size: 10.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; white-space: nowrap; }
   .acctabs b { font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .acctabs .g { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -442,10 +447,10 @@
   #kChart { height: min(52vh, 460px); touch-action: none; }
   .ktools { display: grid; grid-template-columns: 1fr 1fr 1.35fr; gap: 8px; margin-top: 10px; }
   .ktools button { padding: 13px 6px; font-size: 15px; font-weight: 800; border-radius: 12px; }
-  .ktools .kbuy { background: #22c55e; color: #052e16; }
-  .ktools .ksell { background: #ef4444; color: #fff; }
+  .ktools .kbuy { background: var(--ok); color: #052e16; }
+  .ktools .ksell { background: var(--danger); color: #fff; }
   .ktools .ksell:disabled { opacity: .4; }
-  .ktools .kline { background: #6366f1; color: #fff; }
+  .ktools .kline { background: var(--violet); color: #fff; }
   .ktools.placing { grid-template-columns: 1fr auto; align-items: center; }
   .ktools .khint { font-size: 13px; color: var(--muted); }
   .ktools .khint b { color: var(--fg); }
@@ -492,8 +497,8 @@
   /* A ping, opened in full. One quiet box: a small coloured label says what it is, the one
      important line is large, the rest is small and grey, and the two buttons are its bottom. */
   .popmenu .pingbox { background: var(--surface); border-radius: 22px; overflow: hidden; box-shadow: 0 24px 60px rgba(0, 0, 0, .5); }
-  .ping { padding: 20px 22px 18px; --pc: #60a5fa; }
-  .ping.needs { --pc: #f59e0b; }
+  .ping { padding: 20px 22px 18px; --pc: var(--info); }
+  .ping.needs { --pc: var(--accent); }
   .ping .pk { display: flex; align-items: center; gap: 9px; font-size: 11px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: var(--pc); }
   .ping .pk i { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; background: var(--pc); box-shadow: 0 0 0 4px color-mix(in srgb, var(--pc) 22%, transparent); }
   .ping .pm { margin-top: 12px; font-size: 20px; font-weight: 700; letter-spacing: -.01em; line-height: 1.3; overflow-wrap: anywhere; }
@@ -513,8 +518,8 @@
   .ping .pans textarea { display: block; width: 100%; box-sizing: border-box; border: 0; border-radius: 13px; padding: 12px 50px 12px 14px; background: var(--bg); color: var(--fg); font: inherit; font-size: 16px; line-height: 1.35;
     resize: none; outline: none; max-height: 176px; -webkit-user-select: text; user-select: text; -webkit-appearance: none; appearance: none; }
   .ping .pans textarea::placeholder { color: var(--muted); }
-  .ping .pans textarea:focus { box-shadow: 0 0 0 1.5px #f59e0b; }
-  .popmenu .ping .send { position: absolute; right: 6px; bottom: 5px; width: 34px; height: 34px; padding: 0; border-radius: 50%; justify-content: center; background: #f59e0b; color: #241a00; }
+  .ping .pans textarea:focus { box-shadow: 0 0 0 1.5px var(--accent); }
+  .popmenu .ping .send { position: absolute; right: 6px; bottom: 5px; width: 34px; height: 34px; padding: 0; border-radius: 50%; justify-content: center; background: var(--accent); color: #241a00; }
   /* While the keyboard is up: only the question and the field, at the top of the free area, clear of the clock. */
   .popmenu.center.kb { top: calc(var(--vvtop, 0px) + env(safe-area-inset-top, 0px) + 10px) !important; transform: none; animation: none; }
   .popmenu.kb .ping { padding: 16px 18px 14px; }
@@ -523,14 +528,14 @@
   .popmenu.kb .ping .pans { margin-top: 12px; }
   .popmenu .ping .send svg { width: 17px; height: 17px; }
   .ping .pans .said { display: flex; gap: 9px; align-items: flex-start; font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
-  .ping .pans .said svg { flex: 0 0 auto; width: 18px; height: 18px; margin-top: 2px; color: #22c55e; }
+  .ping .pans .said svg { flex: 0 0 auto; width: 18px; height: 18px; margin-top: 2px; color: var(--ok); }
   .ping .pans .st { font-size: 12.5px; line-height: 1.45; color: var(--muted); }
   /* the long pings (saved, or a question from Claude): a strip that continues the top bar */
   .pbar { flex: 0 0 calc(100% + max(18px, env(safe-area-inset-left, 0px)) + max(18px, env(safe-area-inset-right, 0px))); box-sizing: border-box; width: auto;
     margin-left: calc(-1 * max(18px, env(safe-area-inset-left, 0px))); margin-bottom: -10px;
     padding: 10px max(18px, env(safe-area-inset-right, 0px)) 11px max(18px, env(safe-area-inset-left, 0px));
     display: flex; align-items: center; justify-content: space-between; gap: 14px; text-align: left; border-radius: 0; color: var(--fg); font: inherit; font-weight: 400;
-    border: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); --mc: #f59e0b;
+    border: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); --mc: var(--accent);
     background: linear-gradient(90deg, color-mix(in srgb, var(--mc) 15%, var(--bg)), color-mix(in srgb, var(--mc) 3%, var(--bg)) 75%); }
   .pbar[hidden] { display: none; }
   .pbar:has(+ .mbar:not([hidden])) { margin-bottom: 0; border-bottom: 0; }
@@ -987,7 +992,16 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "7.3";
+  const APP_VERSION = "7.4";
+  // A colour of the page's own palette (see :root), for what is drawn by hand: the charts, the tab
+  // marks. Read from the page so they follow the dark or the light look; kept for a second at a time.
+  let themeAt = 0, themeSeen = {};
+  function themeColour(name) {
+    const now = Date.now();
+    if (now - themeAt > 1000) { themeSeen = {}; themeAt = now; }
+    if (!(name in themeSeen)) { try { themeSeen[name] = getComputedStyle(document.documentElement).getPropertyValue(name).trim(); } catch { themeSeen[name] = ""; } }
+    return themeSeen[name] || { "--ok": "#2bff88", "--danger": "#ff3b5c", "--accent": "#ffb020", "--violet": "#8a6bff" }[name] || "#888";
+  }
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
@@ -1042,8 +1056,8 @@
   function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
   function hue(str) { let h = 0; for (const ch of str) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; }
   function projectColor(p) {
-    if (p === "Stocks") return "#22c55e";
-    if (p === "Claude News") return "#f59e0b";
+    if (p === "Stocks") return themeColour("--ok");
+    if (p === "Claude News") return themeColour("--accent");
     if (p === "Instagram") return "#e1306c";
     return `hsl(${hue(p)} 70% 62%)`;
   }
@@ -1192,18 +1206,25 @@
     pad: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6Z"/><path d="M15 3v4h4M9 12h7M9 16h5"/></svg>',
   };
   // Colours. Every note that is not in a chain has a colour of its own, and a chain has one colour
-  // for all its notes. A colour is kept as a hue (n.hue); the new one is the hue furthest from
-  // those in use. With more notes than hues, the least used hue is taken again.
-  const NOTE_HUES = [35, 330, 215, 145, 265, 185, 5, 290, 165, 240, 20, 310, 200, 120, 350, 275];
+  // for all its notes. A colour is a hue (n.hue) in one of three strengths (n.tone: 0 neon, 1 soft,
+  // 2 deep): 12 hues x 3 = 36 colours, the wheel the user was shown. A new one is the colour
+  // furthest from those in use, so the first notes get the neon ones; with more than 36, the
+  // least used is taken again.
+  const NOTE_TONES = [[100, 60], [90, 78], [65, 46]];          // saturation and lightness of each strength
+  const NOTE_COLOURS = [];
+  [0, 1, 2].forEach((tone) => [42, 188, 318, 82, 255, 20, 168, 285, 58, 212, 350, 145].forEach((hue) => NOTE_COLOURS.push({ hue, tone })));
+  const sameColour = (a, b) => a.hue === b.hue && (a.tone || 0) === (b.tone || 0);
   const hueGap = (a, b) => { const d = Math.abs(a - b) % 360; return Math.min(d, 360 - d); };
-  function freshHue(used) {
-    const free = NOTE_HUES.filter((h) => !used.includes(h));
-    if (!free.length) return NOTE_HUES.slice().sort((a, b) => used.filter((u) => u === a).length - used.filter((u) => u === b).length)[0];
+  const colourGap = (a, b) => hueGap(a.hue, b.hue) + 45 * Math.abs((a.tone || 0) - (b.tone || 0));     // another strength counts like 45 degrees of hue
+  function freshColour(used) {
+    const free = NOTE_COLOURS.filter((c) => !used.some((u) => sameColour(u, c)));
+    if (!free.length) return NOTE_COLOURS.slice().sort((a, b) => used.filter((u) => sameColour(u, a)).length - used.filter((u) => sameColour(u, b)).length)[0];
     if (!used.length) return free[0];
     let best = free[0], far = -1;
-    for (const h of free) { const d = Math.min(...used.map((u) => hueGap(u, h))); if (d > far) { far = d; best = h; } }
+    for (const c of free) { const d = Math.min(...used.map((u) => colourGap(u, c))) - 14 * c.tone; if (d > far) { far = d; best = c; } }      // in favour of the neon strength
     return best;
   }
+  const noteStyle = (n) => { const t = NOTE_TONES[n.tone] || NOTE_TONES[0]; return `--nh:${Number(n.hue) || 0};--ns:${t[0]}%;--nl:${t[1]}%`; };
   // Puts the notes in order after any change: every note has a place in the list (n.order, the
   // smallest at the top; a new note goes to the top), a chain of one note is no chain, a chain has
   // one colour, and no two of them share a colour while a free one is left. True when something changed.
@@ -1214,20 +1235,18 @@
     notes.forEach((n) => { if (typeof n.chain === "string" && n.chain) size[n.chain] = (size[n.chain] || 0) + 1; else delete n.chain; });
     notes.forEach((n) => { if (n.chain && size[n.chain] < 2) delete n.chain; });
     const used = [], done = new Set(), later = [];
+    const colourIn = (group, c) => { used.push(c); group.forEach((x) => { x.hue = c.hue; x.tone = c.tone || 0; }); };
     for (const n of notes.slice().sort((a, b) => a.time - b.time)) {
       const key = n.chain ? "chain " + n.chain : n.id;
       if (done.has(key)) continue;
       done.add(key);
       const group = n.chain ? notes.filter((x) => x.chain === n.chain) : [n];
-      const h = (group.find((x) => Number.isFinite(x.hue)) || {}).hue;
-      if (Number.isFinite(h) && !used.includes(h)) { used.push(h); group.forEach((x) => { x.hue = h; }); }
-      else later.push([group, h]);                           // no colour yet, or one that is taken: it gets one after the others kept theirs
+      const lead = group.find((x) => Number.isFinite(x.hue));
+      const has = lead ? { hue: lead.hue, tone: lead.tone || 0 } : null;
+      if (has && !used.some((u) => sameColour(u, has))) colourIn(group, has);
+      else later.push([group, has]);                         // no colour yet, or one that is taken: it gets one after the others kept theirs
     }
-    later.forEach(([group, was]) => {
-      const h = !Number.isFinite(was) || NOTE_HUES.some((c) => !used.includes(c)) ? freshHue(used) : was;
-      used.push(h);
-      group.forEach((x) => { x.hue = h; });
-    });
+    later.forEach(([group, has]) => colourIn(group, !has || NOTE_COLOURS.some((c) => !used.some((u) => sameColour(u, c))) ? freshColour(used) : has));
     return JSON.stringify(notes) !== before;
   }
   if (tidyNotes()) ls.set("cn.notes", JSON.stringify(notes));
@@ -1247,7 +1266,7 @@
   function renderNotes() {
     $("notesCount").textContent = notes.length ? `${notes.length} note${notes.length === 1 ? "" : "s"}` : "";
     const slot = (n) => `
-      <div class="noteslot" data-note="${esc(n.id)}" style="--nh:${Number(n.hue) || 0}">
+      <div class="noteslot" data-note="${esc(n.id)}" style="${noteStyle(n)}">
         <button type="button" class="pickdot" aria-label="Pick this note" aria-pressed="false" tabindex="-1">${NOTE_ICONS.check}</button>
         <div class="noterow">
           <div class="when">${dayLabel(n.time)} · ${noteClock(n.time)}</div>
@@ -1256,7 +1275,7 @@
         </div>
       </div>`;
     $("notesList").innerHTML = notes.length ? `<div class="notehead"><span>Your notes</span><span>hold a note to move it</span></div>` + noteGroups().map((g) =>
-      `<div class="ngroup${g.length > 1 ? " chain" : ""}" data-group="${esc(groupKey(g))}" style="--nh:${Number(g[0].hue) || 0}">`
+      `<div class="ngroup${g.length > 1 ? " chain" : ""}" data-group="${esc(groupKey(g))}" style="${noteStyle(g[0])}">`
       + (g.length > 1 ? `<svg class="chainsvg" aria-hidden="true"><path class="c1"/><path class="c2"/><path class="c3"/></svg>` : "") + g.map(slot).join("") + `</div>`).join("")
       : `<div class="notesempty">${NOTE_ICONS.pad}<strong>No notes yet</strong>Tap "Add a note" at the top.</div>`;
     $("notesList").querySelectorAll(".noteslot").forEach((el) => {
@@ -1447,9 +1466,9 @@
     let said;
     if (picked.length >= 2) {
       const lead = picked.find((n) => n.id === chainStart) || picked[0];
-      const chain = chainOld || "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), hue = old.length ? old[0].hue : lead.hue;
+      const chain = chainOld || "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), from = old.length ? old[0] : lead, hue = from.hue, tone = from.tone || 0;
       old.forEach((n) => { if (!chainPick.has(n.id)) { delete n.chain; n.hue = null; } });      // left the chain: a colour of its own again
-      picked.forEach((n) => { n.chain = chain; n.hue = hue; });
+      picked.forEach((n) => { n.chain = chain; n.hue = hue; n.tone = tone; });
       said = `${picked.length} notes chained`;
     } else if (old.length) {
       old.forEach((n, i) => { delete n.chain; if (i) n.hue = null; });
@@ -1960,7 +1979,7 @@
     const X = (i) => padL + i * (w - padL - padR) / (series.length - 1);
     const Y = (v) => padT + (hi - v) / span * (h - padT - padB);
     const up = series[series.length - 1][1] >= (base || series[0][1]);
-    const color = up ? "#22c55e" : "#ef4444";
+    const color = up ? themeColour("--ok") : themeColour("--danger");
     // grid + right-side price labels
     ctx.font = "11px -apple-system, Segoe UI, Roboto, sans-serif"; ctx.fillStyle = muted; ctx.strokeStyle = line; ctx.lineWidth = 1;
     for (let k = 0; k <= 4; k++) { const v = lo + span * k / 4, y = Y(v); ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke(); ctx.textAlign = "left"; ctx.fillText("$" + v.toLocaleString(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec }), w - padR + 6, y + 4); }
@@ -1984,7 +2003,7 @@
     ctx.fillStyle = fg; ctx.textAlign = "center"; ctx.font = "bold 11px -apple-system, Segoe UI, Roboto, sans-serif";
     ctx.fillText(money(sHi), Math.min(Math.max(X(iHi), 34), w - padR - 34), Y(sHi) - 7);
     ctx.fillText(money(sLo), Math.min(Math.max(X(iLo), 34), w - padR - 34), Y(sLo) + 14);
-    [[iHi, "#22c55e"], [iLo, "#ef4444"]].forEach(([i, col]) => { ctx.beginPath(); ctx.arc(X(i), Y(series[i][1]), 3.5, 0, 7); ctx.fillStyle = col; ctx.fill(); });
+    [[iHi, themeColour("--ok")], [iLo, themeColour("--danger")]].forEach(([i, col]) => { ctx.beginPath(); ctx.arc(X(i), Y(series[i][1]), 3.5, 0, 7); ctx.fillStyle = col; ctx.fill(); });
     ctx.restore();
     // a ring where the stock was bought (one colour per kind of purchase, the bigger ring behind)
     (opt.marks || []).forEach((m) => {
@@ -2611,7 +2630,7 @@
         <canvas data-spark="${esc(s.ticker)}"></canvas>
         <div class="px"><b>${money(s.price)}</b><span class="${s.day_pct >= 0 ? "up" : "down"}">${pct(s.day_pct)}</span><br>${own}</div>
       </div>`; }).join("");
-    list.querySelectorAll("canvas[data-spark]").forEach((c) => { const s = data.stocks.find((x) => x.ticker === c.dataset.spark); drawSpark(c, s.series, s.series[s.series.length - 1][1] >= s.series[0][1] ? "#22c55e" : "#ef4444"); });
+    list.querySelectorAll("canvas[data-spark]").forEach((c) => { const s = data.stocks.find((x) => x.ticker === c.dataset.spark); drawSpark(c, s.series, s.series[s.series.length - 1][1] >= s.series[0][1] ? themeColour("--ok") : themeColour("--danger")); });
     list.querySelectorAll("[data-pick]").forEach((b) => b.onclick = (e) => { e.stopPropagation(); togglePick(b.dataset.pick, data); });
     list.querySelectorAll("[data-remove]").forEach((b) => b.onclick = (e) => {
       e.stopPropagation();
@@ -2870,7 +2889,7 @@
     if (reveal < 1) { ctx.beginPath(); ctx.rect(0, 0, padL + (w - padL - padR) * reveal + 1, h); ctx.clip(); }
     const bw = Math.max(1.5, Math.min(34, pitch * 0.78)), wick = pitch >= 9 ? 1.6 : 1;
     bars.forEach((b, i) => {                                 // green closed above its open, red below
-      const col = b.c >= b.o ? "#22c55e" : "#ef4444", x = X(i);
+      const col = b.c >= b.o ? themeColour("--ok") : themeColour("--danger"), x = X(i);
       ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = wick;
       ctx.beginPath(); ctx.moveTo(x, Y(b.h)); ctx.lineTo(x, Y(b.l)); ctx.stroke();
       const top = Y(Math.max(b.o, b.c)), bottom = Y(Math.min(b.o, b.c));
@@ -2919,7 +2938,7 @@
     const k = pts.findIndex((p) => p[0] >= d);
     return k < 0 ? n - 1 : k;
   }
-  const DEMO_COLOR = "#6366f1";
+  const DEMO_COLOR = themeColour("--violet");
   // The purchases of one stock that fall inside a chart: point index -> what was bought there.
   function detailMarks(s, pts, intra) {
     const at = new Map();
@@ -3784,7 +3803,7 @@
         <div class="px"><b>${money(x.total)}</b>${x.side === "sell" ? `<span class="${upDown(x.gain)}">${signed(x.gain)}</span>` : ""}</div></div>`).join("") : "";
     $("demoBuy").querySelectorAll("canvas[data-dspark]").forEach((c) => {
       const s = listStock(c.dataset.dspark);
-      if (s) drawSpark(c, s.series, s.series[s.series.length - 1][1] >= s.series[0][1] ? "#22c55e" : "#ef4444");
+      if (s) drawSpark(c, s.series, s.series[s.series.length - 1][1] >= s.series[0][1] ? themeColour("--ok") : themeColour("--danger"));
     });
     $("demo").querySelectorAll(".drow[data-row]").forEach((b) => {     // your rows trade; Claude's rows open the chart
       if (mineView && listStock(b.dataset.row)) onHold(b, () => openRowMenu(b.dataset.row, b));     // press and hold: pin to top or delete
@@ -4418,7 +4437,7 @@
     // every candle keeps its place and width: the places that have no candle stay empty, at the right
     const opt = { reveal: kReveal, room: kPlacing ? 0.18 : 0.12, axis, gap: Math.max(0, kShown - rows.length), minSpan: s.price * (MIN_SPAN[kSize] || 0.012) };
     if (mine) {
-      opt.lines = (demo.lines || []).filter((x) => x.t === s.ticker).map((x) => ({ price: x.price, color: x.side === "buy" ? "#22c55e" : "#ef4444",
+      opt.lines = (demo.lines || []).filter((x) => x.t === s.ticker).map((x) => ({ price: x.price, color: x.side === "buy" ? themeColour("--ok") : themeColour("--danger"),
         label: `${x.side === "buy" ? "Buy " + money(x.amount) : "Sell all"} at ${money(x.price)}` }));
       if (kPlacing && kPrice != null) opt.preview = kPrice;
     }
@@ -4449,7 +4468,7 @@
       if (inside(avg)) { ctx.save(); ctx.font = "11px -apple-system, Segoe UI, Roboto, sans-serif"; ctx.fillStyle = muted; ctx.textAlign = "right"; ctx.fillText(`${mine ? "your" : "its"} average ${money(avg)}`, g.w - g.padR - 4, g.Y(avg) - 4); ctx.restore(); }
     }
     // the price now
-    const nowCol = s.day_pct >= 0 ? "#22c55e" : "#ef4444";
+    const nowCol = s.day_pct >= 0 ? themeColour("--ok") : themeColour("--danger");
     level(s.price, nowCol, [2, 3]);
     tag(s.price, nowCol, s.day_pct >= 0 ? "#052e16" : "#fff");
     // B and S: where the account bought and sold
@@ -4470,13 +4489,13 @@
       for (const [b, m] of at) {
         const x = g.X(b);
         if (kReveal < 1 && x > g.padL + (g.w - g.padL - g.padR) * kReveal) continue;
-        if (m.buy) badge(x, g.Y(bars[b].l) + 11, "B", "#22c55e", "#052e16");
-        if (m.sell) badge(x, g.Y(bars[b].h) - 11, "S", "#ef4444", "#fff");
+        if (m.buy) badge(x, g.Y(bars[b].l) + 11, "B", themeColour("--ok"), "#052e16");
+        if (m.sell) badge(x, g.Y(bars[b].h) - 11, "S", themeColour("--danger"), "#fff");
         marked = true;
       }
     }
     // the finger: a line at its height with the price there; while a line is placed, that line's price
-    if (kPlacing && kPrice != null) tag(kPrice, "#6366f1", "#fff");
+    if (kPlacing && kPrice != null) tag(kPrice, themeColour("--violet"), "#fff");
     else if (kCross && kCross.y != null) {
       const price = g.yToPrice(kCross.y);
       level(price, fg, [3, 4]); tag(price, fg, bg);
