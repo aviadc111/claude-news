@@ -496,6 +496,18 @@
   }
   .cmsg.typing { display: flex; align-items: center; gap: 10px; padding: 11px 16px; color: var(--muted); font-size: 15px; }
   .cmsg.typing .dots span { width: 7px; height: 7px; }
+  /* Claude asks: the choices, as buttons under its message */
+  .copts { align-self: flex-start; display: flex; flex-wrap: wrap; gap: 8px; max-width: 92%; margin-top: 10px; }
+  .copt { border-radius: 999px; padding: 10px 18px; font-size: 15px; font-weight: 700; background: color-mix(in srgb, var(--info) 14%, transparent); color: var(--info); border: 1.5px solid color-mix(in srgb, var(--info) 60%, transparent); }
+  .copt:active { background: var(--info); color: #04222a; }
+  .copt[disabled] { opacity: .45; }
+  /* Press and hold a message of yours: it comes to the middle of the screen with two choices, Change and Delete. */
+  .cmsg.me { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  .poplift.cmsglift > .cmsg { max-width: none; max-height: 38vh; overflow: hidden; box-shadow: 0 18px 44px rgba(0, 0, 0, .5); }
+  .ceditbar { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 -4px; padding: 8px 6px 0 12px; border-top: 1px solid var(--line); font-size: 13px; font-weight: 700; color: var(--info); }
+  .ceditbar[hidden] { display: none; }
+  .ceditbar button { background: none; color: var(--muted); font-size: 13px; font-weight: 600; padding: 4px 8px; }
+  .ceditbar + .chatform { border-top: 0; }
   /* in the middle of the screen: waiting for the computer, or the computer is not on */
   .chatwait, .chatoff { margin: auto; text-align: center; padding: 0 22px 70px; }
   .chatwait strong { display: block; font-size: 20px; font-weight: 800; letter-spacing: -.01em; margin-bottom: 18px; }
@@ -921,6 +933,7 @@
     <span id="chatState" class="sub"></span>
   </div>
   <div id="chatList"></div>
+  <div id="chatEditBar" class="ceditbar" hidden><span>Changing your message</span><button type="button" id="chatEditNo">Cancel</button></div>
   <form id="chatForm" class="chatform" hidden>
     <label class="cbtn" aria-label="Send a photo"><input id="chatPhoto" type="file" accept="image/*" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.6-2.4h6.8L17 8h3v11H4Z"/><circle cx="12" cy="13.2" r="3.4"/></svg></label>
     <textarea id="chatText" rows="1" maxlength="4000" placeholder="Write to Claude…" aria-label="Your message"></textarea>
@@ -1063,7 +1076,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "8.1";
+  const APP_VERSION = "8.2";
   // A colour of the page's own palette (see :root), for what is drawn by hand: the charts, the tab
   // marks. Read from the page so they follow the dark or the light look; kept for a second at a time.
   let themeAt = 0, themeSeen = {};
@@ -2311,10 +2324,17 @@
       const head = d !== day ? `<div class="cday">${esc(d)}</div>` : "";
       const turn = d !== day || mine !== who;
       day = d; who = mine;
-      const last = !next || (next.who === "me" ? "me" : "claude") !== mine || !!next.pc !== !!m.pc || dayLabel(next.time) !== d || next.time - m.time > 5 * 60000;     // the time shows under the last of a run
-      return head + `<div class="cmsg ${mine}${turn ? " turn" : ""}${m.img ? " pic" : ""}">${m.img ? `<img src="${esc(m.img)}" alt="The photo you sent">${m.text ? `<span class="txt">${esc(m.text)}</span>` : ""}` : esc(m.text || "")}</div>`
-        + (last ? `<div class="ctime ${mine}">${noteClock(m.time)}${m.pc ? " · on the computer" : ""}</div>` : "");
+      const last = !next || (next.who === "me" ? "me" : "claude") !== mine || !!next.pc !== !!m.pc || !!m.edited || dayLabel(next.time) !== d || next.time - m.time > 5 * 60000;     // the time shows under the last of a run
+      return head + `<div class="cmsg ${mine}${turn ? " turn" : ""}${m.img ? " pic" : ""}" data-mid="${esc(m.id)}">${m.img ? `<img src="${esc(m.img)}" alt="The photo you sent">${m.text ? `<span class="txt">${esc(m.text)}</span>` : ""}` : esc(m.text || "")}</div>`
+        + (last ? `<div class="ctime ${mine}">${noteClock(m.time)}${m.pc ? " · on the computer" : ""}${m.edited ? " · changed" : ""}</div>` : "");
     }).join("") + (chatThinking ? `<div class="cmsg claude turn typing" role="status"><span>Working on that</span>${DOTS}</div>` : "");
+    list.querySelectorAll(".cmsg.me[data-mid]").forEach((el) => onHold(el, () => openMsgMenu(el.dataset.mid, el)));      // press and hold your own message
+    // Claude's last message asks something: its choices are buttons, and a press sends that choice as your message.
+    const asked = chatLog[chatLog.length - 1];
+    if (!chatThinking && asked && asked.who !== "me" && Array.isArray(asked.opts) && asked.opts.length && Date.now() - asked.time < 12 * 3600000) {
+      list.insertAdjacentHTML("beforeend", `<div class="copts">${asked.opts.map((o, i) => `<button type="button" class="copt" data-copt="${i}">${esc(o)}</button>`).join("")}</div>`);
+      list.querySelectorAll("[data-copt]").forEach((b) => { b.onclick = () => chatSend(asked.opts[Number(b.dataset.copt)], null); });
+    }
     list.scrollTop = list.scrollHeight;
   }
   function chatStop() { if (chatStream) { try { chatStream.close(); } catch {} chatStream = null; } }
@@ -2327,14 +2347,18 @@
       let m; try { m = JSON.parse(e.data); } catch { return; }
       if (m.id) ls.set("cn.chatSince", m.id);
       const d = await chatUnlock(key, m.message || "");
-      if (!d || (d.from !== "claude" && d.from !== "pc") || typeof d.id !== "string") return;
+      const viaPing = !!d && d.from === "phone" && d.via === "ping";      // a choice you pressed in the ping "Claude phone needs your answer"
+      if (!d || (d.from !== "claude" && d.from !== "pc" && !viaPing) || typeof d.id !== "string") return;
       const cut = Number(d.clearBefore) || 0;                // the PC asks to forget the chat from before this time (asked for once, sent with every message)
       let changed = false;
       if (cut > Number(ls.get("cn.chatCleared", "0"))) { chatLog = chatLog.filter((x) => x.time >= cut); ls.set("cn.chatCleared", String(cut)); changed = true; }
       if (!chatLog.some((x) => x.id === d.id) && !(Number(d.time) < cut)) {
         const pc = d.from === "pc";                          // "pc": what you typed in the chat on the computer; it shows here as yours
-        chatLog.push({ id: d.id, who: pc ? "me" : "claude", pc, text: String(d.text || ""), time: Number(d.time) || Date.now() });
-        if (!pc) { chatThinking = false; haptic(); }
+        const mine = pc || viaPing, entry = { id: d.id, who: mine ? "me" : "claude", pc, text: String(d.text || ""), time: Number(d.time) || Date.now() };
+        const opts = !mine && Array.isArray(d.options) ? d.options.filter((o) => typeof o === "string" && o.trim()).slice(0, 4) : [];
+        if (opts.length) entry.opts = opts;                    // Claude asks: the choices show as buttons under its message
+        chatLog.push(entry);
+        if (viaPing) chatThinking = true; else if (!pc) { chatThinking = false; haptic(); }
         changed = true;
       }
       if (changed) { chatSave(); renderChat(); }
@@ -2356,7 +2380,7 @@
     chatThinking = state === "busy" || (!!lastOne && lastOne.who === "me" && Date.now() - lastOne.time < 30 * 60000);
     chatShow("ready"); renderChat(); chatListen(key);
   }
-  function closeChat() { chatStop(); closeScreen("chat"); $("chat").style.top = $("chat").style.height = $("chat").style.bottom = ""; $("chat").classList.remove("kb"); }
+  function closeChat() { chatStop(); chatEditStop(); closeScreen("chat"); $("chat").style.top = $("chat").style.height = $("chat").style.bottom = ""; $("chat").classList.remove("kb"); }
   $("chatBtn").onclick = openChat;
   $("chatBack").onclick = closeChat;
   // A photo is made smaller before it is sent: at most 1600 pixels a side, as a JPEG. Also a tiny copy to show in the chat.
@@ -2375,14 +2399,69 @@
       return { bytes: new Uint8Array(await blob.arrayBuffer()), small: draw(200, 0.6, true) };
     } finally { URL.revokeObjectURL(url); }
   }
+  // ---- press and hold a message of yours: Change or Delete --------------------------
+  // The message comes to the middle of the screen with the two choices under it. Either one is also
+  // told to Claude on the computer (a message of kind "edit" or "delete" that names the old words),
+  // so that it stops going by words you took back.
+  const EDIT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>';
+  let chatEdit = null;                                       // the message being changed: { id, was }
+  const chatNewId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  async function chatTell(obj) {                             // a locked note to the computer about the chat itself
+    const key = await chatCrypto();
+    if (!key) throw new Error("This phone isn't connected to the chat");
+    const r = await fetch(`${C.ntfy}/${C.topic}-chat`, { method: "POST", headers: { "Title": "chat" }, body: await chatLock(key, obj) });
+    if (!r.ok) throw new Error("Could not send (" + r.status + ")");
+  }
+  function chatEditStop() { chatEdit = null; $("chatEditBar").hidden = true; }
+  $("chatEditNo").onclick = () => { chatEditStop(); $("chatText").value = ""; $("chatText").style.height = "auto"; };
+  function openMsgMenu(id, el) {
+    const m = chatLog.find((x) => x.id === id), pop = $("pop"), lift = $("popLift"), menu = $("popMenu");
+    if (!m || m.who !== "me" || !pop.hidden || chatSending) return;
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();      // the keyboard goes away
+    rowTicker = null;
+    const r = el.getBoundingClientRect(), copy = el.cloneNode(true);
+    copy.classList.remove("turn"); copy.removeAttribute("data-mid");
+    lift.innerHTML = ""; lift.appendChild(copy); lift.className = "poplift cmsglift";
+    menu.className = "popmenu";
+    const wide = Math.min(r.width, window.innerWidth - 32);
+    lift.style.width = wide + "px"; lift.style.left = Math.max(16, Math.min(r.left, window.innerWidth - wide - 16)) + "px";      // on its own side, always inside the screen
+    pop.hidden = false;
+    const tall = lift.offsetHeight, choices = 112, gap = 14, top = Math.max(24, (window.innerHeight - tall - gap - choices) / 2);     // the middle of the screen
+    lift.style.top = top + "px"; menu.style.top = (top + tall + gap) + "px";
+    menu.innerHTML = `<button type="button" role="menuitem" id="popEdit">${EDIT_ICON}Change</button>
+      <button type="button" role="menuitem" id="popDel" class="danger">${TRASH_ICON}Delete</button>`;
+    $("popEdit").onclick = () => {
+      closeRowMenu();
+      chatEdit = { id: m.id, was: m.text || "" };
+      $("chatEditBar").hidden = false;
+      const t = $("chatText"); t.value = m.text || ""; t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 132) + "px"; t.focus();
+    };
+    $("popDel").onclick = () => askDelete(`Delete this message?<span class="q">${esc((m.text || "A photo").slice(0, 140))}</span>`, "Delete", async () => {
+      if (chatEdit && chatEdit.id === m.id) { chatEditStop(); $("chatText").value = ""; }
+      chatLog = chatLog.filter((x) => x.id !== m.id); chatSave(); renderChat();
+      try { await chatTell({ from: "phone", kind: "delete", id: chatNewId(), target: m.id, was: m.text || (m.img ? "(a photo)" : ""), time: Date.now() }); toast("Message deleted"); }
+      catch { toast("Deleted here. Claude could not be told."); }
+    });
+    haptic();
+  }
   async function chatSend(text, file) {
     text = String(text || "").trim();
     if ((!text && !file) || chatSending) return;
     const key = await chatCrypto();
     if (!key) { chatShow("nokey"); return; }
+    const edit = !file && chatEdit ? chatLog.find((x) => x.id === chatEdit.id) : null;       // changing a message, not sending a new one
+    if (chatEdit && !edit) chatEditStop();
+    if (edit && text === (edit.text || "")) { chatEditStop(); $("chatText").value = ""; $("chatText").style.height = "auto"; return; }     // nothing was changed
     chatSending = true; $("chatForm").querySelectorAll("button, textarea").forEach((b) => { b.disabled = true; });
     try {
-      const msg = { from: "phone", id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), text, time: Date.now() };
+      if (edit) {
+        await chatTell({ from: "phone", kind: "edit", id: chatNewId(), target: edit.id, was: edit.text || "", text, time: Date.now() });
+        edit.text = text; edit.edited = true;
+        chatThinking = true; chatSave(); chatEditStop();
+        $("chatText").value = ""; $("chatText").style.height = "auto";
+        throw null;                                          // done: the rest is for a new message
+      }
+      const msg = { from: "phone", id: chatNewId(), text, time: Date.now() };
       let small = "";
       if (file) {
         $("chatState").textContent = "Sending the photo…";
@@ -2397,7 +2476,9 @@
       chatLog.push({ id: msg.id, who: "me", text, time: msg.time, img: small });
       chatThinking = true; chatSave();
       $("chatText").value = ""; $("chatText").style.height = "auto";
-    } catch (e) { toast(e.message || "Could not send"); }
+      // Answered here: the ping that asked the same thing ("Claude phone needs your answer") has nothing left to ask.
+      pingsLoad().then((l) => { const keep = l.filter((p) => !/^Claude phone needs/i.test(p.title)); if (keep.length !== l.length) return pingsSave(keep); }).catch(() => {});
+    } catch (e) { if (e) toast(e.message || "Could not send"); }
     chatSending = false; $("chatState").textContent = "";
     $("chatForm").querySelectorAll("button, textarea").forEach((b) => { b.disabled = false; });
     renderChat();
