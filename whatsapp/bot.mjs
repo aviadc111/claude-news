@@ -35,7 +35,7 @@ const CONFIG = {
   triggerWord: 'מחר',                             // a message with this word and a time = a training tomorrow
   reminderText: 'תזכורת להביא ציוד!',
   reminderMinutesBefore: 30,
-  pollMinutesAfter: 70,                           // an hour and ten minutes after the training starts
+  pollMinutesAfter: 60,                           // an hour after the training starts
   pollTitle: (date) => `ציוד בתאריך ${date}`,     // date as 24.11.2026
   pollOptions: ['כרית', 'שתי כריות', 'כרית ותיק'],
   sendTo: 'me',                                   // 'group': into the group. 'me': to your own chat (trial period, from 2026-11-24)
