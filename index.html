@@ -94,6 +94,9 @@
   #msgSpace { height: 0; }
   #msgClose { flex: 0 0 auto; }
   .sheet, .screen { overscroll-behavior: contain; }
+  /* Every screen is a hair taller than what it shows, even a nearly empty one: the phone only lets a
+     list be pulled past its top and bottom (the springy feel) when there is something to scroll. */
+  .screen::after { content: ""; position: absolute; left: 0; top: 0; width: 1px; height: calc(100% + 1px); pointer-events: none; visibility: hidden; }
   #msgSheet .from { font-size: 13px; color: var(--muted); font-weight: 700; }
   #msgSheet .from .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--pc, var(--accent)); display: inline-block; margin-right: 6px; vertical-align: middle; }
   #msgSheet h2 { font-size: 20px; line-height: 1.25; }
@@ -984,7 +987,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "7.2";
+  const APP_VERSION = "7.3";
   // no pinch or double-tap zoom in the app
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
   let lastTap = 0;
