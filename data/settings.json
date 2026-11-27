@@ -12,10 +12,11 @@
   "TTWO",
   "ASML",
   "PLTR",
-  "ESLT"
+  "ESLT",
+  "SKHY"
  ],
- "since": "5jYLuItx6zBq",
- "updated": "2026-11-27T18:40:08+00:00",
+ "since": "UGLzREjrt5qy",
+ "updated": "2026-11-27T18:42:16+00:00",
  "tickers": {
   "AAPL": "Apple",
   "MSFT": "Microsoft",
@@ -29,7 +30,8 @@
   "TTWO": "Take-Two Interactive Software",
   "ASML": "ASML Holding N.V. - New York Re",
   "PLTR": "Palantir Technologies (Class A)",
-  "ESLT": "Elbit Systems"
+  "ESLT": "Elbit Systems",
+  "SKHY": "SK hynix"
  },
  "known": [
   "NVDA",
@@ -47,10 +49,11 @@
   "TTWO",
   "ASML",
   "PLTR",
-  "ESLT"
+  "ESLT",
+  "SKHY"
  ],
  "rejected": {
-  "ANT": "2026-11-27T18:40:28+00:00"
+  "ANT": "2026-11-27T18:42:28+00:00"
  },
  "name_tried": [
   "ASML"
