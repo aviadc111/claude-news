@@ -870,7 +870,7 @@
   <div id="demoBuy"></div>
   <div id="demoHist"></div>
   <button id="demoReset" class="ghost" hidden>Start over</button>
-  <p class="note">Practice only: pretend money, real prices. A trade uses the latest price the app has, which can be some minutes old, and the real market has fees and price gaps that this demo leaves out. While you have a demo account, a message at 20:00 every day opens it. Saved on this phone only. This is not advice.</p>
+  <p class="note">Practice only: pretend money, real prices. A trade uses the latest price the app has, which can be some minutes old, and the real market has fees and price gaps that this demo leaves out. Saved on this phone only. This is not advice.</p>
 </section>
 
 <section id="detail" class="screen" hidden aria-label="Stock detail">
@@ -1076,7 +1076,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "8.4";
+  const APP_VERSION = "8.5";
   // A colour of the page's own palette (see :root), for what is drawn by hand: the charts, the tab
   // marks. Read from the page so they follow the dark or the light look; kept for a second at a time.
   let themeAt = 0, themeSeen = {};
@@ -3827,8 +3827,9 @@
     return { inStocks, value, gain, pct: gain / a.start * 100 };
   }
   const demoTotals = () => totalsOf(cur(), stockOf);
-  // The checker sends the daily 20:00 message only while a demo account exists, so the app
-  // tells it when one is opened or erased. Only that yes or no leaves the phone.
+  // The checker can send a daily demo message while a demo account exists (off since v8.5:
+  // no `demo_daily` in worker/config.json), so the app tells it when one is opened or erased.
+  // Only that yes or no leaves the phone.
   async function tellDemo() {
     const want = demo ? "1" : "0";
     if (ls.get("cn.demoTold", "0") === want || !C.topic) return;
