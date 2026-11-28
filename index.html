@@ -1110,7 +1110,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "9.0";
+  const APP_VERSION = "9.1";
   // A colour of the page's own palette (see :root), for what is drawn by hand: the charts, the tab
   // marks. Read from the page so they follow the dark or the light look; kept for a second at a time.
   let themeAt = 0, themeSeen = {};
@@ -2324,7 +2324,16 @@
     fetch(`${C.ntfy}/${C.topic}-commands`, { method: "POST", headers: { "Title": "chat-look" }, body: JSON.stringify({ type: "chat-look", time: Date.now(), answer: !!answer }) }).catch(() => {});
   }
   setInterval(chatLook, 4 * 60000);
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) chatLook(true); });      // back in the app: ask for the list again
+  // v9.1: and that it is no longer open (the screen was closed, or the app was left). While this screen is open
+  // a question of Claude's needs no notification: it is on the screen. Once it is closed, the computer sends one.
+  function chatGone() {
+    if (!C.topic) return;
+    const url = `${C.ntfy}/${C.topic}-commands`, body = JSON.stringify({ type: "chat-look", time: Date.now(), gone: true });
+    try { if (navigator.sendBeacon && navigator.sendBeacon(url, body)) return; } catch {}      // a beacon still goes out while the app is being left
+    fetch(url, { method: "POST", body, keepalive: true }).catch(() => {});
+  }
+  document.addEventListener("visibilitychange", () => { if ($("chat").hidden || $("chatForm").hidden) return; if (document.hidden) chatGone(); else chatLook(true); });      // back in the app: ask for the list again
+  window.addEventListener("pagehide", () => { if (!$("chat").hidden && !$("chatForm").hidden) chatGone(); });
   function chatStatSet(s, what, when) {                      // also: does the list end with "Working on that"?
     chatStat = { s, what: what || "", t: when || Date.now() };
     ls.set("cn.chatStat", JSON.stringify(chatStat));
@@ -2585,7 +2594,7 @@
     else chatStatSet(lastOne && lastOne.who !== "me" && (lastOne.ask || (lastOne.opts || []).length) && Date.now() - lastOne.time < 12 * 3600000 ? "ask" : "free", "", lastOne ? lastOne.time : 0);
     chatShow("ready"); renderChat(); chatListen(key);
   }
-  function closeChat() { chatStop(); chatEditStop(); closeScreen("chat"); $("chat").style.top = $("chat").style.height = $("chat").style.bottom = ""; $("chat").classList.remove("kb"); }
+  function closeChat() { if (!$("chatForm").hidden) chatGone(); chatStop(); chatEditStop(); closeScreen("chat"); $("chat").style.top = $("chat").style.height = $("chat").style.bottom = ""; $("chat").classList.remove("kb"); }
   $("chatBtn").onclick = openChat;
   $("chatBack").onclick = closeChat;
   // A photo is made smaller before it is sent: at most 1600 pixels a side, as a JPEG. Also a tiny copy to show in the chat.
@@ -2761,7 +2770,7 @@
   $("chat").addEventListener("click", (e) => { if (!e.target.closest("button, textarea, input, label, form")) $("chatText").blur(); });
   let chatFull = 0;                                          // the tallest free area seen: the screen without a keyboard
   if (window.visualViewport) { window.visualViewport.addEventListener("resize", chatLift); window.visualViewport.addEventListener("scroll", chatLift); }
-  setInterval(() => { if (chatStream && $("chat").hidden) chatStop(); }, 3000);     // the screen was closed some other way
+  setInterval(() => { if (chatStream && $("chat").hidden) { chatStop(); chatGone(); } }, 3000);     // the screen was closed some other way
 
   // ---- pull down to refresh ---------------------------------------------------------
   // At the top of the page, or of an open screen, pulling further down brings a circle that fills
