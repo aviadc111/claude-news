@@ -474,6 +474,15 @@
   .chartsbtn.chat { background: var(--info); color: #04222a; box-shadow: 0 4px 14px color-mix(in srgb, var(--info) 30%, transparent); }
   #chat { display: flex; flex-direction: column; overflow: hidden; padding-bottom: 0; }
   #chat .bar { flex: 0 0 auto; }
+  /* v8.7: under "Chat", what Claude is doing: working (the dot blinks), needs you (amber), or nothing (quiet) */
+  #chat .ctitle { flex: 1; min-width: 0; }
+  .cstat { display: flex; align-items: center; gap: 6px; margin-top: 2px; font-size: 12px; font-weight: 600; color: var(--muted); }
+  .cstat[hidden] { display: none; }
+  .cstat span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cstat i { flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .cstat.work { color: var(--info); }
+  .cstat.need { color: var(--accent); }
+  @media (prefers-reduced-motion: no-preference) { .cstat.work i { animation: statBlink 1.2s ease-in-out infinite; } @keyframes statBlink { 50% { opacity: .25; } } }
   /* The list. It is always a hair taller than its frame, so the phone lets it be pulled past its ends. */
   #chatList { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; display: flex; flex-direction: column; padding: 8px 2px 14px; }
   #chatList::after { content: ""; position: absolute; left: 0; top: 0; width: 1px; height: calc(100% + 1px); pointer-events: none; visibility: hidden; }
@@ -502,6 +511,8 @@
   }
   .cmsg.typing { display: flex; align-items: center; gap: 10px; padding: 11px 16px; color: var(--muted); font-size: 15px; }
   .cmsg.typing .dots span { width: 7px; height: 7px; }
+  .cmsg.typing.needs { display: block; color: var(--accent); font-weight: 600; }      /* it waits for you at the computer */
+  .cmsg.typing.needs small { display: block; margin-top: 3px; font-size: 13px; font-weight: 400; color: var(--muted); }
   /* Claude asks: the choices, as buttons under its message */
   .copts { align-self: flex-start; display: flex; flex-wrap: wrap; gap: 8px; max-width: 92%; margin-top: 10px; }
   .copt { border-radius: 999px; padding: 10px 18px; font-size: 15px; font-weight: 700; background: color-mix(in srgb, var(--info) 14%, transparent); color: var(--info); border: 1.5px solid color-mix(in srgb, var(--info) 60%, transparent); }
@@ -944,7 +955,7 @@
 <section id="chat" class="screen" hidden aria-label="Chat with Claude">
   <div class="bar">
     <button class="iconbtn" id="chatBack" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
-    <h2>Chat</h2>
+    <div class="ctitle"><h2>Chat</h2><div id="chatStat" class="cstat" role="status" hidden></div></div>
     <span id="chatState" class="sub"></span>
   </div>
   <div id="chatList"></div>
@@ -1091,7 +1102,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "8.6";
+  const APP_VERSION = "8.7";
   // A colour of the page's own palette (see :root), for what is drawn by hand: the charts, the tab
   // marks. Read from the page so they follow the dark or the light look; kept for a second at a time.
   let themeAt = 0, themeSeen = {};
@@ -2277,6 +2288,29 @@
   // chat on the computer arrives too (from "pc") and shows as yours, marked "on the computer".
   let chatLog = [], chatKey = null, chatStream = null, chatThinking = false, chatSending = false;
   try { const c = JSON.parse(ls.get("cn.chat", "[]")); if (Array.isArray(c)) chatLog = c.filter((m) => m && typeof m.id === "string"); } catch { chatLog = []; }
+  // What Claude is doing, for the line under "Chat" in the top bar (v8.7): "working"; "ask" (its last
+  // message asks you something); "ok" / "pcask" (a permission / a question waits for you at the
+  // computer, `what` says which); "free". The computer says it: in its answer to "is the chat open",
+  // in every reply of Claude's, and in messages from "status" (see phone_chat.send_state on the PC).
+  const CHAT_STAT = { working: ["Working on it", "work"], ask: ["Needs your answer", "need"], ok: ["Needs your OK on the computer", "need"],
+    pcask: ["Needs your answer on the computer", "need"], free: ["Not working on anything", ""] };
+  let chatStat = { s: "", what: "" };
+  let chatHello = { busy: false, at: 0 }, chatHelloAt = 0;   // what the computer last answered, and when (the message server's clock, seconds)
+  try { const c = JSON.parse(ls.get("cn.chatStat", "null")); if (c && CHAT_STAT[c.s]) chatStat = { s: c.s, what: String(c.what || "") }; } catch {}
+  function chatStatShow() {
+    const el = $("chatStat"), d = CHAT_STAT[chatStat.s];
+    el.hidden = !d || $("chatForm").hidden;
+    if (d) { el.className = "cstat " + d[1]; el.innerHTML = `<i></i><span>${d[0]}</span>`; }
+  }
+  function chatStatSet(s, what) {                            // also: does the list end with "Working on that"?
+    chatStat = { s, what: what || "" };
+    ls.set("cn.chatStat", JSON.stringify(chatStat));
+    chatThinking = s === "working" || s === "ok" || s === "pcask";
+    chatStatShow();
+  }
+  // A message that was sent before the computer's last answer is old news: it counts only when it agrees
+  // with that answer (the computer said "working": an older "it is free" is from an earlier turn).
+  const chatStatFits = (s, sent) => !(Number(sent) < chatHello.at) || (s === "free" || s === "ask") !== chatHello.busy;
   const chatSave = () => { chatLog = chatLog.slice(-150); try { ls.set("cn.chat", JSON.stringify(chatLog)); } catch { chatLog.forEach((m) => { delete m.img; }); ls.set("cn.chat", JSON.stringify(chatLog)); } };
   const bytesB64 = (u8) => { let t = ""; for (let i = 0; i < u8.length; i += 0x8000) t += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(t); };
   const b64Bytes = (t) => Uint8Array.from(atob(t), (c) => c.charCodeAt(0));
@@ -2303,6 +2337,7 @@
     try {
       const r = await fetch(`${C.ntfy}/${C.topic}-commands`, { method: "POST", headers: { "Title": "chat-hello" }, body: JSON.stringify({ type: "chat-hello", id, time: Date.now(), needKey: !!needKey }) });
       if (!r.ok) return "offline";
+      try { chatHelloAt = Number((await r.json()).time) || 0; } catch { chatHelloAt = 0; }
     } catch { return "offline"; }
     for (let i = 0; i < 8; i++) {
       await new Promise((r) => setTimeout(r, i ? 1100 : 700));
@@ -2324,6 +2359,7 @@
     const off = CHAT_OFF[state], list = $("chatList");
     $("chatForm").hidden = state !== "ready";
     $("chatState").textContent = "";
+    chatStatShow();
     if (state === "checking") { list.innerHTML = `<div class="chatwait" role="status"><strong>Waiting for your computer</strong>${DOTS}</div>`; return; }
     if (off) {                                               // a reddish message in the middle, and the way back
       list.innerHTML = `<div class="chatoff" role="alert"><div class="box"><strong>${esc(off[0])}</strong><p>${esc(off[1])}</p><button type="button">Back to home screen</button></div></div>`;
@@ -2344,7 +2380,9 @@
       const last = !next || (next.who === "me" ? "me" : "claude") !== mine || !!next.pc !== !!m.pc || !!m.edited || dayLabel(next.time) !== d || next.time - m.time > 5 * 60000;     // the time shows under the last of a run
       return head + `<div class="cmsg ${mine}${turn ? " turn" : ""}${m.img ? " pic" : ""}" data-mid="${esc(m.id)}">${m.img ? `<img src="${esc(m.img)}" alt="The photo you sent">${m.text ? `<span class="txt">${esc(m.text)}</span>` : ""}` : (m.note ? `<span class="ntag">Note</span>` : "") + esc(m.text || "")}</div>`
         + (last ? `<div class="ctime ${mine}">${noteClock(m.time)}${m.pc ? " · on the computer" : ""}${m.edited ? " · changed" : ""}</div>` : "");
-    }).join("") + (chatThinking ? `<div class="cmsg claude turn typing" role="status"><span>Working on that</span>${DOTS}</div>` : "");
+    }).join("") + (!chatThinking ? "" : chatStat.s === "ok" || chatStat.s === "pcask"
+      ? `<div class="cmsg claude turn typing needs" role="status">${chatStat.s === "ok" ? "Waiting for your OK on the computer" : "Waiting for your answer on the computer"}${chatStat.what ? `<small>${esc(chatStat.what)}</small>` : ""}</div>`
+      : `<div class="cmsg claude turn typing" role="status"><span>Working on that</span>${DOTS}</div>`);
     list.querySelectorAll(".cmsg.me[data-mid]").forEach((el) => onHold(el, () => openMsgMenu(el.dataset.mid, el)));      // press and hold your own message
     // Claude's last message asks something: its choices are buttons, and a press sends that choice as your message.
     const asked = chatLog[chatLog.length - 1];
@@ -2364,6 +2402,10 @@
       let m; try { m = JSON.parse(e.data); } catch { return; }
       if (m.id) ls.set("cn.chatSince", m.id);
       const d = await chatUnlock(key, m.message || "");
+      if (d && d.from === "status") {                         // not a message: what Claude is doing now
+        if (CHAT_STAT[d.state] && chatStatFits(d.state, m.time)) { chatStatSet(d.state, String(d.what || "").slice(0, 200)); renderChat(); }
+        return;
+      }
       const viaPing = !!d && d.from === "phone" && d.via === "ping";      // a choice you pressed in the ping "Claude phone needs your answer"
       if (!d || (d.from !== "claude" && d.from !== "pc" && !viaPing) || typeof d.id !== "string") return;
       const cut = Number(d.clearBefore) || 0;                // the PC asks to forget the chat from before this time (asked for once, sent with every message)
@@ -2374,8 +2416,11 @@
         const mine = pc || viaPing, entry = { id: d.id, who: mine ? "me" : "claude", pc, text: String(d.text || ""), time: Number(d.time) || Date.now() };
         const opts = !mine && Array.isArray(d.options) ? d.options.filter((o) => typeof o === "string" && o.trim()).slice(0, 4) : [];
         if (opts.length) entry.opts = opts;                    // Claude asks: the choices show as buttons under its message
+        if (!mine && (d.ask || opts.length)) entry.ask = true;
         chatLog.push(entry);
-        if (viaPing) chatThinking = true; else if (!pc) { chatThinking = false; haptic(); }
+        const now = viaPing ? "working" : entry.ask ? "ask" : "free";       // Claude's reply: it has finished, or it waits for your answer
+        if (!pc && chatStatFits(now, m.time)) chatStatSet(now);
+        if (!pc && !viaPing) haptic();
         changed = true;
       }
       if (changed) { chatSave(); renderChat(); }
@@ -2439,7 +2484,10 @@
     // The computer is on and the chat is there: start. While Claude is working (the PC said so, or the
     // last word here is the user's own and less than half an hour old) it says "Working on that".
     const lastOne = chatLog[chatLog.length - 1];
-    chatThinking = state === "busy" || (!!lastOne && lastOne.who === "me" && Date.now() - lastOne.time < 30 * 60000);
+    chatHello = { busy: state === "busy", at: chatHelloAt };
+    if (state === "busy") chatStatSet(chatStat.s === "ok" || chatStat.s === "pcask" ? chatStat.s : "working", chatStat.what);
+    else if (lastOne && lastOne.who === "me" && Date.now() - lastOne.time < 30 * 60000) chatStatSet("working");
+    else chatStatSet(lastOne && lastOne.who !== "me" && (lastOne.ask || (lastOne.opts || []).length) && Date.now() - lastOne.time < 12 * 3600000 ? "ask" : "free");
     chatShow("ready"); renderChat(); chatListen(key);
   }
   function closeChat() { chatStop(); chatEditStop(); closeScreen("chat"); $("chat").style.top = $("chat").style.height = $("chat").style.bottom = ""; $("chat").classList.remove("kb"); }
@@ -2519,7 +2567,7 @@
       if (edit) {
         await chatTell({ from: "phone", kind: "edit", id: chatNewId(), target: edit.id, was: edit.text || "", text, time: Date.now() });
         edit.text = text; edit.edited = true;
-        chatThinking = true; chatSave(); chatEditStop();
+        chatStatSet("working"); chatSave(); chatEditStop();
         $("chatText").value = ""; $("chatText").style.height = "auto";
         throw null;                                          // done: the rest is for a new message
       }
@@ -2536,7 +2584,7 @@
       const r = await fetch(`${C.ntfy}/${C.topic}-chat`, { method: "POST", headers: { "Title": "chat" }, body: await chatLock(key, msg) });
       if (!r.ok) throw new Error("Could not send (" + r.status + ")");
       chatLog.push({ id: msg.id, who: "me", text, time: msg.time, img: small });
-      chatThinking = true; chatSave();
+      chatStatSet("working"); chatSave();
       $("chatText").value = ""; $("chatText").style.height = "auto";
       // Answered here: the ping that asked the same thing ("Claude phone needs your answer") has nothing left to ask.
       pingsLoad().then((l) => { const keep = l.filter((p) => !/^Claude phone needs/i.test(p.title)); if (keep.length !== l.length) return pingsSave(keep); }).catch(() => {});
@@ -2582,7 +2630,7 @@
       const r = await fetch(`${C.ntfy}/${C.topic}-chat`, { method: "POST", headers: { "Title": "chat" }, body: await chatLock(key, msg) });
       if (!r.ok) throw new Error("not sent");
       chatLog.push({ id: msg.id, who: "me", note: true, text: n.text, time: msg.time });
-      chatThinking = true; chatSave();
+      chatHello = { busy: true, at: chatHelloAt }; chatStatSet("working"); chatSave();
       closeRowMenu();
       if (tabs.includes("Claude News")) goToTab("Claude News", false);       // closes the notes
       stateDel("__chat-ask"); closeChatNotes();
@@ -2606,41 +2654,15 @@
     chatFull = Math.max(chatFull, vv.height, document.documentElement.clientHeight || 0);
     const kb = chatFull - vv.height > 80;
     c.style.top = kb ? vv.offsetTop + "px" : ""; c.style.height = kb ? vv.height + "px" : ""; c.style.bottom = kb ? "auto" : "";
-    if (kb !== c.classList.contains("kb")) chatDiag("vv");
     c.classList.toggle("kb", kb);
     $("chatList").scrollTop = $("chatList").scrollHeight;
   }
   // While the writing box has the cursor the keyboard is up, whatever the phone reports about its screen.
-  $("chatText").addEventListener("focus", () => { $("chat").classList.add("typing"); chatDiag("focus"); setTimeout(() => { $("chatList").scrollTop = $("chatList").scrollHeight; }, 400); });
+  $("chatText").addEventListener("focus", () => { $("chat").classList.add("typing"); setTimeout(() => { $("chatList").scrollTop = $("chatList").scrollHeight; }, 400); });
   $("chatText").addEventListener("blur", () => { $("chat").classList.remove("typing"); });
   // A tap on the chat itself (the messages, the top bar), not on a button, puts the keyboard away.
   $("chat").addEventListener("click", (e) => { if (!e.target.closest("button, textarea, input, label, form")) $("chatText").blur(); });
-  // For now (v8.3): the phone tells the PC how the chat screen is laid out with the keyboard up (numbers only,
-  // locked like every chat message; the PC keeps them in chat_diag.log). The iPhone still showed a gap above the
-  // keyboard and lost the top bar, and it cannot be seen on the PC. Take this out once that is solved.
   let chatFull = 0;                                          // the tallest free area seen: the screen without a keyboard
-  let chatDiagAt = 0;
-  function chatDiag(why) {
-    if (Date.now() - chatDiagAt < 5000) return;
-    chatDiagAt = Date.now();
-    setTimeout(() => {
-      try {
-        const vv = window.visualViewport, c = $("chat");
-        if (c.hidden) return;
-        const r = (e) => { const b = e.getBoundingClientRect(); return [Math.round(b.top), Math.round(b.bottom)]; };
-        const probe = document.createElement("div");
-        probe.style.cssText = "position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)";
-        document.body.appendChild(probe);
-        const cs = getComputedStyle(probe), safe = [parseFloat(cs.paddingTop) || 0, parseFloat(cs.paddingBottom) || 0];
-        probe.remove();
-        chatTell({ from: "phone", kind: "diag", id: chatNewId(), time: Date.now(), why, v: APP_VERSION, ios: (ua.match(/OS (\d+[_.]\d+(?:[_.]\d+)?)/) || [])[1] || "", standalone,
-          ih: window.innerHeight, iw: window.innerWidth, sh: screen.height, ch: document.documentElement.clientHeight, sy: Math.round(window.scrollY), safe,
-          vv: vv ? [Math.round(vv.height), Math.round(vv.offsetTop), Math.round(vv.pageTop), vv.scale] : null,
-          chat: r(c), bar: r(c.querySelector(".bar")), list: r($("chatList")), form: r($("chatForm")), text: r($("chatText")),
-          kb: c.classList.contains("kb"), typing: c.classList.contains("typing"), style: c.getAttribute("style") || "", focus: document.activeElement === $("chatText") }).catch(() => {});
-      } catch {}
-    }, 1200);
-  }
   if (window.visualViewport) { window.visualViewport.addEventListener("resize", chatLift); window.visualViewport.addEventListener("scroll", chatLift); }
   setInterval(() => { if (chatStream && $("chat").hidden) chatStop(); }, 3000);     // the screen was closed some other way
 
