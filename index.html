@@ -326,6 +326,11 @@
   .noterow .acts { display: flex; gap: 0; justify-content: flex-end; flex-wrap: wrap; }
   .noterow .acts button { background: transparent; color: var(--muted); padding: 6px 9px; font-size: 13px; border-radius: 999px; display: inline-flex; gap: 5px; align-items: center; }
   .noterow .acts button svg { width: 15px; height: 15px; }
+  /* "Send to Claude" sits by itself at the left, in the note's own colour: the one button that takes a note off the phone */
+  .noterow .acts button[data-note-send] { margin-right: auto; padding-left: 0; color: color-mix(in srgb, var(--nc) 78%, var(--fg)); }
+  /* a chained note is narrower and has one button more (Unchain): the three at the right are words only, so all four stay on one line */
+  .ngroup.chain .noterow .acts button:not([data-note-send]) { padding: 6px 7px; font-size: 12.5px; white-space: nowrap; }
+  .ngroup.chain .noterow .acts button:not([data-note-send]) svg { display: none; }
   .noterow .acts button[data-armed] { background: color-mix(in srgb, var(--nc) 26%, transparent); color: var(--fg); }     /* pressed once: press again to do it */
   /* a chain: its notes share one colour and sit a little aside, and a curved chain at their side runs from each note to the next */
   .chain { padding-left: 24px; transition: padding-left .28s cubic-bezier(.2, .9, .3, 1); }
@@ -477,6 +482,7 @@
   .cmsg { max-width: 82%; margin-top: 3px; padding: 10px 14px; border-radius: 20px; font-size: 16px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; -webkit-user-select: text; user-select: text; }
   .cmsg.turn { margin-top: 14px; }                            /* the other one starts speaking */
   .cmsg.me { align-self: flex-end; background: var(--info); color: #04222a; border-bottom-right-radius: 7px; }
+  .cmsg .ntag { display: block; margin-bottom: 3px; font-size: 11px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; opacity: .62; }     /* a note that was sent with "Send to Claude" */
   .cmsg.claude { align-self: flex-start; background: var(--surface-2); color: var(--fg); border-bottom-left-radius: 7px; }
   .cmsg.pic { padding: 4px 4px 8px; }
   .cmsg.pic img { display: block; width: 100%; max-width: 220px; border-radius: 16px; }
@@ -559,6 +565,15 @@
   .popmenu .danger { color: #f87171; }
   .popmenu .ask { background: var(--surface-2); border-radius: 13px; padding: 12px 14px; font-size: 13px; line-height: 1.5; }
   .popmenu .yes { background: #7f1d1d; color: #fff; justify-content: center; }
+  /* "Send to Claude": the word Checking with three dots while the computer is asked, or the reddish reason it cannot be sent */
+  .popmenu .sendwait { text-align: center; padding: 26px 18px 24px; border-radius: 18px; background: var(--surface-2); }
+  .popmenu .sendwait strong { display: block; font-size: 20px; font-weight: 800; letter-spacing: -.01em; margin-bottom: 16px; }
+  .popmenu .sendwait .dots { color: var(--info); }
+  .popmenu .sendwait .dots span { width: 11px; height: 11px; }
+  .popmenu .sendoff { text-align: center; padding: 20px 18px; border-radius: 18px; background: color-mix(in srgb, var(--danger) 13%, var(--surface)); border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent); }
+  .popmenu .sendoff strong { display: block; font-size: 18px; font-weight: 800; letter-spacing: -.01em; color: var(--danger); margin-bottom: 6px; }
+  .popmenu .sendoff p { margin: 0; font-size: 14px; line-height: 1.5; }
+  .popmenu .no.ok { justify-content: center; }
   .popmenu .ask .q { display: block; margin-top: 4px; color: var(--muted); overflow-wrap: anywhere; }
   /* A ping, opened in full. One quiet box: a small coloured label says what it is, the one
      important line is large, the rest is small and grey, and the two buttons are its bottom. */
@@ -924,7 +939,7 @@
   </div>
   <p class="lead">Ideas for the app, things that are broken, things to ask Claude.</p>
   <div id="notesList"></div>
-  <p class="note">Your notes stay on this phone only. Nobody else can read them, Claude included.</p>
+  <p class="note">Your notes stay on this phone only. Claude reads a note only when you press "Send to Claude" on it.</p>
 </section>
 <section id="chat" class="screen" hidden aria-label="Chat with Claude">
   <div class="bar">
@@ -1076,7 +1091,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "8.5";
+  const APP_VERSION = "8.6";
   // A colour of the page's own palette (see :root), for what is drawn by hand: the charts, the tab
   // marks. Read from the page so they follow the dark or the light look; kept for a second at a time.
   let themeAt = 0, themeSeen = {};
@@ -1287,6 +1302,7 @@
     link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>',
     unlink: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m18.8 12.3 1.7-1.7a5 5 0 0 0-7-7.1l-1.8 1.7"/><path d="m5.2 11.7-1.7 1.7a5 5 0 0 0 7 7.1l1.8-1.7"/><path d="M8 2v3M2 8h3M16 19v3M19 16h3"/></svg>',
     bin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
+    send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3 10.5 13.5"/><path d="M21 3l-6.5 18-4-7.5-7.5-4L21 3z"/></svg>',
     pad: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6Z"/><path d="M15 3v4h4M9 12h7M9 16h5"/></svg>',
   };
   // Colours. Every note that is not in a chain has a colour of its own, and a chain has one colour
@@ -1355,7 +1371,7 @@
         <div class="noterow">
           <div class="when">${dayLabel(n.time)} · ${noteClock(n.time)}</div>
           <div class="text">${esc(n.text)}</div>
-          <div class="acts"><button type="button" data-note-chain>${NOTE_ICONS.link}Chain</button>${n.chain ? `<button type="button" data-note-unchain>${NOTE_ICONS.unlink}Unchain</button>` : ""}<button type="button" data-note-del>${NOTE_ICONS.bin}Delete</button></div>
+          <div class="acts"><button type="button" data-note-send>${NOTE_ICONS.send}Send to Claude</button><button type="button" data-note-chain>${NOTE_ICONS.link}Chain</button>${n.chain ? `<button type="button" data-note-unchain>${NOTE_ICONS.unlink}Unchain</button>` : ""}<button type="button" data-note-del>${NOTE_ICONS.bin}Delete</button></div>
         </div>
       </div>`;
     $("notesList").innerHTML = notes.length ? `<div class="notehead"><span>Your notes</span><span>hold a note to move it</span></div>` + noteGroups().map((g) =>
@@ -1366,6 +1382,7 @@
       const id = el.dataset.note;
       el.querySelector(".pickdot").onclick = () => tickNote(id);
       el.querySelector(".noterow").onclick = () => { if (chainPick) tickNote(id); };      // a note is not changed after it is written: a tap only ticks it while picking for a chain
+      el.querySelector("[data-note-send]").onclick = (e) => { e.stopPropagation(); sendNoteToClaude(id); };
       el.querySelector("[data-note-chain]").onclick = (e) => { e.stopPropagation(); startChain(id); };
       const un = el.querySelector("[data-note-unchain]");
       if (un) un.onclick = (e) => {                           // two presses: the first only asks, the second unchains
@@ -2325,7 +2342,7 @@
       const turn = d !== day || mine !== who;
       day = d; who = mine;
       const last = !next || (next.who === "me" ? "me" : "claude") !== mine || !!next.pc !== !!m.pc || !!m.edited || dayLabel(next.time) !== d || next.time - m.time > 5 * 60000;     // the time shows under the last of a run
-      return head + `<div class="cmsg ${mine}${turn ? " turn" : ""}${m.img ? " pic" : ""}" data-mid="${esc(m.id)}">${m.img ? `<img src="${esc(m.img)}" alt="The photo you sent">${m.text ? `<span class="txt">${esc(m.text)}</span>` : ""}` : esc(m.text || "")}</div>`
+      return head + `<div class="cmsg ${mine}${turn ? " turn" : ""}${m.img ? " pic" : ""}" data-mid="${esc(m.id)}">${m.img ? `<img src="${esc(m.img)}" alt="The photo you sent">${m.text ? `<span class="txt">${esc(m.text)}</span>` : ""}` : (m.note ? `<span class="ntag">Note</span>` : "") + esc(m.text || "")}</div>`
         + (last ? `<div class="ctime ${mine}">${noteClock(m.time)}${m.pc ? " · on the computer" : ""}${m.edited ? " · changed" : ""}</div>` : "");
     }).join("") + (chatThinking ? `<div class="cmsg claude turn typing" role="status"><span>Working on that</span>${DOTS}</div>` : "");
     list.querySelectorAll(".cmsg.me[data-mid]").forEach((el) => onHold(el, () => openMsgMenu(el.dataset.mid, el)));      // press and hold your own message
@@ -2528,6 +2545,50 @@
     chatSending = false; $("chatState").textContent = "";
     $("chatForm").querySelectorAll("button, textarea").forEach((b) => { b.disabled = false; });
     renderChat();
+  }
+  // ---- "Send to Claude", under every note ---------------------------------------------
+  // First "Checking" in the middle of the screen while the computer is asked whether the chat can be
+  // used (the same question the Chat button asks). If it can, the note goes to Claude on the computer as
+  // a chat message of kind "note", and the chat opens: there Claude says in a few sentences what it
+  // understood from the note and asks whether that is right, before it does anything. If it cannot,
+  // the reason shows in the same place, and nothing is sent.
+  let noteSending = false;
+  async function sendNoteToClaude(id) {
+    const n = notes.find((x) => x.id === id);
+    if (!n || noteSending || !$("pop").hidden) return;
+    noteSending = true;
+    const show = (html) => {
+      rowTicker = null;
+      $("popLift").innerHTML = ""; $("popLift").className = "poplift";
+      $("popMenu").className = "popmenu center"; $("popMenu").innerHTML = html;
+      $("pop").hidden = false;
+    };
+    const cannot = (state) => {
+      const off = CHAT_OFF[state] || ["The note was not sent", "Something went wrong on the way. Try again in a moment."];
+      show(`<div class="sendoff" role="alert"><strong>${esc(off[0])}</strong><p>${esc(off[1])}</p></div><button type="button" id="popNo" class="no ok">OK</button>`);
+      popSticky = false;
+      $("popNo").onclick = closeRowMenu;
+    };
+    show(`<div class="sendwait" role="status"><strong>Checking</strong>${DOTS}</div>`);
+    popSticky = true;                                        // a tap beside it does not close it: the answer comes in a few seconds
+    haptic();
+    try {
+      let key = await chatCrypto();
+      const state = await chatAskPc(!key);
+      if (state !== "ready" && state !== "busy") { cannot(state); return; }      // "busy": Claude is in the middle of something, the note waits for it
+      for (let i = 0; i < 14 && !key; i++) { await new Promise((r) => setTimeout(r, 1000)); key = await chatCrypto(); }     // the key is on its way in a push
+      if (!key) { cannot("nokey"); return; }
+      const msg = { from: "phone", kind: "note", id: chatNewId(), text: n.text, time: Date.now() };
+      const r = await fetch(`${C.ntfy}/${C.topic}-chat`, { method: "POST", headers: { "Title": "chat" }, body: await chatLock(key, msg) });
+      if (!r.ok) throw new Error("not sent");
+      chatLog.push({ id: msg.id, who: "me", note: true, text: n.text, time: msg.time });
+      chatThinking = true; chatSave();
+      closeRowMenu();
+      if (tabs.includes("Claude News")) goToTab("Claude News", false);       // closes the notes
+      stateDel("__chat-ask"); closeChatNotes();
+      openScreen("chat"); chatShow("ready"); renderChat(); chatListen(key);  // the computer was asked a moment ago: straight into the chat
+    } catch { cannot(""); }
+    finally { noteSending = false; }
   }
   $("chatForm").addEventListener("submit", (e) => { e.preventDefault(); chatSend($("chatText").value, null); });
   $("chatPhoto").addEventListener("change", () => { const f = $("chatPhoto").files && $("chatPhoto").files[0]; $("chatPhoto").value = ""; if (f) chatSend($("chatText").value, f); });
