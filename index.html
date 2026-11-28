@@ -471,7 +471,10 @@
 
   /* v4.3: the opening animation, the press-and-hold pop-up, pinned stocks in My demo */
   /* chat with Claude on the PC */
-  .chartsbtn.chat { background: var(--info); color: #04222a; box-shadow: 0 4px 14px color-mix(in srgb, var(--info) 30%, transparent); }
+  .chartsbtn.chat { position: relative; background: var(--info); color: #04222a; box-shadow: 0 4px 14px color-mix(in srgb, var(--info) 30%, transparent); }
+  /* v8.9: Claude in the Phone chat waits for your answer: a neon amber dot on the button */
+  .chartsbtn.chat.needs::after { content: ""; position: absolute; top: -4px; right: -4px; width: 13px; height: 13px; border-radius: 50%; background: var(--accent);
+    border: 2px solid var(--bg); box-shadow: 0 0 9px var(--accent); }
   #chat { display: flex; flex-direction: column; overflow: hidden; padding-bottom: 0; }
   #chat .bar { flex: 0 0 auto; align-items: flex-start; }      /* the back button stays next to "Chat" when lines are added under it */
   /* v8.7: under "Chat", what Claude is doing: working (the dot blinks), needs you (amber), or nothing (quiet) */
@@ -1103,7 +1106,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "8.8";
+  const APP_VERSION = "8.9";
   // A colour of the page's own palette (see :root), for what is drawn by hand: the charts, the tab
   // marks. Read from the page so they follow the dark or the light look; kept for a second at a time.
   let themeAt = 0, themeSeen = {};
@@ -2297,7 +2300,7 @@
     pcask: ["Needs your answer on the computer", "need"], free: ["Not working on anything", ""] };
   let chatStat = { s: "", what: "" };
   let chatHello = { busy: false, at: 0 }, chatHelloAt = 0;   // what the computer last answered, and when (the message server's clock, seconds)
-  try { const c = JSON.parse(ls.get("cn.chatStat", "null")); if (c && CHAT_STAT[c.s]) chatStat = { s: c.s, what: String(c.what || "") }; } catch {}
+  try { const c = JSON.parse(ls.get("cn.chatStat", "null")); if (c && CHAT_STAT[c.s]) chatStat = { s: c.s, what: String(c.what || ""), t: Number(c.t) || 0 }; } catch {}
   // v8.8: the other Claude chats on the computer that are working or need something, one line each under
   // this chat's own line: [{ n: the chat's name, s: "working" | "ask" | "ok" | "pcask", w: what it waits for }].
   // The computer sends the list when this screen opens and whenever it changes while the screen is open
@@ -2318,12 +2321,47 @@
   }
   setInterval(chatLook, 4 * 60000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) chatLook(true); });      // back in the app: ask for the list again
-  function chatStatSet(s, what) {                            // also: does the list end with "Working on that"?
-    chatStat = { s, what: what || "" };
+  function chatStatSet(s, what, when) {                      // also: does the list end with "Working on that"?
+    chatStat = { s, what: what || "", t: when || Date.now() };
     ls.set("cn.chatStat", JSON.stringify(chatStat));
     chatThinking = s === "working" || s === "ok" || s === "pcask";
-    chatStatShow();
+    chatStatShow(); chatDot();
   }
+  // v8.9: an amber dot on the Chat button while Claude in the Phone chat waits for your answer (asked for on
+  // 28 Nov 2026, in place of the notification "Claude phone needs your answer"). A question older than 12 hours
+  // no longer counts.
+  function chatDot() { $("chatBtn").classList.toggle("needs", chatStat.s === "ask" && Date.now() - (chatStat.t || 0) < 12 * 3600000); }
+  // The chat screen is closed, so nothing listens to the chat. To know that Claude asked meanwhile, the app
+  // reads what came on the chat's channel since the chat was last open (when the app starts, when it comes to
+  // the front, and once a minute while it is open) and goes by the last thing there. Nothing is marked as
+  // read: the chat screen takes the same messages when it opens.
+  let chatPeeking = false;
+  async function chatPeek() {
+    if (chatPeeking || !$("chat").hidden || document.hidden || !C.topic) return;
+    chatPeeking = true;
+    try {
+      const key = await chatCrypto();
+      if (!key) return;
+      const text = await (await fetch(`${C.ntfy}/${C.topic}-chat/json?poll=1&since=${encodeURIComponent(ls.get("cn.chatSince", "") || "12h")}`, { cache: "no-store" })).text();
+      let now = "", when = 0;
+      for (const line of text.split("\n")) {
+        let m; try { m = JSON.parse(line); } catch { continue; }
+        if (!m || m.event !== "message") continue;
+        const d = await chatUnlock(key, m.message || "");
+        if (!d) continue;
+        if (d.from === "claude" && typeof d.id === "string") now = d.ask || (Array.isArray(d.options) && d.options.length) ? "ask" : "free";
+        else if (d.from === "phone") now = "working";         // you wrote after it
+        else if (d.from === "status" && CHAT_STAT[d.state]) now = d.state;
+        else continue;
+        when = Number(m.time) * 1000 || Date.now();
+      }
+      if (now && $("chat").hidden) chatStatSet(now, "", when);
+      else chatDot();
+    } catch {} finally { chatPeeking = false; }
+  }
+  setInterval(chatPeek, 60000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) chatPeek(); });
+  setTimeout(chatPeek, 1500);
   // A message that was sent before the computer's last answer is old news: it counts only when it agrees
   // with that answer (the computer said "working": an older "it is free" is from an earlier turn).
   const chatStatFits = (s, sent) => !(Number(sent) < chatHello.at) || (s === "free" || s === "ask") !== chatHello.busy;
@@ -2509,9 +2547,9 @@
     // last word here is the user's own and less than half an hour old) it says "Working on that".
     const lastOne = chatLog[chatLog.length - 1];
     chatHello = { busy: state === "busy", at: chatHelloAt };
-    if (state === "busy") chatStatSet(chatStat.s === "ok" || chatStat.s === "pcask" ? chatStat.s : "working", chatStat.what);
+    if (state === "busy") chatStatSet(chatStat.s === "ok" || chatStat.s === "pcask" ? chatStat.s : "working", chatStat.what);      // (a question older than 12 hours no longer counts)
     else if (lastOne && lastOne.who === "me" && Date.now() - lastOne.time < 30 * 60000) chatStatSet("working");
-    else chatStatSet(lastOne && lastOne.who !== "me" && (lastOne.ask || (lastOne.opts || []).length) && Date.now() - lastOne.time < 12 * 3600000 ? "ask" : "free");
+    else chatStatSet(lastOne && lastOne.who !== "me" && (lastOne.ask || (lastOne.opts || []).length) && Date.now() - lastOne.time < 12 * 3600000 ? "ask" : "free", "", lastOne ? lastOne.time : 0);
     chatShow("ready"); renderChat(); chatListen(key);
   }
   function closeChat() { chatStop(); chatEditStop(); closeScreen("chat"); $("chat").style.top = $("chat").style.height = $("chat").style.bottom = ""; $("chat").classList.remove("kb"); }
