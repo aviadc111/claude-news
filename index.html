@@ -495,6 +495,10 @@
   .cmsg { max-width: 82%; margin-top: 3px; padding: 10px 14px; border-radius: 20px; font-size: 16px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; -webkit-user-select: text; user-select: text; }
   .cmsg.turn { margin-top: 14px; }                            /* the other one starts speaking */
   .cmsg.me { align-self: flex-end; background: var(--info); color: #04222a; border-bottom-right-radius: 7px; }
+  /* v9.0: a note that was sent here left the notes; "Send back" under it returns it */
+  .cmsg .nback { display: flex; align-items: center; gap: 6px; margin-top: 9px; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 700;
+    color: inherit; background: color-mix(in srgb, currentColor 14%, transparent); }
+  .cmsg .nback svg { width: 15px; height: 15px; }
   .cmsg .ntag { display: block; margin-bottom: 3px; font-size: 11px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; opacity: .62; }     /* a note that was sent with "Send to Claude" */
   .cmsg.claude { align-self: flex-start; background: var(--surface-2); color: var(--fg); border-bottom-left-radius: 7px; }
   .cmsg.pic { padding: 4px 4px 8px; }
@@ -954,7 +958,7 @@
   </div>
   <p class="lead">Ideas for the app, things that are broken, things to ask Claude.</p>
   <div id="notesList"></div>
-  <p class="note">Your notes stay on this phone only. Claude reads a note only when you press "Send to Claude" on it.</p>
+  <p class="note">Your notes stay on this phone only. Claude reads a note only when you press "Send to Claude" on it. That note then moves to the chat, where "Send back" returns it.</p>
 </section>
 <section id="chat" class="screen" hidden aria-label="Chat with Claude">
   <div class="bar">
@@ -1106,7 +1110,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "8.9";
+  const APP_VERSION = "9.0";
   // A colour of the page's own palette (see :root), for what is drawn by hand: the charts, the tab
   // marks. Read from the page so they follow the dark or the light look; kept for a second at a time.
   let themeAt = 0, themeSeen = {};
@@ -2422,9 +2426,37 @@
     }
     list.innerHTML = "";
   }
+  // v9.0: what you wrote here deletes itself 24 hours after you sent it (asked for from the phone, 28 Nov 2026).
+  // Only on this phone, and only your own messages; Claude's stay. A note that was sent here goes with it.
+  function chatPrune() {
+    const cut = Date.now() - 24 * 3600000, had = chatLog.length;
+    chatLog = chatLog.filter((m) => !(m.who === "me" && m.time < cut));
+    if (chatLog.length !== had) chatSave();
+    return chatLog.length !== had;
+  }
+  chatPrune();
+  setInterval(() => { if (chatPrune() && !$("chat").hidden) renderChat(); }, 60000);
+  // v9.0: "Send to Claude" moves the note out of the notes and into the chat. "Send back" under it puts it
+  // back among the notes as it was (its place, colour and chain) and takes the message out of the chat; Claude
+  // is told that the message was taken back (kind "delete"), so that it stops working on it.
+  const BACK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>';
+  async function noteBack(id) {
+    const m = chatLog.find((x) => x.id === id);
+    if (!m || !m.back || chatSending) return;
+    if (!notes.some((x) => x.id === m.back.id)) {
+      notes.push(Object.assign({}, m.back, { text: m.text || m.back.text }));
+      if (m.back.chain) (m.mates || []).forEach((id) => { const x = notes.find((y) => y.id === id); if (x && !x.chain) { x.chain = m.back.chain; x.hue = m.back.hue; x.tone = m.back.tone; } });     // a chain of two fell apart when it left: joined again
+    }
+    saveNotes(); try { renderNotes(); } catch {}
+    if (chatEdit && chatEdit.id === id) { chatEditStop(); $("chatText").value = ""; }
+    chatLog = chatLog.filter((x) => x.id !== id); chatSave(); renderChat(); haptic();
+    try { await chatTell({ from: "phone", kind: "delete", id: chatNewId(), target: id, was: m.text || "", time: Date.now() }); toast("The note is back in your notes"); }
+    catch { toast("The note is back. Claude could not be told."); }
+  }
   function renderChat() {
     const list = $("chatList");
     if (list.querySelector(".chatoff, .chatwait")) return;
+    chatPrune();
     let day = "", who = "";
     list.innerHTML = (chatLog.length ? "" : `<div class="chint">Write to Claude, or send a photo.</div>`) + chatLog.map((m, i) => {
       const d = dayLabel(m.time), mine = m.who === "me" ? "me" : "claude", next = chatLog[i + 1];
@@ -2432,12 +2464,13 @@
       const turn = d !== day || mine !== who;
       day = d; who = mine;
       const last = !next || (next.who === "me" ? "me" : "claude") !== mine || !!next.pc !== !!m.pc || !!m.edited || dayLabel(next.time) !== d || next.time - m.time > 5 * 60000;     // the time shows under the last of a run
-      return head + `<div class="cmsg ${mine}${turn ? " turn" : ""}${m.img ? " pic" : ""}" data-mid="${esc(m.id)}">${m.img ? `<img src="${esc(m.img)}" alt="The photo you sent">${m.text ? `<span class="txt">${esc(m.text)}</span>` : ""}` : (m.note ? `<span class="ntag">Note</span>` : "") + esc(m.text || "")}</div>`
+      return head + `<div class="cmsg ${mine}${turn ? " turn" : ""}${m.img ? " pic" : ""}" data-mid="${esc(m.id)}">${m.img ? `<img src="${esc(m.img)}" alt="The photo you sent">${m.text ? `<span class="txt">${esc(m.text)}</span>` : ""}` : (m.note ? `<span class="ntag">Note</span>` : "") + esc(m.text || "") + (m.back ? `<button type="button" class="nback" data-nback="${esc(m.id)}">${BACK_ICON}Send back</button>` : "")}</div>`
         + (last ? `<div class="ctime ${mine}">${noteClock(m.time)}${m.pc ? " · on the computer" : ""}${m.edited ? " · changed" : ""}</div>` : "");
     }).join("") + (!chatThinking ? "" : chatStat.s === "ok" || chatStat.s === "pcask"
       ? `<div class="cmsg claude turn typing needs" role="status">${chatStat.s === "ok" ? "Waiting for your OK on the computer" : "Waiting for your answer on the computer"}${chatStat.what ? `<small>${esc(chatStat.what)}</small>` : ""}</div>`
       : `<div class="cmsg claude turn typing" role="status"><span>Working on that</span>${DOTS}</div>`);
     list.querySelectorAll(".cmsg.me[data-mid]").forEach((el) => onHold(el, () => openMsgMenu(el.dataset.mid, el)));      // press and hold your own message
+    list.querySelectorAll("[data-nback]").forEach((b) => { b.onclick = (e) => { e.stopPropagation(); noteBack(b.dataset.nback); }; });
     // Claude's last message asks something: its choices are buttons, and a press sends that choice as your message.
     const asked = chatLog[chatLog.length - 1];
     if (!chatThinking && asked && asked.who !== "me" && Array.isArray(asked.opts) && asked.opts.length && Date.now() - asked.time < 12 * 3600000) {
@@ -2691,7 +2724,9 @@
       const msg = { from: "phone", kind: "note", id: chatNewId(), text: n.text, time: Date.now() };
       const r = await fetch(`${C.ntfy}/${C.topic}-chat`, { method: "POST", headers: { "Title": "chat" }, body: await chatLock(key, msg) });
       if (!r.ok) throw new Error("not sent");
-      chatLog.push({ id: msg.id, who: "me", note: true, text: n.text, time: msg.time });
+      chatLog.push({ id: msg.id, who: "me", note: true, text: n.text, time: msg.time, back: Object.assign({}, n),       // `back`: the note itself, for "Send back"
+        mates: n.chain ? notes.filter((x) => x.chain === n.chain && x.id !== n.id).map((x) => x.id) : [] });               // and the notes it was chained to
+      notes = notes.filter((x) => x.id !== n.id); saveNotes(); renderNotes();                                          // it moved to the chat
       chatHello = { busy: true, at: chatHelloAt }; chatOthers = []; chatStatSet("working"); chatSave();
       closeRowMenu();
       if (tabs.includes("Claude News")) goToTab("Claude News", false);       // closes the notes
