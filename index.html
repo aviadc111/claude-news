@@ -473,7 +473,7 @@
   /* chat with Claude on the PC */
   .chartsbtn.chat { background: var(--info); color: #04222a; box-shadow: 0 4px 14px color-mix(in srgb, var(--info) 30%, transparent); }
   #chat { display: flex; flex-direction: column; overflow: hidden; padding-bottom: 0; }
-  #chat .bar { flex: 0 0 auto; }
+  #chat .bar { flex: 0 0 auto; align-items: flex-start; }      /* the back button stays next to "Chat" when lines are added under it */
   /* v8.7: under "Chat", what Claude is doing: working (the dot blinks), needs you (amber), or nothing (quiet) */
   #chat .ctitle { flex: 1; min-width: 0; }
   .cstat { display: flex; align-items: center; gap: 6px; margin-top: 2px; font-size: 12px; font-weight: 600; color: var(--muted); }
@@ -482,6 +482,7 @@
   .cstat i { flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
   .cstat.work { color: var(--info); }
   .cstat.need { color: var(--accent); }
+  .cothers[hidden] { display: none; }                         /* v8.8: one line for every other Claude chat that is working or needs you */
   @media (prefers-reduced-motion: no-preference) { .cstat.work i { animation: statBlink 1.2s ease-in-out infinite; } @keyframes statBlink { 50% { opacity: .25; } } }
   /* The list. It is always a hair taller than its frame, so the phone lets it be pulled past its ends. */
   #chatList { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; display: flex; flex-direction: column; padding: 8px 2px 14px; }
@@ -955,7 +956,7 @@
 <section id="chat" class="screen" hidden aria-label="Chat with Claude">
   <div class="bar">
     <button class="iconbtn" id="chatBack" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
-    <div class="ctitle"><h2>Chat</h2><div id="chatStat" class="cstat" role="status" hidden></div></div>
+    <div class="ctitle"><h2>Chat</h2><div id="chatStat" class="cstat" role="status" hidden></div><div id="chatOthers" class="cothers" role="status" hidden></div></div>
     <span id="chatState" class="sub"></span>
   </div>
   <div id="chatList"></div>
@@ -1102,7 +1103,7 @@
   const ua = navigator.userAgent;
   const isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const APP_VERSION = "8.7";
+  const APP_VERSION = "8.8";
   // A colour of the page's own palette (see :root), for what is drawn by hand: the charts, the tab
   // marks. Read from the page so they follow the dark or the light look; kept for a second at a time.
   let themeAt = 0, themeSeen = {};
@@ -2297,11 +2298,26 @@
   let chatStat = { s: "", what: "" };
   let chatHello = { busy: false, at: 0 }, chatHelloAt = 0;   // what the computer last answered, and when (the message server's clock, seconds)
   try { const c = JSON.parse(ls.get("cn.chatStat", "null")); if (c && CHAT_STAT[c.s]) chatStat = { s: c.s, what: String(c.what || "") }; } catch {}
+  // v8.8: the other Claude chats on the computer that are working or need something, one line each under
+  // this chat's own line: [{ n: the chat's name, s: "working" | "ask" | "ok" | "pcask", w: what it waits for }].
+  // The computer sends the list when this screen opens and whenever it changes while the screen is open
+  // (a message from "status" of kind "chats", see chats_status.py on the PC).
+  let chatOthers = [];
+  const OTHER_SAYS = { working: "working", ask: "needs your answer", ok: "needs your OK on the computer", pcask: "needs your answer on the computer" };
   function chatStatShow() {
-    const el = $("chatStat"), d = CHAT_STAT[chatStat.s];
-    el.hidden = !d || $("chatForm").hidden;
-    if (d) { el.className = "cstat " + d[1]; el.innerHTML = `<i></i><span>${d[0]}</span>`; }
+    const el = $("chatStat"), d = CHAT_STAT[chatStat.s], off = $("chatForm").hidden, box = $("chatOthers");
+    el.hidden = !d || off;
+    if (d) { el.className = "cstat " + d[1]; el.innerHTML = `<i></i><span>${chatOthers.length ? "This chat: " + d[0].charAt(0).toLowerCase() + d[0].slice(1) : d[0]}</span>`; }
+    box.hidden = off || !chatOthers.length;
+    box.innerHTML = chatOthers.slice(0, 3).map((c) => `<div class="cstat ${c.s === "working" ? "work" : "need"}"><i></i><span>${esc(c.n)}: ${OTHER_SAYS[c.s]}${c.w ? " · " + esc(c.w) : ""}</span></div>`).join("")
+      + (chatOthers.length > 3 ? `<div class="cstat"><span>and ${chatOthers.length - 3} more</span></div>` : "");
   }
+  function chatLook(answer) {                                // tells the computer that this screen is open (so it keeps the lines fresh)
+    if ($("chat").hidden || $("chatForm").hidden || document.hidden || !C.topic) return;
+    fetch(`${C.ntfy}/${C.topic}-commands`, { method: "POST", headers: { "Title": "chat-look" }, body: JSON.stringify({ type: "chat-look", time: Date.now(), answer: !!answer }) }).catch(() => {});
+  }
+  setInterval(chatLook, 4 * 60000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) chatLook(true); });      // back in the app: ask for the list again
   function chatStatSet(s, what) {                            // also: does the list end with "Working on that"?
     chatStat = { s, what: what || "" };
     ls.set("cn.chatStat", JSON.stringify(chatStat));
@@ -2402,6 +2418,13 @@
       let m; try { m = JSON.parse(e.data); } catch { return; }
       if (m.id) ls.set("cn.chatSince", m.id);
       const d = await chatUnlock(key, m.message || "");
+      if (d && d.from === "status" && d.kind === "chats") {   // not a message: what the other Claude chats on the computer are doing
+        if (Array.isArray(d.chats) && !(Number(m.time) < chatHello.at)) {      // (a list from before this screen was opened is old news)
+          chatOthers = d.chats.filter((c) => c && typeof c.n === "string" && OTHER_SAYS[c.s]).slice(0, 6).map((c) => ({ n: c.n.slice(0, 40), s: c.s, w: String(c.w || "").slice(0, 120) }));
+          chatStatShow();
+        }
+        return;
+      }
       if (d && d.from === "status") {                         // not a message: what Claude is doing now
         if (CHAT_STAT[d.state] && chatStatFits(d.state, m.time)) { chatStatSet(d.state, String(d.what || "").slice(0, 200)); renderChat(); }
         return;
@@ -2473,6 +2496,7 @@
   async function openChat() {
     stateDel("__chat-ask"); closeChatNotes();                // in the chat: its notification has done its work
     openScreen("chat");
+    chatOthers = [];                                         // the computer sends the list afresh
     chatShow("checking");
     let key = await chatCrypto();
     const state = await chatAskPc(!key);
@@ -2630,7 +2654,7 @@
       const r = await fetch(`${C.ntfy}/${C.topic}-chat`, { method: "POST", headers: { "Title": "chat" }, body: await chatLock(key, msg) });
       if (!r.ok) throw new Error("not sent");
       chatLog.push({ id: msg.id, who: "me", note: true, text: n.text, time: msg.time });
-      chatHello = { busy: true, at: chatHelloAt }; chatStatSet("working"); chatSave();
+      chatHello = { busy: true, at: chatHelloAt }; chatOthers = []; chatStatSet("working"); chatSave();
       closeRowMenu();
       if (tabs.includes("Claude News")) goToTab("Claude News", false);       // closes the notes
       stateDel("__chat-ask"); closeChatNotes();
